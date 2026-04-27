@@ -29,9 +29,10 @@ locals {
   # GitHub Actions integration ID (discovered manually)
   gh_actions_integration_id = 15368
 
-  check_workflows_job_name   = "workflows"
-  check_infra_job_name       = "infra"
-  check_console_web_job_name = "console-web"
+  check_workflows_job_name    = "workflows"
+  check_infra_job_name        = "infra"
+  check_console_web_job_name  = "console-web"
+  check_core_service_job_name = "core-service"
 }
 
 # Branch protection ruleset for the default branch
@@ -73,6 +74,11 @@ resource "github_repository_ruleset" "default_branch" {
 
       required_check {
         context        = "${local.check_console_web_job_name} / Check web app"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_core_service_job_name} / Check service"
         integration_id = local.gh_actions_integration_id
       }
 

@@ -18,3 +18,7 @@ jobs:
   check-console-web:
     name: console-web
     uses: ./.github/workflows/check-console-web.yml
+
+  check-core-service:
+    name: core-service
+    uses: ./.github/workflows/check-core-service.yml

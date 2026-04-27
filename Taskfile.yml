@@ -5,6 +5,14 @@ includes:
     taskfile: infra/Taskfile.yml
     dir: infra
 
+  proto:
+    taskfile: proto/Taskfile.yml
+    dir: proto
+
+  core-service:code:
+    taskfile: services/core/code/Taskfile.yml
+    dir: services/core/code
+
   console-web:code:
     taskfile: apps/console-web/code/frontend/Taskfile.yml
     dir: apps/console-web/code/frontend
@@ -37,6 +45,8 @@ tasks:
     deps:
       - github-ci:lint
       - infra:checkFormatting
+      - proto:checkFormatting
+      - core-service:code:checkFormatting
       - console-web:code:checkFormatting
 
   all:fixFormatting:
@@ -44,6 +54,8 @@ tasks:
     deps:
       - github-ci:fixLint
       - infra:fixFormatting
+      - proto:fixFormatting
+      - core-service:code:fixFormatting
       - console-web:code:fixFormatting
 
   all:lint:
@@ -51,9 +63,12 @@ tasks:
     deps:
       - github-ci:lint
       - infra:lint
+      - proto:lint
+      - core-service:code:lint
       - console-web:code:lint
 
   all:analyze:
     desc: Analyze the entire codebase
     deps:
+      - core-service:code:compile
       - console-web:code:typecheck
