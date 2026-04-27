@@ -1,0 +1,44 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install dependencies
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+    cmds:
+      # Using `npm ci` ensures a clean install based on the lockfile
+      - npm ci
+
+  checkFormatting:
+    desc: Check package formatting
+    deps: [install]
+    cmds:
+      - npx prettier --check .
+
+  fixFormatting:
+    desc: Fix package formatting
+    deps: [install]
+    cmds:
+      - npx prettier --write .
+
+  lint:
+    desc: Lint the package
+    deps: [install]
+    cmds:
+      - npx eslint .
+
+  typecheck:
+    desc: Type check the package
+    deps: [install]
+    cmds:
+      - npx tsc -p tsconfig.json --noEmit
+
+  dev:
+    desc: Start dev server
+    deps: [install]
+    cmds:
+      - npx vite
+    interactive: true

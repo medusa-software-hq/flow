@@ -14,3 +14,7 @@ jobs:
   check-infra:
     name: infra
     uses: ./.github/workflows/check-infra.yml
+
+  check-console-web:
+    name: console-web
+    uses: ./.github/workflows/check-console-web.yml
