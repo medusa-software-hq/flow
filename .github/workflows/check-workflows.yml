@@ -1,0 +1,24 @@
+name: Check GitHub workflows
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NO_COLOR: 1
+
+jobs:
+  lint:
+    name: Lint GitHub workflows
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Setup github-ci
+        uses: ./.github/actions/setup-github-ci
+
+      - name: Lint GitHub workflows
+        run: github-ci lint

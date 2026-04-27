@@ -1,0 +1,11 @@
+name: Setup github-ci
+description: Install github-ci and add it to PATH
+
+runs:
+  using: composite
+  steps:
+    - name: Install github-ci
+      shell: bash
+      run: |
+        go install github.com/reugn/github-ci/cmd/github-ci@latest
+        echo "$HOME/go/bin" >> "$GITHUB_PATH"

@@ -1,0 +1,16 @@
+name: Check PR
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-workflows:
+    name: workflows
+    uses: ./.github/workflows/check-workflows.yml
+
+  check-infra:
+    name: infra
+    uses: ./.github/workflows/check-infra.yml
