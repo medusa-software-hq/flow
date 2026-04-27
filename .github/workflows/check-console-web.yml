@@ -1,0 +1,37 @@
+name: Check console-web
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24
+  NO_COLOR: 1
+
+  APP_FRONTEND_PATH: apps/console-web/code/frontend
+
+jobs:
+  check-app:
+    name: Check web app
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: actions/setup-node@v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_FRONTEND_PATH }}/package-lock.json
+
+      - uses: go-task/setup-task@v2
+
+      - name: Check formatting and lint
+        run: task checkFormatting lint
+        working-directory: ${{ env.APP_FRONTEND_PATH }}
+
+      - name: Type-check the sources
+        run: task typecheck
+        working-directory: ${{ env.APP_FRONTEND_PATH }}
