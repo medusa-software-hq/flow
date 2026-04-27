@@ -1,0 +1,47 @@
+version: "3"
+
+includes:
+  infra:
+    taskfile: infra/Taskfile.yml
+    dir: infra
+
+# noinspection YAMLSchemaValidation
+.workflowSources: &workflowSources
+  - ".github/workflows/*.yml"
+  - ".github/actions/*/action.yml"
+
+tasks:
+  github-ci:lint:
+    desc: Lint GitHub workflows
+    sources: *workflowSources
+    cmds:
+      - github-ci lint
+
+  github-ci:fixLint:
+    desc: Fix lint issues in GitHub workflows
+    sources: *workflowSources
+    cmds:
+      - github-ci lint --fix
+
+  github-ci:upgrade:
+    desc: Upgrade GitHub workflow actions to the latest versions
+    cmds:
+      - github-ci upgrade
+
+  all:checkFormatting:
+    desc: Check formatting for the entire codebase
+    deps:
+      - github-ci:lint
+      - infra:checkFormatting
+
+  all:fixFormatting:
+    desc: Fix formatting for the entire codebase
+    deps:
+      - github-ci:fixLint
+      - infra:fixFormatting
+
+  all:lint:
+    desc: Lint the entire codebase
+    deps:
+      - github-ci:lint
+      - infra:lint

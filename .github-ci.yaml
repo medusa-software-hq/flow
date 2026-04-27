@@ -1,0 +1,8 @@
+linters:
+  default: all
+  disable:
+    - versions # Disabling `versions` linter is necessary when `format: tag` is used
+
+upgrade:
+  actions: {}
+  format: tag # Prefer tags (e.g. actions/checkout@v6) to hashes
