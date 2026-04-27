@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package medusa.flow.core_service.v1;
+
+option java_multiple_files = true;
+option java_package = "software.medusa.grpc.flow.core_service.v1";
+
+service CoreService {
+  rpc Greet(GreetRequest) returns (GreetResponse);
+}
+
+message GreetRequest {
+  string name = 1;
+}
+
+message GreetResponse {
+  string greeting = 1;
+}

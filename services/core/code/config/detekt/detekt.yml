@@ -1,0 +1,10 @@
+  naming:
+    PackageNaming:
+      active: true
+      # Allow _ in package names
+      packagePattern: '[a-z_]+(\.[a-z_][A-Za-z0-9_]*)*'
+
+    TopLevelPropertyNaming:
+      active: true
+      # Enforce camelCase for top-level properties
+      constantPattern: '[a-z][A-Za-z0-9]*'
