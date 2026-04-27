@@ -28,6 +28,10 @@ jobs:
 
       - uses: go-task/setup-task@v2
 
+      - uses: bufbuild/buf-action@v1.4.0
+        with:
+          setup_only: true
+
       - name: Check formatting and lint
         run: task checkFormatting lint
         working-directory: ${{ env.APP_FRONTEND_PATH }}

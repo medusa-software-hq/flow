@@ -3,6 +3,7 @@ version: '3'
 tasks:
   install:
     desc: Install dependencies
+    run: once
     sources:
       - package.json
       - package-lock.json
@@ -12,9 +13,19 @@ tasks:
       # Using `npm ci` ensures a clean install based on the lockfile
       - npm ci
 
+  proto:
+    desc: Generate code from protobuf definitions
+    deps: [install]
+    sources:
+      - ../../../../proto/**/*.proto
+    generates:
+      - src/gen/**/*.ts
+    cmds:
+      - buf generate
+
   checkFormatting:
     desc: Check package formatting
-    deps: [install]
+    deps: [install, proto]
     cmds:
       - npx prettier --check .
 
@@ -26,19 +37,35 @@ tasks:
 
   lint:
     desc: Lint the package
-    deps: [install]
+    deps: [install, proto]
     cmds:
       - npx eslint .
 
   typecheck:
     desc: Type check the package
-    deps: [install]
+    deps: [install, proto]
     cmds:
       - npx tsc -p tsconfig.json --noEmit
 
-  dev:
+  buildProdDist:
+    desc: Build the package
+    deps: [install, proto]
+    requires:
+      vars:
+        - CORE_SERVICE_URL
+    env:
+      VITE_CORE_SERVICE_URL: '{{.CORE_SERVICE_URL}}'
+    cmds:
+      - npx vite build --mode production
+
+  runDev:
     desc: Start dev server
-    deps: [install]
+    deps: [install, proto]
+    requires:
+      vars:
+        - CORE_SERVICE_URL
+    env:
+      VITE_CORE_SERVICE_URL: '{{.CORE_SERVICE_URL}}'
     cmds:
       - npx vite
     interactive: true

@@ -161,3 +161,6 @@ sketch
 
 # Task cache
 .task/
+
+# Generated sources
+src/gen/
