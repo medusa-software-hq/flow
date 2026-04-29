@@ -9,13 +9,15 @@
   "dependencies": {
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-web": "^2.1.1",
+    "@xyflow/react": "^12.8.6",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-select": "^5.10.2"
+    "react-select": "^5.10.2",
+    "valtio": "^2.3.1"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@bufbuild/protoc-gen-es": "^2.12.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
