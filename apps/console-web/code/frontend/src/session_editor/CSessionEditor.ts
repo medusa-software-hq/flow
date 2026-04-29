@@ -37,13 +37,14 @@ export class CSessionEditor implements ISessionEditor {
     }
 
     return new Set(
-      [...this._taskById.values()].filter((task) =>
-        task._sourceTaskIds.has(sourceTaskId),
-      ),
+      [...this._taskById.values()].filter((task) => task._sourceTaskIds.has(sourceTaskId))
     );
   }
 
-  createDependencyTask(targetTaskId: TTaskId, newTaskPosition: ITaskPosition) {
+  createDependencyTask(
+    targetTaskId: TTaskId,
+    newTaskPosition: ITaskPosition
+  ): readonly [TTaskId, CTask] {
     const targetTask = this.getTaskById(targetTaskId);
 
     if (targetTask === null) {
@@ -62,9 +63,14 @@ export class CSessionEditor implements ISessionEditor {
     targetTask._sourceTaskIds.add(newTaskId);
 
     this._taskById.set(newTaskId, newDependencyTask);
+
+    return [newTaskId, newDependencyTask];
   }
 
-  createDependentTask(sourceTaskId: TTaskId, newTaskPosition: ITaskPosition) {
+  createDependentTask(
+    sourceTaskId: TTaskId,
+    newTaskPosition: ITaskPosition
+  ): readonly [TTaskId, CTask] {
     const newTaskId = this._nextTaskId++;
 
     const newDependentTask = new CTask({
@@ -75,6 +81,8 @@ export class CSessionEditor implements ISessionEditor {
     console.log(`Adding dependent task with ID ${String(newTaskId)}`);
 
     this._taskById.set(newTaskId, newDependentTask);
+
+    return [newTaskId, newDependentTask];
   }
 
   createDependency(sourceTaskId: TTaskId, targetTaskId: TTaskId) {
@@ -92,12 +100,12 @@ export class CSessionEditor implements ISessionEditor {
 
     if (targetTask._sourceTaskIds.has(sourceTaskId)) {
       throw new Error(
-        `Source task ${String(sourceTaskId)} is already a dependency of task ${String(targetTaskId)}`,
+        `Source task ${String(sourceTaskId)} is already a dependency of task ${String(targetTaskId)}`
       );
     }
 
     console.log(
-      `Creating dependency from task ${String(sourceTaskId)} to task ${String(targetTaskId)}`,
+      `Creating dependency from task ${String(sourceTaskId)} to task ${String(targetTaskId)}`
     );
 
     targetTask._sourceTaskIds.add(sourceTaskId);
@@ -139,7 +147,7 @@ export class CSessionEditor implements ISessionEditor {
     }
 
     console.log(
-      `Breaking dependency from task ${String(sourceTaskId)} to task ${String(targetTaskId)}`,
+      `Breaking dependency from task ${String(sourceTaskId)} to task ${String(targetTaskId)}`
     );
 
     targetTask._sourceTaskIds.delete(sourceTaskId);

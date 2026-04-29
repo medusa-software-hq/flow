@@ -1,0 +1,21 @@
+.shell {
+  display: flex;
+  flex-grow: 1;
+
+  flex-direction: row;
+  justify-content: space-evenly;
+}
+
+.sidebar {
+  display: flex;
+  flex: 0 0 20%;
+  align-items: stretch;
+  flex-direction: column;
+
+  border-right: 2px solid #e0e0e0;
+}
+
+.main {
+  display: flex;
+  flex: 0 0 80%;
+}

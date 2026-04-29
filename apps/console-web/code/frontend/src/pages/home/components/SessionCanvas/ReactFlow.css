@@ -1,0 +1,20 @@
+.react-flow {
+  --xy-edge-stroke-width-default: 2;
+  --xy-edge-stroke-default: blue;
+  --xy-edge-stroke-selected-default: red;
+  --xy-node-boxshadow-selected-default: none;
+}
+
+.react-flow__node .custom-node {
+  background: white;
+  border: 1px solid #1a192b;
+  border-radius: 4px;
+  padding: 10px;
+  min-width: 150px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgb(0, 0, 0, 0.12);
+}
+
+.react-flow__node.selected .custom-node {
+  border: 1px solid orange;
+}
