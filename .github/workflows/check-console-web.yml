@@ -23,8 +23,8 @@ jobs:
       - uses: actions/setup-node@v6.3.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: ${{ env.APP_FRONTEND_PATH }}/package-lock.json
+          cache: yarn
+          cache-dependency-path: ${{ env.APP_FRONTEND_PATH }}/yarn.lock
 
       - uses: go-task/setup-task@v2
 

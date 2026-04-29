@@ -10,8 +10,8 @@ tasks:
     generates:
       - node_modules/.package-lock.json
     cmds:
-      # Using `npm ci` ensures a clean install based on the lockfile
-      - npm ci
+      # Using `--immutable` ensures a clean install based on the lockfile
+      - yarn install --immutable
 
   proto:
     desc: Generate code from protobuf definitions
@@ -27,36 +27,26 @@ tasks:
     desc: Check package formatting
     deps: [install, proto]
     cmds:
-      - npx prettier --check .
+      - npx oxfmt --check "**/*.{ts,tsx,css}"
 
   fixFormatting:
     desc: Fix package formatting
     deps: [install]
     cmds:
-      - npx prettier --write .
+      - npx oxfmt --write "**/*.{ts,tsx,css}"
 
   lint:
     desc: Lint the package
     deps: [install, proto]
     cmds:
-      - npx eslint .
+      - npx oxlint
+      - npx stylelint '**/*.css' --cache
 
   typecheck:
     desc: Type check the package
     deps: [install, proto]
     cmds:
-      - npx tsc -p tsconfig.json --noEmit
-
-  buildProdDist:
-    desc: Build the package
-    deps: [install, proto]
-    requires:
-      vars:
-        - CORE_SERVICE_URL
-    env:
-      VITE_CORE_SERVICE_URL: '{{.CORE_SERVICE_URL}}'
-    cmds:
-      - npx vite build --mode production
+      - npx tsc --noEmit
 
   runDev:
     desc: Start dev server

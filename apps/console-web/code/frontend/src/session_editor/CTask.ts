@@ -8,7 +8,7 @@ export interface TaskProps {
   readonly initialPosition: ITaskPosition;
 }
 
-const defaultTaskLabel = '(new task)';
+const defaultTaskLabel = '';
 
 export class CTask implements ITask {
   private _label = defaultTaskLabel;
@@ -25,9 +25,8 @@ export class CTask implements ITask {
     const rawSourceTaskIds: Set<TTaskId> = (() => {
       if (initialSourceTaskId !== null) {
         return new Set([initialSourceTaskId]);
-      } else {
-        return new Set();
       }
+      return new Set();
     })();
 
     this._sourceTaskIds = proxySet(rawSourceTaskIds);
