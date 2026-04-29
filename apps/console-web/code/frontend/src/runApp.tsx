@@ -1,11 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import './index.css';
-import App from './App.tsx';
+import './ui/index.css';
+import App from './ui/App.tsx';
 import { CoreService } from './gen/medusa/flow/core_service/v1/core_service_pb.ts';
 import { createGrpcWebTransport } from '@connectrpc/connect-web';
 import { createClient } from '@connectrpc/connect';
-import type { CoreServiceClient } from './grpcTypes.ts';
+import type { CoreServiceClient } from './rpc/myGrpcTypes.ts';
 
 export function runApp() {
   const root = document.getElementById('root');
