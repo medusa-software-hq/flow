@@ -1,7 +1,7 @@
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import { AppMainView } from '../AppMainView/AppMainView';
 import { AppToolbar } from '../AppToolbar/AppToolbar';
-import { SessionsColumn } from '../SessionsColumn/SessionsColumn';
+import { SessionsRail } from '../SessionsRail/SessionsRail';
 import classes from '../../AppPage.module.css';
 
 export interface AppViewProps {
@@ -14,7 +14,7 @@ export function AppView({ appTrampolineLive }: AppViewProps) {
       <AppToolbar appTrampolineLive={appTrampolineLive} />
 
       <div className={classes.contentRow}>
-        <SessionsColumn />
+        <SessionsRail appTrampolineLive={appTrampolineLive} />
 
         <div className={classes.workspace}>
           <AppMainView appTrampolineLive={appTrampolineLive} />

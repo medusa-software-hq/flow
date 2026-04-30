@@ -2,9 +2,18 @@ import { IEditingState, IRunningState, UAppState } from '@/app/IAppState';
 import { CRunningSession } from '@/app/session/running_session/CRunningSession';
 import { CSessionEditor } from '@/app/session_editor/CSessionEditor';
 import { AppStateKinds } from './AppStateKinds';
-import { IApp } from './IApp';
+import { IApp, IAppSessionSummary } from './IApp';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fakeSessions: readonly IAppSessionSummary[] = [
+  { id: 'current', label: 'i', tone: 'blue', isSelected: true },
+  { id: 'vim', label: 'v', tone: 'lime', isSelected: false },
+  { id: 'notes', label: '■', tone: 'ink', isSelected: false },
+  { id: 'zap-1', label: 'z', tone: 'violet', isSelected: false },
+  { id: 'g', label: 'g', tone: 'pink', isSelected: false },
+  { id: 'zap-2', label: 'z', tone: 'violet', isSelected: false },
+];
 
 export class CApp implements IApp {
   static async load(): Promise<IApp> {
@@ -32,6 +41,10 @@ export class CApp implements IApp {
 
   get currentState(): UAppState {
     return this._currentState;
+  }
+
+  get sessions(): readonly IAppSessionSummary[] {
+    return fakeSessions;
   }
 
   freeze(): void {

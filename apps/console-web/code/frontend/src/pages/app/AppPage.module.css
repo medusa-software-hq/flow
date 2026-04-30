@@ -66,6 +66,17 @@
   background: #fff;
 }
 
+.sessionTile[data-empty] {
+  pointer-events: none;
+}
+
+.sessionTile[data-empty] .sessionTileInner {
+  border-color: rgb(0 0 0 / 6%);
+  background: linear-gradient(180deg, #efefef, #dcdcdc);
+
+  animation: session-pulse 1.4s ease-in-out infinite;
+}
+
 .sessionTile[data-tone='blue'] .sessionTileInner {
   color: #1f7ae0;
   background: linear-gradient(180deg, #e6f5ff, #fff);
@@ -96,6 +107,19 @@
 
   font-size: 32px;
   line-height: 1;
+}
+
+@keyframes session-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
 }
 
 .shell {
