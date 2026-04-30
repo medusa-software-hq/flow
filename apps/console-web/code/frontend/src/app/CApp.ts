@@ -4,14 +4,18 @@ import { CSessionEditor } from '@/app/session_editor/CSessionEditor';
 import { AppStateKinds } from './AppStateKinds';
 import { IApp } from './IApp';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export class CApp implements IApp {
-  static load(): IApp {
+  static async load(): Promise<IApp> {
     const initialSessionEditor = CSessionEditor.create();
 
     const initialState: IEditingState = {
       kind: AppStateKinds.Editing,
       sessionEditor: initialSessionEditor,
     };
+
+    await sleep(2000);
 
     return new CApp(initialState);
   }
