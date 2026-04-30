@@ -79,6 +79,8 @@ export default {
     'react/no-string-refs': 'error',
     'react/self-closing-comp': 'error',
     'react/void-dom-elements-no-children': 'error',
+    'react/rules-of-hooks': 'error',
+    'react/jsx-key': 'error',
 
     'jsx-a11y/anchor-has-content': 'off',
     'jsx-a11y/anchor-is-valid': 'off',

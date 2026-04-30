@@ -37,6 +37,7 @@ class CoreServiceGrpcImpl(
       this.sessions += sessions.map { session ->
         sessionSummary {
           sessionId = session.id
+          title = session.title
           taskGraph = sessionManagementService.decodeTaskGraph(session)
         }
       }
@@ -65,8 +66,9 @@ class CoreServiceGrpcImpl(
     }
 
     val updatedSession =
-        sessionManagementService.updateSessionTaskGraph(
+        sessionManagementService.updateSession(
             id = request.sessionId,
+            title = request.title,
             taskGraph = request.taskGraph,
         )
 
@@ -84,7 +86,8 @@ class CoreServiceGrpcImpl(
       return startSessionValidationFailed()
     }
 
-    val session = sessionManagementService.createSession(taskGraph = request.taskGraph)
+    val session =
+        sessionManagementService.createSession(title = request.title, taskGraph = request.taskGraph)
 
     return startSessionResponse { started = sessionStartedResult { sessionId = session.id } }
   }

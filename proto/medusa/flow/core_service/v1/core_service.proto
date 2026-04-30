@@ -20,12 +20,14 @@ message ListSessionsResponse {
 
 message SessionSummary {
   string session_id = 1;
-  TaskGraph task_graph = 2;
+  string title = 2;
+  TaskGraph task_graph = 3;
 }
 
 message UpdateSessionRequest {
   string session_id = 1;
-  TaskGraph task_graph = 2;
+  string title = 2;
+  TaskGraph task_graph = 3;
 }
 
 message UpdateSessionResponse {}
@@ -46,7 +48,8 @@ message CheckTaskGraphResponse {
 message TaskGraphValidResult {}
 
 message StartSessionRequest {
-  TaskGraph task_graph = 1;
+  string title = 1;
+  TaskGraph task_graph = 2;
 }
 
 message StartSessionResponse {

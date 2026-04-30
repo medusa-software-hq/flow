@@ -20,6 +20,7 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
   static createProxied(args: {
     coreServiceClient: CoreServiceClient;
     restoredSessionSummary?: SessionSummary;
+    initialTitle?: string;
     initialTaskGraph?: TaskGraph;
   }): ISessionWorkspaceTrampoline {
     const self: CSessionWorkspaceTrampoline = proxy(new CSessionWorkspaceTrampoline(args));
@@ -31,6 +32,7 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
 
   private readonly _coreServiceClient: CoreServiceClient;
   private readonly _restoredSessionSummary: SessionSummary | null;
+  private readonly _initialTitle: string;
   private readonly _initialTaskGraph: TaskGraph | null;
   private _sessionWorkspaceId: string | null;
 
@@ -41,10 +43,12 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
   private constructor(args: {
     coreServiceClient: CoreServiceClient;
     restoredSessionSummary?: SessionSummary;
+    initialTitle?: string;
     initialTaskGraph?: TaskGraph;
   }) {
     this._coreServiceClient = args.coreServiceClient;
     this._restoredSessionSummary = args.restoredSessionSummary ?? null;
+    this._initialTitle = args.initialTitle ?? '';
     this._initialTaskGraph = args.initialTaskGraph ?? null;
     this._sessionWorkspaceId = this._restoredSessionSummary?.sessionId ?? null;
   }
@@ -68,6 +72,7 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
 
         const startSessionResponse = await this._coreServiceClient.startSession(
           create(StartSessionRequestSchema, {
+            title: this._initialTitle,
             taskGraph: this._initialTaskGraph,
           })
         );
@@ -81,7 +86,11 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
 
       const loadedSessionWorkspace =
         this._restoredSessionSummary === null
-          ? await CSessionWorkspace.createNew(this._coreServiceClient, this._sessionWorkspaceId!)
+          ? await CSessionWorkspace.createNew(
+              this._coreServiceClient,
+              this._sessionWorkspaceId!,
+              this._initialTitle
+            )
           : CSessionWorkspace.restore(this._coreServiceClient, this._restoredSessionSummary);
 
       const loadedState: ILoadedState = {

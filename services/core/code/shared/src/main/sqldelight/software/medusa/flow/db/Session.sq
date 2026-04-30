@@ -1,11 +1,12 @@
 CREATE TABLE session (
   id TEXT NOT NULL PRIMARY KEY,
-  task_graph_proto_bytes BLOB NOT NULL
+  task_graph_proto_bytes BLOB NOT NULL,
+  title TEXT NOT NULL DEFAULT ''
 );
 
 insertSession:
-INSERT INTO session(id, task_graph_proto_bytes)
-VALUES (?, ?);
+INSERT INTO session(id, title, task_graph_proto_bytes)
+VALUES (?, ?, ?);
 
 selectSessionById:
 SELECT * FROM session
@@ -13,7 +14,7 @@ WHERE id = ?;
 
 updateSessionTaskGraph:
 UPDATE session
-SET task_graph_proto_bytes = ?
+SET title = ?, task_graph_proto_bytes = ?
 WHERE id = ?;
 
 selectAllSessions:

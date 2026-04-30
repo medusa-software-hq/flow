@@ -6,7 +6,62 @@
 }
 
 .toolbar {
-  border-bottom: 2px solid #e0e0e0;
+  padding: 12px 18px;
+
+  border-bottom: 1px solid #e6e8ef;
+  background: linear-gradient(180deg, #fbfcff, #f5f7fc);
+}
+
+.toolbarMainRow {
+  display: flex;
+  min-width: 0;
+}
+
+.toolbarIdentity {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.toolbarDocIcon {
+  flex: 0 0 auto;
+
+  color: #fff;
+  background: linear-gradient(180deg, #4e8df7, #2463eb);
+  box-shadow: 0 6px 16px rgb(36 99 235 / 20%);
+}
+
+.toolbarTitleInput {
+  width: min(420px, 100%);
+  min-width: 0;
+
+  border: 1px solid transparent;
+  border-radius: 10px;
+
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+
+  color: #1f1f1f;
+  background: transparent;
+  box-shadow: none;
+}
+
+.toolbarTitleInput::placeholder {
+  font-style: italic;
+  color: #8a8f9c;
+  opacity: 1;
+}
+
+.toolbarTitleInput:hover {
+  border-color: #dfe3ec;
+  background: rgb(255 255 255 / 82%);
+}
+
+.toolbarTitleInput:focus,
+.toolbarTitleInput:focus-within {
+  border-color: #b7c8ff;
+  background: #fff;
 }
 
 .contentRow {
@@ -97,14 +152,39 @@
   background: linear-gradient(180deg, #e6f5ff, #fff);
 }
 
+.sessionTile[data-tone='teal'] .sessionTileInner {
+  color: #137c72;
+  background: linear-gradient(180deg, #ddfbf5, #fff);
+}
+
+.sessionTile[data-tone='mint'] .sessionTileInner {
+  color: #2b8a63;
+  background: linear-gradient(180deg, #e7fff1, #fff);
+}
+
+.sessionTile[data-tone='green'] .sessionTileInner {
+  color: #347a2a;
+  background: linear-gradient(180deg, #eaf8df, #fff);
+}
+
 .sessionTile[data-tone='lime'] .sessionTileInner {
   color: #6b7d1f;
   background: linear-gradient(180deg, #edf8d4, #fbfff3);
 }
 
-.sessionTile[data-tone='ink'] .sessionTileInner {
-  color: #fff;
-  background: linear-gradient(180deg, #1f1f1f, #2f2f2f);
+.sessionTile[data-tone='yellow'] .sessionTileInner {
+  color: #8b6a00;
+  background: linear-gradient(180deg, #fff4c7, #fffdf1);
+}
+
+.sessionTile[data-tone='orange'] .sessionTileInner {
+  color: #b45a1b;
+  background: linear-gradient(180deg, #ffe5cc, #fff7f0);
+}
+
+.sessionTile[data-tone='coral'] .sessionTileInner {
+  color: #c14f47;
+  background: linear-gradient(180deg, #ffe0db, #fff6f4);
 }
 
 .sessionTile[data-tone='violet'] .sessionTileInner {

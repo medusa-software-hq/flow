@@ -16,9 +16,11 @@ import { SessionWorkspaceStateKinds } from './SessionWorkspaceStateKinds';
 export class CSessionWorkspace implements ISessionWorkspace {
   static async createNew(
     coreServiceClient: CoreServiceClient,
-    sessionId: string
+    sessionId: string,
+    title: string
   ): Promise<ISessionWorkspace> {
-    const self = new CSessionWorkspace(coreServiceClient, sessionId);
+    const self = new CSessionWorkspace(coreServiceClient, sessionId, title);
+
     const initialSessionEditor = CSessionEditor.createNew(() => {
       void self.upload();
     });
@@ -37,7 +39,11 @@ export class CSessionWorkspace implements ISessionWorkspace {
     coreServiceClient: CoreServiceClient,
     sessionSummary: SessionSummary
   ): ISessionWorkspace {
-    const self = new CSessionWorkspace(coreServiceClient, sessionSummary.sessionId);
+    const self = new CSessionWorkspace(
+      coreServiceClient,
+      sessionSummary.sessionId,
+      sessionSummary.title
+    );
     const restoredSessionEditor = CSessionEditor.restore(sessionSummary.taskGraph ?? null, () => {
       void self.upload();
     });
@@ -55,10 +61,12 @@ export class CSessionWorkspace implements ISessionWorkspace {
   _currentState: USessionWorkspaceState;
   private readonly _coreServiceClient: CoreServiceClient;
   private readonly _sessionId: string;
+  private _title: string;
 
-  private constructor(coreServiceClient: CoreServiceClient, sessionId: string) {
+  private constructor(coreServiceClient: CoreServiceClient, sessionId: string, title: string) {
     this._coreServiceClient = coreServiceClient;
     this._sessionId = sessionId;
+    this._title = title;
     this._currentState = {
       kind: SessionWorkspaceStateKinds.Editing,
       sessionEditor: CSessionEditor.createNew(),
@@ -67,6 +75,10 @@ export class CSessionWorkspace implements ISessionWorkspace {
 
   get currentState(): USessionWorkspaceState {
     return this._currentState;
+  }
+
+  setTitle(title: string): void {
+    this._title = title;
   }
 
   async upload(): Promise<void> {
@@ -79,6 +91,7 @@ export class CSessionWorkspace implements ISessionWorkspace {
     await this._coreServiceClient.updateSession(
       create(UpdateSessionRequestSchema, {
         sessionId: this._sessionId,
+        title: this._title,
         taskGraph: serializeTaskGraph(currentState.sessionEditor.editedSession),
       })
     );

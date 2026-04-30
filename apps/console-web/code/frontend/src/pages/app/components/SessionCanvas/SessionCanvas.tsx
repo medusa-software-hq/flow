@@ -164,7 +164,7 @@ export function SessionCanvas(props: SessionCanvasProps) {
         }
       }
     },
-    [screenToFlowPosition, sessionLive]
+    [screenToFlowPosition, sessionLive, sessionWorkspaceLive]
   );
 
   const onNodesChange: OnNodesChange<MyNode> = useCallback(
@@ -224,7 +224,7 @@ export function SessionCanvas(props: SessionCanvasProps) {
         }
       }
     },
-    [selectedNodeIdsLive, sessionLive]
+    [selectedNodeIdsLive, sessionLive, sessionWorkspaceLive]
   );
 
   const onEdgesChange: OnEdgesChange<MyEdge> = useCallback(
@@ -273,7 +273,7 @@ export function SessionCanvas(props: SessionCanvasProps) {
         }
       }
     },
-    [edges, selectedEdgeIdsLive, sessionLive]
+    [edges, selectedEdgeIdsLive, sessionLive, sessionWorkspaceLive]
   );
 
   const onNodesDelete: OnNodesDelete<MyNode> = useCallback(

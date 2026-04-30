@@ -3,20 +3,12 @@ import { proxyMap } from 'valtio/utils';
 import {
   ListSessionsRequestSchema,
   SessionSummary,
+  SessionSummarySchema,
   TaskGraphSchema,
 } from '@/gen/medusa/flow/core_service/v1/core_service_pb';
 import { CSessionWorkspaceTrampoline } from '@/session_workspace_trampoline/CSessionWorkspaceTrampoline';
 import { ISessionWorkspaceTrampoline } from '@/session_workspace_trampoline/ISessionWorkspaceTrampoline';
 import { IApp, IAppLoadArgs, IAppSessionSummary, TSessionWorkspaceId } from './IApp';
-
-const fakeSessionVisuals = [
-  { label: 'i', tone: 'blue' },
-  { label: 'v', tone: 'lime' },
-  { label: '■', tone: 'ink' },
-  { label: 'z', tone: 'violet' },
-  { label: 'g', tone: 'pink' },
-  { label: 'z', tone: 'violet' },
-] as const;
 
 export class CApp implements IApp {
   static async load({ coreServiceClient }: IAppLoadArgs): Promise<IApp> {
@@ -33,6 +25,7 @@ export class CApp implements IApp {
   private _nextSessionWorkspaceNumber = 1;
   private _selectedSessionWorkspaceId: TSessionWorkspaceId | null = null;
   private readonly _coreServiceClient;
+  private readonly _sessionSummaryById = proxyMap<TSessionWorkspaceId, SessionSummary>();
 
   private _sessionWorkspaceTrampolineById: Map<TSessionWorkspaceId, ISessionWorkspaceTrampoline> =
     proxyMap();
@@ -54,6 +47,8 @@ export class CApp implements IApp {
           restoredSessionSummary: sessionSummary,
         })
       );
+
+      this._sessionSummaryById.set(sessionWorkspaceId, sessionSummary);
     }
 
     this._nextSessionWorkspaceNumber = args.existingSessions.length + 1;
@@ -74,6 +69,16 @@ export class CApp implements IApp {
     return this._sessionWorkspaceTrampolineById.get(selectedSessionWorkspaceId) ?? null;
   }
 
+  get selectedSessionTitle(): string | null {
+    const selectedSessionWorkspaceId = this.selectedSessionWorkspaceId;
+
+    if (selectedSessionWorkspaceId === null) {
+      return null;
+    }
+
+    return this._sessionSummaryById.get(selectedSessionWorkspaceId)?.title ?? '';
+  }
+
   get sessionWorkspaceTrampolineById(): ReadonlyMap<
     TSessionWorkspaceId,
     ISessionWorkspaceTrampoline
@@ -82,13 +87,10 @@ export class CApp implements IApp {
   }
 
   get sessions(): readonly IAppSessionSummary[] {
-    return Array.from(this._sessionWorkspaceTrampolineById.entries(), ([id, trampoline], index) => {
-      const fakeSessionVisual = fakeSessionVisuals[index % fakeSessionVisuals.length];
-
+    return Array.from(this._sessionWorkspaceTrampolineById.entries(), ([id, trampoline]) => {
       return {
         id,
-        label: fakeSessionVisual.label,
-        tone: fakeSessionVisual.tone,
+        title: this._sessionSummaryById.get(id)?.title ?? '',
         isSelected: id === this._selectedSessionWorkspaceId,
         stateKind: trampoline.currentState.kind,
         onSelected: () => this.selectSessionWorkspace(id),
@@ -101,10 +103,19 @@ export class CApp implements IApp {
 
     const newSessionWorkspaceTrampoline = CSessionWorkspaceTrampoline.createProxied({
       coreServiceClient: this._coreServiceClient,
+      initialTitle: '',
       initialTaskGraph: create(TaskGraphSchema),
     });
 
     this._sessionWorkspaceTrampolineById.set(newSessionWorkspaceId, newSessionWorkspaceTrampoline);
+    this._sessionSummaryById.set(
+      newSessionWorkspaceId,
+      create(SessionSummarySchema, {
+        sessionId: newSessionWorkspaceId,
+        title: '',
+        taskGraph: create(TaskGraphSchema),
+      })
+    );
     this._selectedSessionWorkspaceId = newSessionWorkspaceId;
 
     return newSessionWorkspaceId;
@@ -116,5 +127,19 @@ export class CApp implements IApp {
     }
 
     this._selectedSessionWorkspaceId = sessionWorkspaceId;
+  }
+
+  setSessionTitle(sessionWorkspaceId: TSessionWorkspaceId, title: string): void {
+    if (!this._sessionWorkspaceTrampolineById.has(sessionWorkspaceId)) {
+      throw new Error(`Session workspace with ID ${sessionWorkspaceId} not found`);
+    }
+
+    const sessionSummary = this._sessionSummaryById.get(sessionWorkspaceId);
+
+    if (sessionSummary === undefined) {
+      throw new Error(`Session summary with ID ${sessionWorkspaceId} not found`);
+    }
+
+    sessionSummary.title = title;
   }
 }

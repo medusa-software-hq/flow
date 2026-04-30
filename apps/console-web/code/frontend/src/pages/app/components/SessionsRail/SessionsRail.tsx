@@ -1,11 +1,23 @@
 import { Center, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useSnapshot } from 'valtio';
-import { IApp, IAppSessionSummary, TAppSessionTone } from '@/app/IApp';
+import { IApp, IAppSessionSummary } from '@/app/IApp';
 import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import { UAppTrampolineState } from '@/app_trampoline/IAppTrampolineState';
 import { SessionWorkspaceTrampolineStateKinds } from '@/session_workspace_trampoline/SessionWorkspaceTrampolineStateKinds';
 import classes from '../../AppPage.module.css';
+
+type TSessionIconTone =
+  | 'blue'
+  | 'teal'
+  | 'mint'
+  | 'green'
+  | 'lime'
+  | 'yellow'
+  | 'orange'
+  | 'coral'
+  | 'pink'
+  | 'violet';
 
 export interface SessionsRailProps {
   readonly appTrampolineLive: IAppTrampoline;
@@ -19,7 +31,7 @@ interface SessionRailViewModel {
 interface SessionIconViewModel {
   readonly key: string;
   readonly isSelected: boolean;
-  readonly tone: TAppSessionTone | null;
+  readonly tone: TSessionIconTone | null;
   readonly content: string | null;
   readonly onPressed: (() => void) | null;
   readonly isPlaceholder: boolean;
@@ -57,7 +69,7 @@ export function SessionsRail({ appTrampolineLive }: SessionsRailProps) {
 
 interface RailIconTemplateProps {
   readonly isSelected: boolean;
-  readonly tone: TAppSessionTone | null;
+  readonly tone: TSessionIconTone | null;
   readonly content: string | null;
   readonly onPressed: (() => void) | null;
   readonly isCreate: boolean;
@@ -186,8 +198,8 @@ function mapSessionToViewModel(session: IAppSessionSummary): SessionIconViewMode
       return {
         key: session.id,
         isSelected: session.isSelected,
-        tone: session.tone,
-        content: session.label,
+        tone: getToneFromSessionId(session.id),
+        content: getSessionIconContent(session.title),
         onPressed: session.onSelected,
         isPlaceholder: false,
       };
@@ -202,4 +214,37 @@ function mapSessionToViewModel(session: IAppSessionSummary): SessionIconViewMode
         isPlaceholder: false,
       };
   }
+}
+
+function getToneFromSessionId(sessionId: string): TSessionIconTone {
+  const tones: readonly TSessionIconTone[] = [
+    'blue',
+    'teal',
+    'mint',
+    'green',
+    'lime',
+    'yellow',
+    'orange',
+    'coral',
+    'pink',
+    'violet',
+  ];
+  let hash = 2166136261;
+
+  for (const character of sessionId) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return tones[(hash >>> 0) % tones.length];
+}
+
+function getSessionIconContent(title: string): string {
+  const normalizedTitle = title.trim();
+
+  if (normalizedTitle === '') {
+    return 'U';
+  }
+
+  return normalizedTitle[0]!.toUpperCase();
 }
