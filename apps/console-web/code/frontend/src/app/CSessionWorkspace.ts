@@ -1,19 +1,9 @@
 import { IEditingState, IRunningState, USessionWorkspaceState } from '@/app/ISessionWorkspaceState';
 import { CRunningSession } from '@/app/session/running_session/CRunningSession';
 import { CSessionEditor } from '@/app/session_editor/CSessionEditor';
-import { ISessionWorkspace, ISessionWorkspaceSummary } from './ISessionWorkspace';
+import { sleep } from '../utils/promiseUtils';
+import { ISessionWorkspace } from './ISessionWorkspace';
 import { SessionWorkspaceStateKinds } from './SessionWorkspaceStateKinds';
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const fakeSessions: readonly ISessionWorkspaceSummary[] = [
-  { id: 'current', label: 'i', tone: 'blue', isSelected: true },
-  { id: 'vim', label: 'v', tone: 'lime', isSelected: false },
-  { id: 'notes', label: '■', tone: 'ink', isSelected: false },
-  { id: 'zap-1', label: 'z', tone: 'violet', isSelected: false },
-  { id: 'g', label: 'g', tone: 'pink', isSelected: false },
-  { id: 'zap-2', label: 'z', tone: 'violet', isSelected: false },
-];
 
 export class CSessionWorkspace implements ISessionWorkspace {
   static async load(): Promise<ISessionWorkspace> {
@@ -26,8 +16,8 @@ export class CSessionWorkspace implements ISessionWorkspace {
 
     await sleep(2000);
 
-    if (Math.random() < 0.1) {
-      throw new Error('Random error!!!1');
+    if (Math.random() < 0.2) {
+      throw new Error('Random session error!!!1');
     }
 
     return new CSessionWorkspace(initialState);
@@ -41,10 +31,6 @@ export class CSessionWorkspace implements ISessionWorkspace {
 
   get currentState(): USessionWorkspaceState {
     return this._currentState;
-  }
-
-  get sessions(): readonly ISessionWorkspaceSummary[] {
-    return fakeSessions;
   }
 
   freeze(): void {

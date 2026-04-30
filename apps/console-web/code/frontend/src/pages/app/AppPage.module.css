@@ -21,6 +21,13 @@
   min-width: 0;
 }
 
+.centeredPaneContent {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
 .sessionsColumn {
   display: flex;
   flex: 0 0 72px;
@@ -48,6 +55,14 @@
 
 .sessionTile:hover {
   transform: translateY(-1px);
+}
+
+.sessionTile[data-create] {
+  opacity: 0.7;
+}
+
+.sessionTile[data-create]:hover {
+  opacity: 1;
 }
 
 .sessionTile[data-selected] {

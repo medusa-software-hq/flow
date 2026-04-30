@@ -1,20 +1,28 @@
 import { Center, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useSnapshot } from 'valtio';
-import { ISessionWorkspaceSummary, TSessionWorkspaceTone } from '@/app/ISessionWorkspace';
+import { IApp, IAppSessionSummary, TAppSessionTone } from '@/app/IApp';
 import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import { UAppTrampolineState } from '@/app_trampoline/IAppTrampolineState';
+import { SessionWorkspaceTrampolineStateKinds } from '@/session_workspace_trampoline/SessionWorkspaceTrampolineStateKinds';
 import classes from '../../AppPage.module.css';
 
 export interface SessionsRailProps {
   readonly appTrampolineLive: IAppTrampoline;
 }
 
+interface SessionRailViewModel {
+  readonly sessionIcons: readonly SessionIconViewModel[];
+  readonly onCreatePressed: (() => void) | null;
+}
+
 interface SessionIconViewModel {
   readonly key: string;
   readonly isSelected: boolean;
-  readonly tone: TSessionWorkspaceTone | null;
-  readonly label: string | null;
+  readonly tone: TAppSessionTone | null;
+  readonly content: string | null;
+  readonly onPressed: (() => void) | null;
+  readonly isPlaceholder: boolean;
 }
 
 export function SessionsRail({ appTrampolineLive }: SessionsRailProps) {
@@ -23,44 +31,60 @@ export function SessionsRail({ appTrampolineLive }: SessionsRailProps) {
   void appTrampolineSnap.currentState;
   const currentStateLive = appTrampolineLive.currentState;
 
-  const sessionIconViewModels = extractSessionIconViewModels(currentStateLive);
+  const loadedAppLive =
+    currentStateLive.kind === AppTrampolineStateKinds.Loaded ? currentStateLive.loadedApp : null;
+
+  const sessionRailViewModel = buildSessionRailViewModel({
+    currentStateLive,
+    loadedAppLive,
+  });
 
   return (
     <aside className={classes.sessionsColumn}>
       <Stack align="center" gap="md">
-        {sessionIconViewModels.map((sessionIconViewModel) => (
-          <SessionIcon key={sessionIconViewModel.key} sessionIconViewModel={sessionIconViewModel} />
+        {sessionRailViewModel.sessionIcons.map((sessionIconViewModel) => (
+          <RailSessionIcon
+            key={sessionIconViewModel.key}
+            sessionIconViewModel={sessionIconViewModel}
+          />
         ))}
 
-        <Text
-          className={classes.sessionRailDivider}
-          c={currentStateLive.kind === AppTrampolineStateKinds.Loading ? 'gray.4' : 'dimmed'}
-        >
-          +
-        </Text>
+        <RailPlusIcon onPressed={sessionRailViewModel.onCreatePressed} />
       </Stack>
     </aside>
   );
 }
 
-interface SessionIconViewProps {
-  readonly sessionIconViewModel: SessionIconViewModel;
+interface RailIconTemplateProps {
+  readonly isSelected: boolean;
+  readonly tone: TAppSessionTone | null;
+  readonly content: string | null;
+  readonly onPressed: (() => void) | null;
+  readonly isCreate: boolean;
+  readonly isPlaceholder: boolean;
 }
 
-function SessionIcon({ sessionIconViewModel }: SessionIconViewProps) {
-  const { isSelected, label, tone } = sessionIconViewModel;
-
+function RailIconTemplate({
+  isSelected,
+  tone,
+  content,
+  onPressed,
+  isCreate,
+  isPlaceholder,
+}: RailIconTemplateProps) {
   return (
     <UnstyledButton
       className={classes.sessionTile}
       data-selected={isSelected || undefined}
       data-tone={tone ?? undefined}
-      data-empty={label === null || undefined}
+      data-empty={isPlaceholder || undefined}
+      data-create={isCreate || undefined}
+      onClick={onPressed ?? undefined}
     >
       <Center className={classes.sessionTileInner}>
-        {label === null ? null : (
+        {content === null ? null : (
           <Text fw={700} fz="lg" tt="none">
-            {label}
+            {content}
           </Text>
         )}
       </Center>
@@ -68,31 +92,114 @@ function SessionIcon({ sessionIconViewModel }: SessionIconViewProps) {
   );
 }
 
-function extractSessionIconViewModels(
-  currentStateLive: UAppTrampolineState
-): readonly SessionIconViewModel[] {
+interface RailSessionIconProps {
+  readonly sessionIconViewModel: SessionIconViewModel;
+}
+
+function RailSessionIcon({ sessionIconViewModel }: RailSessionIconProps) {
+  const { isSelected, tone, content, onPressed, isPlaceholder } = sessionIconViewModel;
+
+  return (
+    <RailIconTemplate
+      isSelected={isSelected}
+      tone={tone}
+      content={content}
+      onPressed={onPressed}
+      isPlaceholder={isPlaceholder}
+      isCreate={false}
+    />
+  );
+}
+
+interface RailPlusIconProps {
+  readonly onPressed: (() => void) | null;
+}
+
+function RailPlusIcon({ onPressed }: RailPlusIconProps) {
+  return (
+    <RailIconTemplate
+      isSelected={false}
+      tone={null}
+      content="+"
+      onPressed={onPressed}
+      isPlaceholder={false}
+      isCreate
+    />
+  );
+}
+
+interface BuildSessionRailViewModelArgs {
+  readonly currentStateLive: UAppTrampolineState;
+  readonly loadedAppLive: IApp | null;
+}
+
+function buildSessionRailViewModel({
+  currentStateLive,
+  loadedAppLive,
+}: BuildSessionRailViewModelArgs): SessionRailViewModel {
   switch (currentStateLive.kind) {
     case AppTrampolineStateKinds.Loading:
-      return Array.from({ length: 6 }, (_, index) => ({
-        key: `loading-${index}`,
-        isSelected: false,
-        tone: null,
-        label: null,
-      }));
+      return {
+        sessionIcons: buildPlaceholderSessionIconViewModels('app-loading', 4),
+        onCreatePressed: null,
+      };
 
     case AppTrampolineStateKinds.Loaded:
-      return currentStateLive.loadedSessionWorkspace.sessions.map(mapSessionToViewModel);
+      return {
+        sessionIcons: currentStateLive.loadedApp.sessions.map(mapSessionToViewModel),
+        onCreatePressed:
+          loadedAppLive === null ? null : () => loadedAppLive.createSessionWorkspace(),
+      };
 
     case AppTrampolineStateKinds.Failed:
       throw new Error('Failed trampoline state should be handled above SessionsRail');
   }
 }
 
-function mapSessionToViewModel(session: ISessionWorkspaceSummary): SessionIconViewModel {
-  return {
-    key: session.id,
-    isSelected: session.isSelected,
-    tone: session.tone,
-    label: session.label,
-  };
+function buildPlaceholderSessionIconViewModels(
+  keyPrefix: string,
+  count: number
+): readonly SessionIconViewModel[] {
+  return Array.from({ length: count }, (_, index) => ({
+    key: `${keyPrefix}-${index}`,
+    isSelected: false,
+    tone: null,
+    content: null,
+    onPressed: null,
+    isPlaceholder: true,
+  }));
+}
+
+function mapSessionToViewModel(session: IAppSessionSummary): SessionIconViewModel {
+  switch (session.stateKind) {
+    case SessionWorkspaceTrampolineStateKinds.Loading:
+      return {
+        key: session.id,
+        isSelected: session.isSelected,
+        tone: null,
+        content: null,
+        onPressed: session.onSelected,
+        isPlaceholder: false,
+      };
+
+    case SessionWorkspaceTrampolineStateKinds.Loaded:
+      return {
+        key: session.id,
+        isSelected: session.isSelected,
+        tone: session.tone,
+        content: session.label,
+        onPressed: session.onSelected,
+        isPlaceholder: false,
+      };
+
+    case SessionWorkspaceTrampolineStateKinds.Failed:
+      return {
+        key: session.id,
+        isSelected: session.isSelected,
+        tone: 'pink',
+        content: '!',
+        onPressed: session.onSelected,
+        isPlaceholder: false,
+      };
+  }
 }

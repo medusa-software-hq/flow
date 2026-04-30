@@ -1,4 +1,4 @@
-import { ISessionWorkspace } from '@/app/ISessionWorkspace';
+import { IApp } from '@/app/IApp';
 import { AppTrampolineStateKinds, TAppTrampolineStateKind } from '@/app_trampoline/AppStateKinds';
 
 export interface IAppTrampolineState {
@@ -11,7 +11,7 @@ export interface ILoadingState extends IAppTrampolineState {
 
 export interface ILoadedState extends IAppTrampolineState {
   readonly kind: typeof AppTrampolineStateKinds.Loaded;
-  readonly loadedSessionWorkspace: ISessionWorkspace;
+  readonly loadedApp: IApp;
 }
 
 export interface IFailedState extends IAppTrampolineState {
