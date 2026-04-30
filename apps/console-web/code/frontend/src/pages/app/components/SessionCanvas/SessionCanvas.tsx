@@ -18,10 +18,11 @@ import {
 import { useCallback, useEffect, useMemo } from 'react';
 import { useSnapshot } from 'valtio';
 import { proxySet } from 'valtio/utils';
-import { type TaskNode, taskNodeTag } from '@/pages/home/components/SessionCanvas/TaskNode';
-import type { CSessionEditor } from '@/session_editor/CSessionEditor';
-import type { TTaskId } from '@/session_editor/CTask';
+import { AppStateKinds } from '@/app/AppStateKinds';
+import type { TTaskId } from '@/app/session/edited_session/CEditedTask';
+import { IEditedSession, UAnySession } from '@/app/session/ISession';
 import { KeyCodes } from '@/utils/KeyCodes';
+import { type TaskNode, taskNodeTag } from '../../components/SessionCanvas/TaskNode';
 import {
   type MyEdge,
   type MyNode,
@@ -34,12 +35,21 @@ import classes from './SessionCanvas.module.css';
 const nodeOrigin: NodeOrigin = [0.5, 0];
 
 export interface SessionCanvasProps {
-  readonly sessionEditorLive: CSessionEditor;
+  readonly sessionLive: UAnySession;
   readonly onTaskFocused: (taskId: TTaskId | null) => void;
 }
 
+function toEditedSession(session: UAnySession): IEditedSession | null {
+  switch (session.kind) {
+    case AppStateKinds.Editing:
+      return session;
+    default:
+      return null;
+  }
+}
+
 export function SessionCanvas(props: SessionCanvasProps) {
-  const { sessionEditorLive, onTaskFocused } = props;
+  const { sessionLive, onTaskFocused } = props;
 
   const { screenToFlowPosition } = useReactFlow();
 
@@ -61,12 +71,18 @@ export function SessionCanvas(props: SessionCanvasProps) {
   const selectedEdgeIdsSnap: ReadonlySet<string> = useSnapshot(selectedEdgeIdsLive);
 
   const [nodes, edges] = useMyFlowGraph({
-    sessionSourceLive: sessionEditorLive,
+    sessionLive: sessionLive,
     selectedNodeIds: selectedNodeIdsSnap,
     selectedEdgeIds: selectedEdgeIdsSnap,
   });
 
   const onConnect: OnConnect = (connection) => {
+    const editedSession = toEditedSession(sessionLive);
+
+    if (editedSession === null) {
+      return;
+    }
+
     const sourceNodeId = connection.source;
 
     const sourceTaskId = parseTaskNodeId(sourceNodeId);
@@ -83,11 +99,17 @@ export function SessionCanvas(props: SessionCanvasProps) {
       return;
     }
 
-    sessionEditorLive.createDependency(sourceTaskId, targetTaskId);
+    editedSession.createDependency(sourceTaskId, targetTaskId);
   };
 
   const onConnectEnd: OnConnectEnd = useCallback(
     (event, connectionState) => {
+      const editedSessionLive = toEditedSession(sessionLive);
+
+      if (editedSessionLive === null) {
+        return;
+      }
+
       if (connectionState.isValid) {
         // Valid connection: dropped on some other handle
       } else {
@@ -127,21 +149,23 @@ export function SessionCanvas(props: SessionCanvasProps) {
 
         switch (fromHandle.type) {
           case 'source': {
-            sessionEditorLive.createDependentTask(fromTaskId, newNodePosition);
+            editedSessionLive.createDependentTask(fromTaskId, newNodePosition);
             break;
           }
           case 'target': {
-            sessionEditorLive.createDependencyTask(fromTaskId, newNodePosition);
+            editedSessionLive.createDependencyTask(fromTaskId, newNodePosition);
             break;
           }
         }
       }
     },
-    [screenToFlowPosition, sessionEditorLive]
+    [screenToFlowPosition, sessionLive]
   );
 
   const onNodesChange: OnNodesChange<MyNode> = useCallback(
     (changes) => {
+      const editedSessionLive = toEditedSession(sessionLive);
+
       for (const change of changes) {
         switch (change.type) {
           case 'add':
@@ -149,13 +173,17 @@ export function SessionCanvas(props: SessionCanvasProps) {
           case 'remove':
             break;
           case 'position': {
+            if (editedSessionLive === null) {
+              return;
+            }
+
             const taskId = parseTaskNodeId(change.id);
 
             if (taskId === null) {
               continue;
             }
 
-            const task = sessionEditorLive.getTaskById(taskId);
+            const task = editedSessionLive.getTaskById(taskId);
 
             if (task === null) {
               throw new Error(`Moved task with ID ${String(taskId)} not found`);
@@ -190,11 +218,17 @@ export function SessionCanvas(props: SessionCanvasProps) {
         }
       }
     },
-    [selectedNodeIdsLive, sessionEditorLive]
+    [selectedNodeIdsLive, sessionLive]
   );
 
   const onEdgesChange: OnEdgesChange<MyEdge> = useCallback(
     (changes) => {
+      const editedSessionLive = toEditedSession(sessionLive);
+
+      if (editedSessionLive === null) {
+        return;
+      }
+
       for (const change of changes) {
         switch (change.type) {
           case 'remove': {
@@ -206,7 +240,7 @@ export function SessionCanvas(props: SessionCanvasProps) {
               throw new Error(`Removed edge/data not found: ${removedEdgeId}`);
             }
 
-            sessionEditorLive.breakDependency(
+            editedSessionLive.breakDependency(
               removedEdgeData.sourceTaskId,
               removedEdgeData.targetTaskId
             );
@@ -232,11 +266,17 @@ export function SessionCanvas(props: SessionCanvasProps) {
         }
       }
     },
-    [edges, selectedEdgeIdsLive, sessionEditorLive]
+    [edges, selectedEdgeIdsLive, sessionLive]
   );
 
   const onNodesDelete: OnNodesDelete<MyNode> = useCallback(
     (deletedNodes) => {
+      const editedSessionLive = toEditedSession(sessionLive);
+
+      if (editedSessionLive === null) {
+        return;
+      }
+
       deletedNodes.forEach((deletedNode) => {
         const deletedNodeId = deletedNode.id;
 
@@ -244,14 +284,20 @@ export function SessionCanvas(props: SessionCanvasProps) {
 
         const deletedTaskId = deletedNode.data.taskId;
 
-        sessionEditorLive.deleteTask(deletedTaskId);
+        editedSessionLive.deleteTask(deletedTaskId);
       });
     },
-    [selectedNodeIdsLive, sessionEditorLive]
+    [selectedNodeIdsLive, sessionLive]
   );
 
   const onEdgesDelete: OnEdgesDelete<MyEdge> = useCallback(
     (deletedEdges) => {
+      const editedSessionLive = toEditedSession(sessionLive);
+
+      if (editedSessionLive === null) {
+        return;
+      }
+
       for (const deletedEdge of deletedEdges) {
         const deletedEdgeData = deletedEdge.data;
 
@@ -265,13 +311,13 @@ export function SessionCanvas(props: SessionCanvasProps) {
           selectedEdgeIdsLive.delete(deletedEdgeId);
         }
 
-        sessionEditorLive.breakDependency(
+        editedSessionLive.breakDependency(
           deletedEdgeData.sourceTaskId,
           deletedEdgeData.targetTaskId
         );
       }
     },
-    [selectedEdgeIdsSnap, sessionEditorLive, selectedEdgeIdsLive]
+    [selectedEdgeIdsSnap, sessionLive, selectedEdgeIdsLive]
   );
 
   return (

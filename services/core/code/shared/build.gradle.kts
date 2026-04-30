@@ -3,6 +3,7 @@ import com.google.protobuf.gradle.id
 plugins {
   alias(libs.plugins.kotlin.jvm)
   alias(libs.plugins.protobuf)
+  alias(libs.plugins.sqldelight)
   `java-library`
 }
 
@@ -21,6 +22,9 @@ dependencies {
   api(libs.grpc.stub)
   api(libs.kotlinx.coroutines.core)
   api(libs.protobuf.kotlin)
+
+  implementation(libs.sqldelight.sqlite.driver)
+  implementation(libs.sqldelight.coroutines)
 
   runtimeOnly(libs.logback.classic)
 
@@ -47,6 +51,15 @@ protobuf {
       }
 
       protoTask.builtins { id("kotlin") }
+    }
+  }
+}
+
+sqldelight {
+  databases {
+    create("FlowDatabase") {
+      packageName.set("software.medusa.flow.db")
+      schemaOutputDirectory.set(file("src/main/sqldelight/databases"))
     }
   }
 }

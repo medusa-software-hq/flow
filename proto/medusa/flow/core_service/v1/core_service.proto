@@ -6,13 +6,47 @@ option java_multiple_files = true;
 option java_package = "software.medusa.grpc.flow.core_service.v1";
 
 service CoreService {
-  rpc Greet(GreetRequest) returns (GreetResponse);
+  rpc CheckTaskGraph(CheckTaskGraphRequest) returns (CheckTaskGraphResponse);
+  rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
 }
 
-message GreetRequest {
-  string name = 1;
+message TaskGraphValidationFailedStatus {}
+
+message CheckTaskGraphRequest {
+  TaskGraph task_graph = 1;
 }
 
-message GreetResponse {
-  string greeting = 1;
+message CheckTaskGraphResponse {
+  oneof result {
+    TaskGraphValidResult valid = 1;
+    TaskGraphValidationFailedStatus validation_failed = 2;
+  }
+}
+
+message TaskGraphValidResult {}
+
+message StartSessionRequest {
+  TaskGraph task_graph = 1;
+}
+
+message StartSessionResponse {
+  oneof result {
+    SessionStartedResult started = 1;
+    TaskGraphValidationFailedStatus validation_failed = 2;
+  }
+}
+
+message SessionStartedResult {
+  string session_id = 1;
+}
+
+message TaskGraph {
+  repeated Task tasks = 1;
+}
+
+message Task {
+  string id = 1;
+  string label = 2;
+  string description = 3;
+  repeated string source_task_ids = 4;
 }

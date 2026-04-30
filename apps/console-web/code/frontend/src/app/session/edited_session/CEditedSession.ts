@@ -1,16 +1,32 @@
 import { proxyMap } from 'valtio/utils';
-import { CTask, type TTaskId } from './CTask';
-import type { ISessionEditor } from './ISessionEditor';
-import type { ITaskPosition } from './ITask.ts';
+import { AppStateKinds } from '@/app/AppStateKinds';
+import { IEditedSessionTrait } from '@/app/ISessionTrait';
+import { CBaseSession } from '@/app/session/running_session/CBaseSession';
+import type { IEditedSession } from '../ISession';
+import type { ITaskPosition } from '../ITask.ts';
+import { CEditedTask, type TTaskId } from './CEditedTask';
 
-export class CSessionEditor implements ISessionEditor {
+const initialTaskId = 0n;
+
+export class CEditedSession extends CBaseSession<IEditedSessionTrait> implements IEditedSession {
+  static create(): IEditedSession {
+    return new CEditedSession();
+  }
+
+  readonly kind = AppStateKinds.Editing;
+
   private _stamp = 0;
   private _nextTaskId = 1n;
 
-  private _taskById: Map<TTaskId, CTask> = proxyMap([
+  private constructor() {
+    super();
+  }
+
+  private _taskById: Map<TTaskId, CEditedTask> = proxyMap([
     [
-      0n,
-      new CTask({
+      initialTaskId,
+      new CEditedTask({
+        id: initialTaskId,
         initialSourceTaskId: null,
         initialPosition: { x: 0, y: 0 },
       }),
@@ -21,30 +37,14 @@ export class CSessionEditor implements ISessionEditor {
     return this._stamp;
   }
 
-  get taskById(): ReadonlyMap<TTaskId, CTask> {
+  get taskById(): ReadonlyMap<TTaskId, CEditedTask> {
     return this._taskById;
-  }
-
-  getTaskById(taskId: TTaskId): CTask | null {
-    return this._taskById.get(taskId) ?? null;
-  }
-
-  getTargetTasks(sourceTaskId: TTaskId): ReadonlySet<CTask> {
-    const sourceTask = this.getTaskById(sourceTaskId);
-
-    if (sourceTask === null) {
-      throw new Error(`Source task with ID ${String(sourceTaskId)} not found`);
-    }
-
-    return new Set(
-      [...this._taskById.values()].filter((task) => task._sourceTaskIds.has(sourceTaskId))
-    );
   }
 
   createDependencyTask(
     targetTaskId: TTaskId,
     newTaskPosition: ITaskPosition
-  ): readonly [TTaskId, CTask] {
+  ): readonly [TTaskId, CEditedTask] {
     const targetTask = this.getTaskById(targetTaskId);
 
     if (targetTask === null) {
@@ -55,12 +55,13 @@ export class CSessionEditor implements ISessionEditor {
 
     console.log(`Adding dependency task with ID ${String(newTaskId)}`);
 
-    const newDependencyTask = new CTask({
+    const newDependencyTask = new CEditedTask({
+      id: newTaskId,
       initialSourceTaskId: null,
       initialPosition: newTaskPosition,
     });
 
-    targetTask._sourceTaskIds.add(newTaskId);
+    targetTask.addSourceTask(newTaskId);
 
     this._taskById.set(newTaskId, newDependencyTask);
 
@@ -70,10 +71,11 @@ export class CSessionEditor implements ISessionEditor {
   createDependentTask(
     sourceTaskId: TTaskId,
     newTaskPosition: ITaskPosition
-  ): readonly [TTaskId, CTask] {
+  ): readonly [TTaskId, CEditedTask] {
     const newTaskId = this._nextTaskId++;
 
-    const newDependentTask = new CTask({
+    const newDependentTask = new CEditedTask({
+      id: newTaskId,
       initialSourceTaskId: sourceTaskId,
       initialPosition: newTaskPosition,
     });
@@ -98,7 +100,7 @@ export class CSessionEditor implements ISessionEditor {
       throw new Error(`Target task with ID ${String(targetTaskId)} not found`);
     }
 
-    if (targetTask._sourceTaskIds.has(sourceTaskId)) {
+    if (targetTask.sourceTaskIds.has(sourceTaskId)) {
       throw new Error(
         `Source task ${String(sourceTaskId)} is already a dependency of task ${String(targetTaskId)}`
       );
@@ -108,13 +110,9 @@ export class CSessionEditor implements ISessionEditor {
       `Creating dependency from task ${String(sourceTaskId)} to task ${String(targetTaskId)}`
     );
 
-    targetTask._sourceTaskIds.add(sourceTaskId);
+    targetTask.sourceTaskIds.add(sourceTaskId);
 
     this._doStamp();
-  }
-
-  private _doStamp() {
-    ++this._stamp;
   }
 
   deleteTask(taskId: TTaskId) {
@@ -127,7 +125,7 @@ export class CSessionEditor implements ISessionEditor {
     console.log(`Deleting task with ID ${String(taskId)}`);
 
     for (const potentialTargetTask of this._taskById.values()) {
-      potentialTargetTask._sourceTaskIds.delete(taskId);
+      potentialTargetTask.sourceTaskIds.delete(taskId);
     }
 
     this._taskById.delete(taskId);
@@ -150,8 +148,12 @@ export class CSessionEditor implements ISessionEditor {
       `Breaking dependency from task ${String(sourceTaskId)} to task ${String(targetTaskId)}`
     );
 
-    targetTask._sourceTaskIds.delete(sourceTaskId);
+    targetTask.sourceTaskIds.delete(sourceTaskId);
 
     this._doStamp();
+  }
+
+  private _doStamp() {
+    ++this._stamp;
   }
 }

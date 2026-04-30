@@ -15,7 +15,6 @@ export default {
     'default-case': 'off',
     'default-case-last': 'error',
     'no-alert': 'error',
-    'no-else-return': 'error',
     'no-eval': 'error',
     'no-lonely-if': 'error',
     'no-multi-assign': 'error',

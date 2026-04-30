@@ -1,7 +1,6 @@
 import { Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { useSnapshot } from 'valtio';
-import { CTask } from '@/session_editor/CTask';
-import type { ITask } from '@/session_editor/ITask';
+import type { IEditedTask, ITask } from '@/app/session/ITask';
 import classes from './FocusedTaskView.module.css';
 
 function EmptyFocusedTaskView() {
@@ -13,7 +12,7 @@ function EmptyFocusedTaskView() {
 }
 
 interface ProperFocusedTaskViewProps {
-  readonly focusedTaskLive: CTask;
+  readonly focusedTaskLive: IEditedTask;
 }
 
 function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
@@ -48,17 +47,17 @@ function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
   );
 }
 
-interface FocusedTaskViewProps {
-  readonly focusedTaskLive: CTask | null;
+interface EditedTaskViewProps {
+  readonly editedTaskLive: IEditedTask | null;
 }
 
-export function FocusedTaskView(props: FocusedTaskViewProps) {
-  const { focusedTaskLive } = props;
+export function EditedTaskView(props: EditedTaskViewProps) {
+  const { editedTaskLive } = props;
 
-  switch (focusedTaskLive) {
+  switch (editedTaskLive) {
     case null:
       return <EmptyFocusedTaskView />;
     default:
-      return <ProperFocusedTaskView focusedTaskLive={focusedTaskLive} />;
+      return <ProperFocusedTaskView focusedTaskLive={editedTaskLive} />;
   }
 }

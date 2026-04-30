@@ -3,7 +3,7 @@ import { MantineProvider } from '@mantine/core';
 import { Router } from './Router';
 import { theme } from './theme';
 
-export default function App() {
+export default function RootComponent() {
   return (
     <MantineProvider theme={theme}>
       <Router />

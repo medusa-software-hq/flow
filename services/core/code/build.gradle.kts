@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.versionCatalogUpdate)
     alias(libs.plugins.ktfmt) apply false
     alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.sqldelight) apply false
 }
 
 allprojects {

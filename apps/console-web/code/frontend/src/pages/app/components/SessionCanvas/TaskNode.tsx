@@ -2,14 +2,16 @@ import { Text } from '@mantine/core';
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react';
 import { memo } from 'react';
 import { useSnapshot } from 'valtio';
-import type { CTask, TTaskId } from '@/session_editor/CTask';
+import type { TTaskId } from '@/app/session/edited_session/CEditedTask';
+import { UTask } from '@/app/session/ITask';
+import { AppStateKinds } from '../../../../app/AppStateKinds';
 
 export const taskNodeTag = 'task' as const;
 
 export type TaskNode = Node<
   {
     readonly taskId: TTaskId;
-    readonly taskLive: CTask;
+    readonly taskLive: UTask;
   },
   typeof taskNodeTag
 >;
@@ -24,6 +26,7 @@ function RawTaskNode(props: NodeProps<TaskNode>) {
     if (label === '') {
       return <Text c="dimmed">(untitled)</Text>;
     }
+
     return <Text>{label}</Text>;
   };
 
@@ -31,9 +34,30 @@ function RawTaskNode(props: NodeProps<TaskNode>) {
     <div className="custom-node">
       <Handle type="target" position={Position.Left} isConnectable={props.isConnectable} />
       {buildLabelText()}
+      <TaskStatus taskLive={taskLive} />
       <Handle type="source" position={Position.Right} isConnectable={props.isConnectable} />
     </div>
   );
 }
 
 export const TaskNode = memo(RawTaskNode);
+
+interface TaskStatusProps {
+  readonly taskLive: UTask;
+}
+
+function TaskStatus({ taskLive }: TaskStatusProps) {
+  const taskSnap: UTask = useSnapshot(taskLive);
+
+  void taskSnap.kind;
+
+  switch (taskLive.kind) {
+    case AppStateKinds.Editing: {
+      return <Text>{taskLive.editedTaskLabel}</Text>;
+    }
+
+    case AppStateKinds.Running: {
+      return <Text>Progress: {taskLive.getProgress()}</Text>;
+    }
+  }
+}

@@ -1,14 +1,17 @@
 package software.medusa.flow.core_service
 
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.linecorp.armeria.common.HttpHeaderNames
 import com.linecorp.armeria.common.HttpMethod
 import com.linecorp.armeria.server.Server
 import com.linecorp.armeria.server.cors.CorsService
 import com.linecorp.armeria.server.grpc.GrpcService
 import com.linecorp.armeria.server.healthcheck.HealthCheckService
+import com.linecorp.armeria.server.logging.LoggingService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.future.await
+import software.medusa.flow.db.FlowDatabase
 
 suspend fun runServer(
     configurator: Configurator,
@@ -48,12 +51,24 @@ suspend fun runServer(
           }
           .newDecorator()
 
+  val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+
+  FlowDatabase.Schema.create(driver = driver)
+
+  val database = FlowDatabase(driver = driver)
+
+  val sessionManagementService =
+      SessionManagementService(
+          database = database,
+      )
+
   val grpcService =
       GrpcService.builder()
           .apply {
             addService(
                 CoreServiceGrpcImpl(
                     coroutineDispatcher = coroutineDispatcher,
+                    sessionManagementService = sessionManagementService,
                 ),
             )
           }
@@ -66,7 +81,10 @@ suspend fun runServer(
 
             service("/health", HealthCheckService.of())
 
-            serviceUnder("/", grpcService.decorate(corsDecorator))
+            serviceUnder(
+                "/",
+                grpcService.decorate(LoggingService.newDecorator()).decorate(corsDecorator),
+            )
           }
           .build()
 

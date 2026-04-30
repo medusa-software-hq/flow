@@ -1,8 +1,8 @@
 import { type Edge, type NodeTypes } from '@xyflow/react';
 import { useSnapshot } from 'valtio';
-import { TaskNode, taskNodeTag } from '@/pages/home/components/SessionCanvas/TaskNode';
-import { type TTaskId } from '@/session_editor/CTask';
-import type { ISessionEditor } from '@/session_editor/ISessionEditor';
+import { type TTaskId } from '@/app/session/edited_session/CEditedTask';
+import type { TAnySession } from '@/app/session/ISession';
+import { TaskNode, taskNodeTag } from '../../components/SessionCanvas/TaskNode';
 
 export type MyNode = TaskNode;
 
@@ -36,22 +36,22 @@ export function parseTaskNodeId(nodeId: string): TTaskId | null {
 }
 
 export interface UseMyFlowGraphArgs {
-  readonly sessionSourceLive: ISessionEditor;
+  readonly sessionLive: TAnySession;
   readonly selectedNodeIds: ReadonlySet<string>;
   readonly selectedEdgeIds: ReadonlySet<string>;
 }
 
 export function useMyFlowGraph(args: UseMyFlowGraphArgs): readonly [MyNode[], MyEdge[]] {
-  const { sessionSourceLive, selectedNodeIds, selectedEdgeIds } = args;
-  const sessionSourceSnap: ISessionEditor = useSnapshot(sessionSourceLive);
+  const { sessionLive, selectedNodeIds, selectedEdgeIds } = args;
+  const sessionSnap: TAnySession = useSnapshot(sessionLive);
 
-  void sessionSourceSnap.stamp;
+  void sessionSnap.stamp;
 
   const nodes: MyNode[] = [];
   const edges: MyEdge[] = [];
 
-  for (const [taskId, taskSnap] of sessionSourceSnap.taskById.entries()) {
-    const taskLive = sessionSourceLive.getTaskById(taskId);
+  for (const [taskId, taskSnap] of sessionSnap.taskById.entries()) {
+    const taskLive = sessionLive.getTaskById(taskId);
 
     if (taskLive === null) {
       throw new Error(`Task with ID ${String(taskId)} not found`);
@@ -69,10 +69,13 @@ export function useMyFlowGraph(args: UseMyFlowGraphArgs): readonly [MyNode[], My
 
     nodes.push(taskNode);
 
-    taskSnap._sourceTaskIds.forEach((sourceTaskId) => {
+    const sourceTasks = sessionSnap.getSourceTasks(taskId);
+
+    sourceTasks.forEach((sourceTask) => {
+      const sourceTaskId = sourceTask.id;
       const sourceTaskNodeId = buildTaskNodeId(sourceTaskId);
 
-      const sourceTaskSnap = sessionSourceSnap.taskById.get(sourceTaskId);
+      const sourceTaskSnap = sessionSnap.taskById.get(sourceTaskId);
 
       if (sourceTaskSnap === undefined) {
         throw new Error(`Source task with ID ${String(sourceTaskId)} not found`);

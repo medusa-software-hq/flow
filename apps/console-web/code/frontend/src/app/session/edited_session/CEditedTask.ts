@@ -1,23 +1,28 @@
 import { proxySet } from 'valtio/utils';
-import type { ITask, ITaskPosition } from './ITask';
+import { AppStateKinds } from '../../AppStateKinds';
+import type { IEditedTask, ITaskPosition } from '../ITask';
 
 export type TTaskId = bigint;
 
 export interface TaskProps {
+  readonly id: TTaskId;
   readonly initialSourceTaskId: TTaskId | null;
   readonly initialPosition: ITaskPosition;
 }
 
 const defaultTaskLabel = '';
 
-export class CTask implements ITask {
+export class CEditedTask implements IEditedTask {
+  readonly kind = AppStateKinds.Editing;
+
+  readonly id: TTaskId;
+
   private _label = defaultTaskLabel;
   private _description = '';
 
   private _position: ITaskPosition;
 
-  // Internal
-  readonly _sourceTaskIds: Set<TTaskId>;
+  private readonly _sourceTaskIds: Set<TTaskId>;
 
   constructor(props: TaskProps) {
     const { initialSourceTaskId } = props;
@@ -26,8 +31,11 @@ export class CTask implements ITask {
       if (initialSourceTaskId !== null) {
         return new Set([initialSourceTaskId]);
       }
+
       return new Set();
     })();
+
+    this.id = props.id;
 
     this._sourceTaskIds = proxySet(rawSourceTaskIds);
 
@@ -38,6 +46,10 @@ export class CTask implements ITask {
     }
 
     this._position = props.initialPosition;
+  }
+
+  get editedTaskLabel(): string {
+    return `Edited task!!!: ${this._label}`;
   }
 
   get label(): string {
@@ -62,5 +74,15 @@ export class CTask implements ITask {
 
   move(newPosition: ITaskPosition) {
     this._position = newPosition;
+  }
+
+  // Internal
+  get sourceTaskIds(): Set<bigint> {
+    return this._sourceTaskIds;
+  }
+
+  // Internal
+  addSourceTask(sourceTaskId: TTaskId): void {
+    this._sourceTaskIds.add(sourceTaskId);
   }
 }

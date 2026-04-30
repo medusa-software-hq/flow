@@ -9,6 +9,7 @@ ktfmt = "0.26.0"
 logback = "1.5.32"
 protobuf = "4.34.1"
 protobuf-plugin = "0.10.0"
+sqldelight = "2.3.2"
 versionCatalogUpdate = "1.1.0"
 
 [libraries]
@@ -27,10 +28,13 @@ protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref 
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
 protobuf-protocGen-grpc-java = { module = "io.grpc:protoc-gen-grpc-java", version.ref = "grpc" }
 protobuf-protocGen-grpc-kotlin = "io.grpc:protoc-gen-grpc-kotlin:1.5.0"
+sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
+sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 
 [plugins]
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ktfmt = { id = "com.ncorti.ktfmt.gradle", version.ref = "ktfmt" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 versionCatalogUpdate = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogUpdate" }
