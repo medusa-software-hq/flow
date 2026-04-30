@@ -13,10 +13,11 @@ function EmptyFocusedTaskView() {
 
 interface ProperFocusedTaskViewProps {
   readonly focusedTaskLive: IEditedTask;
+  readonly onChanged: () => void;
 }
 
 function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
-  const { focusedTaskLive } = props;
+  const { focusedTaskLive, onChanged } = props;
   const focusedTaskLiveSnap: ITask = useSnapshot(focusedTaskLive);
 
   const label = focusedTaskLiveSnap.label;
@@ -30,6 +31,7 @@ function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
         value={label}
         onChange={(event) => {
           focusedTaskLive.label = event.currentTarget.value;
+          onChanged();
         }}
       />
       <Textarea
@@ -38,6 +40,7 @@ function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
         value={description}
         onChange={(event) => {
           focusedTaskLive.description = event.currentTarget.value;
+          onChanged();
         }}
         autosize
         minRows={8}
@@ -49,15 +52,16 @@ function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
 
 interface EditedTaskViewProps {
   readonly editedTaskLive: IEditedTask | null;
+  readonly onChanged: () => void;
 }
 
 export function EditedTaskView(props: EditedTaskViewProps) {
-  const { editedTaskLive } = props;
+  const { editedTaskLive, onChanged } = props;
 
   switch (editedTaskLive) {
     case null:
       return <EmptyFocusedTaskView />;
     default:
-      return <ProperFocusedTaskView focusedTaskLive={editedTaskLive} />;
+      return <ProperFocusedTaskView focusedTaskLive={editedTaskLive} onChanged={onChanged} />;
   }
 }

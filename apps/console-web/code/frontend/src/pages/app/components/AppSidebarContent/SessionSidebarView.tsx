@@ -24,7 +24,7 @@ export function SessionSidebarView({
   switch (currentSessionWorkspaceStateLive.kind) {
     case SessionWorkspaceStateKinds.Editing: {
       if (focusedTaskId === null) {
-        return <Text>(no task)</Text>;
+        return <EmptyTaskSelectionView />;
       }
 
       const sessionEditorLive = currentSessionWorkspaceStateLive.sessionEditor;
@@ -36,7 +36,14 @@ export function SessionSidebarView({
 
         return <CrashIcon />;
       } else {
-        return <EditedTaskView editedTaskLive={focusedEditedTaskLive} />;
+        return (
+          <EditedTaskView
+            editedTaskLive={focusedEditedTaskLive}
+            onChanged={() => {
+              void sessionWorkspaceLive.upload();
+            }}
+          />
+        );
       }
     }
     case SessionWorkspaceStateKinds.Running: {
@@ -52,6 +59,19 @@ export function SessionSidebarView({
       );
     }
   }
+}
+
+function EmptyTaskSelectionView() {
+  return (
+    <Center h="100%">
+      <Stack align="center" gap="xs">
+        <Text size="lg">No task selected</Text>
+        <Text size="sm" c="dimmed" ta="center">
+          Pick a node on the canvas to inspect and edit its details.
+        </Text>
+      </Stack>
+    </Center>
+  );
 }
 
 function CrashIcon() {

@@ -8,21 +8,26 @@ import {
   ILoadingState,
   UAppTrampolineState,
 } from '@/app_trampoline/IAppTrampolineState';
+import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 
 export class CAppTrampoline implements IAppTrampoline {
-  static createProxied(): IAppTrampoline {
-    // We need to proxy early...
-    const self: CAppTrampoline = proxy(new CAppTrampoline());
+  static createProxied(args: { coreServiceClient: CoreServiceClient }): IAppTrampoline {
+    const self: CAppTrampoline = proxy(new CAppTrampoline(args));
 
-    // ...to ensure that initialization goes through a proxy
     self._initialize();
 
     return self;
   }
 
+  private readonly _coreServiceClient: CoreServiceClient;
+
   private _currentState: UAppTrampolineState = {
     kind: AppTrampolineStateKinds.Loading,
   };
+
+  private constructor(args: { coreServiceClient: CoreServiceClient }) {
+    this._coreServiceClient = args.coreServiceClient;
+  }
 
   private _initialize() {
     void this._tryLoadingApp();
@@ -38,7 +43,9 @@ export class CAppTrampoline implements IAppTrampoline {
     try {
       console.log('Trying to load app...');
 
-      const loadedApp = await CApp.load();
+      const loadedApp = await CApp.load({
+        coreServiceClient: this._coreServiceClient,
+      });
 
       console.log('App loaded successfully!');
 

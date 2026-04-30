@@ -36,7 +36,11 @@ export function SessionMainView({ sessionWorkspaceLive, onTaskFocused }: Session
 
   return (
     <ReactFlowProvider>
-      <SessionCanvas sessionLive={sessionLive} onTaskFocused={onTaskFocused} />
+      <SessionCanvas
+        sessionLive={sessionLive}
+        sessionWorkspaceLive={sessionWorkspaceLive}
+        onTaskFocused={onTaskFocused}
+      />
     </ReactFlowProvider>
   );
 }

@@ -4,10 +4,18 @@ import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { CAppTrampoline } from '@/app_trampoline/CAppTrampoline';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import { AppView } from '@/pages/app/components/AppView/AppView';
+import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { AppFailedView } from './AppFailedView';
 
-export function AppPage() {
-  const appTrampolineLive: IAppTrampoline = useMemo(() => CAppTrampoline.createProxied(), []);
+interface AppPageProps {
+  readonly coreServiceClient: CoreServiceClient;
+}
+
+export function AppPage({ coreServiceClient }: AppPageProps) {
+  const appTrampolineLive: IAppTrampoline = useMemo(
+    () => CAppTrampoline.createProxied({ coreServiceClient }),
+    [coreServiceClient]
+  );
   const appTrampolineSnap = useSnapshot(appTrampolineLive);
 
   void appTrampolineSnap.currentState;

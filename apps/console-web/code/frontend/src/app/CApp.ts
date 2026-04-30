@@ -1,8 +1,13 @@
+import { create } from '@bufbuild/protobuf';
 import { proxyMap } from 'valtio/utils';
+import {
+  ListSessionsRequestSchema,
+  SessionSummary,
+  TaskGraphSchema,
+} from '@/gen/medusa/flow/core_service/v1/core_service_pb';
 import { CSessionWorkspaceTrampoline } from '@/session_workspace_trampoline/CSessionWorkspaceTrampoline';
 import { ISessionWorkspaceTrampoline } from '@/session_workspace_trampoline/ISessionWorkspaceTrampoline';
-import { sleep } from '@/utils/promiseUtils';
-import { IApp, IAppSessionSummary, TSessionWorkspaceId } from './IApp';
+import { IApp, IAppLoadArgs, IAppSessionSummary, TSessionWorkspaceId } from './IApp';
 
 const fakeSessionVisuals = [
   { label: 'i', tone: 'blue' },
@@ -14,23 +19,46 @@ const fakeSessionVisuals = [
 ] as const;
 
 export class CApp implements IApp {
-  static async load(): Promise<IApp> {
-    await sleep(2000);
+  static async load({ coreServiceClient }: IAppLoadArgs): Promise<IApp> {
+    const listSessionsResponse = await coreServiceClient.listSessions(
+      create(ListSessionsRequestSchema)
+    );
 
-    if (Math.random() < 0.1) {
-      throw new Error('Random app error!!!1');
-    }
-
-    return new CApp();
+    return new CApp({
+      coreServiceClient,
+      existingSessions: listSessionsResponse.sessions,
+    });
   }
 
   private _nextSessionWorkspaceNumber = 1;
   private _selectedSessionWorkspaceId: TSessionWorkspaceId | null = null;
+  private readonly _coreServiceClient;
 
   private _sessionWorkspaceTrampolineById: Map<TSessionWorkspaceId, ISessionWorkspaceTrampoline> =
     proxyMap();
 
-  private constructor() {}
+  private constructor(args: {
+    coreServiceClient: IAppLoadArgs['coreServiceClient'];
+    existingSessions: readonly SessionSummary[];
+  }) {
+    this._coreServiceClient = args.coreServiceClient;
+    const firstExistingSessionId = args.existingSessions[0]?.sessionId ?? null;
+
+    for (const sessionSummary of args.existingSessions) {
+      const sessionWorkspaceId = sessionSummary.sessionId;
+
+      this._sessionWorkspaceTrampolineById.set(
+        sessionWorkspaceId,
+        CSessionWorkspaceTrampoline.createProxied({
+          coreServiceClient: this._coreServiceClient,
+          restoredSessionSummary: sessionSummary,
+        })
+      );
+    }
+
+    this._nextSessionWorkspaceNumber = args.existingSessions.length + 1;
+    this._selectedSessionWorkspaceId = firstExistingSessionId;
+  }
 
   get selectedSessionWorkspaceId(): TSessionWorkspaceId | null {
     return this._selectedSessionWorkspaceId;
@@ -71,7 +99,10 @@ export class CApp implements IApp {
   createSessionWorkspace(): TSessionWorkspaceId {
     const newSessionWorkspaceId = `session-workspace-${this._nextSessionWorkspaceNumber++}`;
 
-    const newSessionWorkspaceTrampoline = CSessionWorkspaceTrampoline.createProxied();
+    const newSessionWorkspaceTrampoline = CSessionWorkspaceTrampoline.createProxied({
+      coreServiceClient: this._coreServiceClient,
+      initialTaskGraph: create(TaskGraphSchema),
+    });
 
     this._sessionWorkspaceTrampolineById.set(newSessionWorkspaceId, newSessionWorkspaceTrampoline);
     this._selectedSessionWorkspaceId = newSessionWorkspaceId;

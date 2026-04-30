@@ -20,4 +20,18 @@ class SessionManagementService(private val database: FlowDatabase) {
 
   fun getSessionById(id: String): Session? =
       database.sessionQueries.selectSessionById(id).executeAsOneOrNull()
+
+  fun updateSessionTaskGraph(id: String, taskGraph: TaskGraph): Session? {
+    database.sessionQueries.updateSessionTaskGraph(
+        task_graph_proto_bytes = taskGraph.toByteArray(),
+        id = id,
+    )
+
+    return getSessionById(id)
+  }
+
+  fun getAllSessions(): List<Session> = database.sessionQueries.selectAllSessions().executeAsList()
+
+  fun decodeTaskGraph(session: Session): TaskGraph =
+      TaskGraph.parseFrom(session.task_graph_proto_bytes)
 }

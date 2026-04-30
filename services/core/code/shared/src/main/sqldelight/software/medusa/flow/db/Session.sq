@@ -10,3 +10,12 @@ VALUES (?, ?);
 selectSessionById:
 SELECT * FROM session
 WHERE id = ?;
+
+updateSessionTaskGraph:
+UPDATE session
+SET task_graph_proto_bytes = ?
+WHERE id = ?;
+
+selectAllSessions:
+SELECT * FROM session
+ORDER BY id;

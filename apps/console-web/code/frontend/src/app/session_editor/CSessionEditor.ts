@@ -1,16 +1,23 @@
 import { CEditedSession } from '@/app/session/edited_session/CEditedSession';
+import { TaskGraph } from '@/gen/medusa/flow/core_service/v1/core_service_pb';
 import { IEditedSession, IRunningSession } from '../session/ISession';
 import { ISessionEditor } from './ISessionEditor';
 
 export class CSessionEditor implements ISessionEditor {
-  static create(): ISessionEditor {
-    return new CSessionEditor(CEditedSession.create());
+  static createNew(onChanged?: () => void): ISessionEditor {
+    return new CSessionEditor(CEditedSession.createNew(), onChanged);
+  }
+
+  static restore(taskGraph: TaskGraph | null, onChanged?: () => void): ISessionEditor {
+    return new CSessionEditor(CEditedSession.restore(taskGraph), onChanged);
   }
 
   readonly editedSession: IEditedSession;
+  readonly onChanged: (() => void) | null;
 
-  private constructor(editedSession: IEditedSession) {
+  private constructor(editedSession: IEditedSession, onChanged?: () => void) {
     this.editedSession = editedSession;
+    this.onChanged = onChanged ?? null;
   }
 
   check(): void {}
@@ -24,10 +31,11 @@ export interface IRunningSessionObserver {
 
 export class CRunningSessionObserver implements ISessionEditor {
   static create(): ISessionEditor {
-    return new CRunningSessionObserver(CEditedSession.create());
+    return new CRunningSessionObserver(CEditedSession.createNew());
   }
 
   readonly editedSession: IEditedSession;
+  readonly onChanged = null;
 
   private constructor(editedSession: IEditedSession) {
     this.editedSession = editedSession;

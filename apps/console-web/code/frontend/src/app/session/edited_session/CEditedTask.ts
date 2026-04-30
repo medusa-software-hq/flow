@@ -6,8 +6,11 @@ export type TTaskId = bigint;
 
 export interface TaskProps {
   readonly id: TTaskId;
-  readonly initialSourceTaskId: TTaskId | null;
+  readonly initialSourceTaskIds?: ReadonlySet<TTaskId>;
+  readonly initialSourceTaskId?: TTaskId | null;
   readonly initialPosition: ITaskPosition;
+  readonly initialLabel?: string;
+  readonly initialDescription?: string;
 }
 
 const defaultTaskLabel = '';
@@ -25,25 +28,21 @@ export class CEditedTask implements IEditedTask {
   private readonly _sourceTaskIds: Set<TTaskId>;
 
   constructor(props: TaskProps) {
-    const { initialSourceTaskId } = props;
+    const { initialSourceTaskId = null, initialSourceTaskIds = null } = props;
 
-    const rawSourceTaskIds: Set<TTaskId> = (() => {
-      if (initialSourceTaskId !== null) {
-        return new Set([initialSourceTaskId]);
-      }
-
-      return new Set();
-    })();
+    const rawSourceTaskIds: Set<TTaskId> =
+      initialSourceTaskIds !== null
+        ? new Set(initialSourceTaskIds)
+        : initialSourceTaskId !== null
+          ? new Set([initialSourceTaskId])
+          : new Set();
 
     this.id = props.id;
 
-    this._sourceTaskIds = proxySet(rawSourceTaskIds);
+    this._label = props.initialLabel ?? defaultTaskLabel;
+    this._description = props.initialDescription ?? '';
 
-    if (initialSourceTaskId !== null) {
-      this._sourceTaskIds = new Set([initialSourceTaskId]);
-    } else {
-      this._sourceTaskIds = new Set();
-    }
+    this._sourceTaskIds = proxySet(rawSourceTaskIds);
 
     this._position = props.initialPosition;
   }

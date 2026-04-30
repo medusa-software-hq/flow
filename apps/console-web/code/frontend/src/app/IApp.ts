@@ -13,6 +13,10 @@ export interface IAppSessionSummary {
   readonly onSelected: () => void;
 }
 
+export interface IAppLoadArgs {
+  readonly coreServiceClient: import('@/rpc/myGrpcTypes').CoreServiceClient;
+}
+
 export interface IApp {
   get selectedSessionWorkspaceId(): TSessionWorkspaceId | null;
 

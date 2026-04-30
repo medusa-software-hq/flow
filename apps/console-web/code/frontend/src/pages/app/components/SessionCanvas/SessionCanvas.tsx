@@ -18,6 +18,7 @@ import {
 import { useCallback, useEffect, useMemo } from 'react';
 import { useSnapshot } from 'valtio';
 import { proxySet } from 'valtio/utils';
+import { ISessionWorkspace } from '@/app/ISessionWorkspace';
 import type { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { IEditedSession, UAnySession } from '@/app/session/ISession';
 import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
@@ -36,6 +37,7 @@ const nodeOrigin: NodeOrigin = [0.5, 0];
 
 export interface SessionCanvasProps {
   readonly sessionLive: UAnySession;
+  readonly sessionWorkspaceLive: ISessionWorkspace;
   readonly onTaskFocused: (taskId: TTaskId | null) => void;
 }
 
@@ -49,7 +51,7 @@ function toEditedSession(session: UAnySession): IEditedSession | null {
 }
 
 export function SessionCanvas(props: SessionCanvasProps) {
-  const { sessionLive, onTaskFocused } = props;
+  const { sessionLive, sessionWorkspaceLive, onTaskFocused } = props;
 
   const { screenToFlowPosition } = useReactFlow();
 
@@ -100,6 +102,7 @@ export function SessionCanvas(props: SessionCanvasProps) {
     }
 
     editedSession.createDependency(sourceTaskId, targetTaskId);
+    void sessionWorkspaceLive.upload();
   };
 
   const onConnectEnd: OnConnectEnd = useCallback(
@@ -150,10 +153,12 @@ export function SessionCanvas(props: SessionCanvasProps) {
         switch (fromHandle.type) {
           case 'source': {
             editedSessionLive.createDependentTask(fromTaskId, newNodePosition);
+            void sessionWorkspaceLive.upload();
             break;
           }
           case 'target': {
             editedSessionLive.createDependencyTask(fromTaskId, newNodePosition);
+            void sessionWorkspaceLive.upload();
             break;
           }
         }
@@ -198,6 +203,7 @@ export function SessionCanvas(props: SessionCanvasProps) {
             }
 
             task.move(newPosition);
+            void sessionWorkspaceLive.upload();
 
             break;
           }
@@ -244,6 +250,7 @@ export function SessionCanvas(props: SessionCanvasProps) {
               removedEdgeData.sourceTaskId,
               removedEdgeData.targetTaskId
             );
+            void sessionWorkspaceLive.upload();
 
             break;
           }
@@ -285,9 +292,10 @@ export function SessionCanvas(props: SessionCanvasProps) {
         const deletedTaskId = deletedNode.data.taskId;
 
         editedSessionLive.deleteTask(deletedTaskId);
+        void sessionWorkspaceLive.upload();
       });
     },
-    [selectedNodeIdsLive, sessionLive]
+    [selectedNodeIdsLive, sessionLive, sessionWorkspaceLive]
   );
 
   const onEdgesDelete: OnEdgesDelete<MyEdge> = useCallback(
@@ -315,9 +323,10 @@ export function SessionCanvas(props: SessionCanvasProps) {
           deletedEdgeData.sourceTaskId,
           deletedEdgeData.targetTaskId
         );
+        void sessionWorkspaceLive.upload();
       }
     },
-    [selectedEdgeIdsSnap, sessionLive, selectedEdgeIdsLive]
+    [selectedEdgeIdsSnap, sessionLive, selectedEdgeIdsLive, sessionWorkspaceLive]
   );
 
   return (
