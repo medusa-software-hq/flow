@@ -1,25 +1,31 @@
 import { AppShell } from '@mantine/core';
 import { useState } from 'react';
-import { IApp } from '@/app/IApp';
+import { ISessionWorkspace } from '@/app/ISessionWorkspace';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { SessionMainView } from '../AppMainView/SessionMainView';
 import { SessionSidebarView } from '../AppSidebarContent/SessionSidebarView';
 import classes from '../../AppPage.module.css';
 
 export interface SessionViewProps {
-  readonly appLive: IApp;
+  readonly sessionWorkspaceLive: ISessionWorkspace;
 }
 
-export function SessionView({ appLive }: SessionViewProps) {
+export function SessionView({ sessionWorkspaceLive }: SessionViewProps) {
   const [focusedTaskId, setFocusedTaskId] = useState<TTaskId | null>(null);
 
   return (
     <AppShell className={classes.shell} navbar={{ width: 320, breakpoint: 'sm' }}>
       <AppShell.Section className={classes.sidebar} p="md">
-        <SessionSidebarView appLive={appLive} focusedTaskId={focusedTaskId} />
+        <SessionSidebarView
+          sessionWorkspaceLive={sessionWorkspaceLive}
+          focusedTaskId={focusedTaskId}
+        />
       </AppShell.Section>
 
-      <SessionMainView appLive={appLive} onTaskFocused={setFocusedTaskId} />
+      <SessionMainView
+        sessionWorkspaceLive={sessionWorkspaceLive}
+        onTaskFocused={setFocusedTaskId}
+      />
     </AppShell>
   );
 }

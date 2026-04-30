@@ -1,5 +1,5 @@
 import { proxySet } from 'valtio/utils';
-import { AppStateKinds } from '../../AppStateKinds';
+import { SessionWorkspaceStateKinds } from '../../SessionWorkspaceStateKinds';
 import type { IEditedTask, ITaskPosition } from '../ITask';
 
 export type TTaskId = bigint;
@@ -13,7 +13,7 @@ export interface TaskProps {
 const defaultTaskLabel = '';
 
 export class CEditedTask implements IEditedTask {
-  readonly kind = AppStateKinds.Editing;
+  readonly kind = SessionWorkspaceStateKinds.Editing;
 
   readonly id: TTaskId;
 

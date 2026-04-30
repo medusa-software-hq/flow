@@ -4,7 +4,7 @@ import { memo } from 'react';
 import { useSnapshot } from 'valtio';
 import type { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { UTask } from '@/app/session/ITask';
-import { AppStateKinds } from '../../../../app/AppStateKinds';
+import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
 
 export const taskNodeTag = 'task' as const;
 
@@ -52,11 +52,11 @@ function TaskStatus({ taskLive }: TaskStatusProps) {
   void taskSnap.kind;
 
   switch (taskLive.kind) {
-    case AppStateKinds.Editing: {
+    case SessionWorkspaceStateKinds.Editing: {
       return <Text>{taskLive.editedTaskLabel}</Text>;
     }
 
-    case AppStateKinds.Running: {
+    case SessionWorkspaceStateKinds.Running: {
       return <Text>Progress: {taskLive.getProgress()}</Text>;
     }
   }

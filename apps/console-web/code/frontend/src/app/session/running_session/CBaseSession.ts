@@ -1,6 +1,6 @@
-import { TAppStateKind } from '@/app/AppStateKinds';
 import { ISessionTrait } from '@/app/ISessionTrait';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
+import { TSessionWorkspaceStateKind } from '@/app/SessionWorkspaceStateKinds';
 import type { ISession } from '../ISession';
 
 export abstract class CBaseSession<$T extends ISessionTrait> implements ISession<$T> {
@@ -40,7 +40,7 @@ export abstract class CBaseSession<$T extends ISessionTrait> implements ISession
     );
   }
 
-  abstract readonly kind: TAppStateKind;
+  abstract readonly kind: TSessionWorkspaceStateKind;
 
   abstract get stamp(): unknown;
 

@@ -1,6 +1,6 @@
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { IEditedTask, IRunningTask, ITaskPosition } from '@/app/session/ITask';
-import { AppStateKinds } from '../../AppStateKinds';
+import { SessionWorkspaceStateKinds } from '../../SessionWorkspaceStateKinds';
 
 export interface CRunningTaskArgs {
   readonly id: TTaskId;
@@ -15,7 +15,7 @@ export class CRunningTask implements IRunningTask {
     return new CRunningTask(editedTask);
   }
 
-  readonly kind = AppStateKinds.Running;
+  readonly kind = SessionWorkspaceStateKinds.Running;
 
   readonly id: TTaskId;
   readonly label: string;

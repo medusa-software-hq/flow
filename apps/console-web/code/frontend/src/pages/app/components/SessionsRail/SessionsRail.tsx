@@ -1,6 +1,6 @@
 import { Center, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useSnapshot } from 'valtio';
-import { IAppSessionSummary, TAppSessionTone } from '@/app/IApp';
+import { ISessionWorkspaceSummary, TSessionWorkspaceTone } from '@/app/ISessionWorkspace';
 import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import { UAppTrampolineState } from '@/app_trampoline/IAppTrampolineState';
@@ -13,7 +13,7 @@ export interface SessionsRailProps {
 interface SessionIconViewModel {
   readonly key: string;
   readonly isSelected: boolean;
-  readonly tone: TAppSessionTone | null;
+  readonly tone: TSessionWorkspaceTone | null;
   readonly label: string | null;
 }
 
@@ -81,14 +81,14 @@ function extractSessionIconViewModels(
       }));
 
     case AppTrampolineStateKinds.Loaded:
-      return currentStateLive.loadedApp.sessions.map(mapSessionToViewModel);
+      return currentStateLive.loadedSessionWorkspace.sessions.map(mapSessionToViewModel);
 
     case AppTrampolineStateKinds.Failed:
       throw new Error('Failed trampoline state should be handled above SessionsRail');
   }
 }
 
-function mapSessionToViewModel(session: IAppSessionSummary): SessionIconViewModel {
+function mapSessionToViewModel(session: ISessionWorkspaceSummary): SessionIconViewModel {
   return {
     key: session.id,
     isSelected: session.isSelected,

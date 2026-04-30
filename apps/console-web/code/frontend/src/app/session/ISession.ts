@@ -1,4 +1,7 @@
-import { AppStateKinds, TAppStateKind } from '@/app/AppStateKinds';
+import {
+  SessionWorkspaceStateKinds,
+  TSessionWorkspaceStateKind,
+} from '@/app/SessionWorkspaceStateKinds';
 import { IEditedSessionTrait, IRunningSessionTrait, ISessionTrait } from '../ISessionTrait';
 import { CEditedTask, type TTaskId } from './edited_session/CEditedTask';
 import type { ITaskPosition } from './ITask';
@@ -6,7 +9,7 @@ import type { ITaskPosition } from './ITask';
 export type TAnySession = ISession<ISessionTrait>;
 
 export interface ISession<$T extends ISessionTrait> {
-  readonly kind: TAppStateKind;
+  readonly kind: TSessionWorkspaceStateKind;
 
   get stamp(): unknown;
 
@@ -20,7 +23,7 @@ export interface ISession<$T extends ISessionTrait> {
 }
 
 export interface IEditedSession extends ISession<IEditedSessionTrait> {
-  readonly kind: typeof AppStateKinds.Editing;
+  readonly kind: typeof SessionWorkspaceStateKinds.Editing;
 
   createDependencyTask(
     targetTaskId: TTaskId,
@@ -40,7 +43,7 @@ export interface IEditedSession extends ISession<IEditedSessionTrait> {
 }
 
 export interface IRunningSession extends ISession<IRunningSessionTrait> {
-  readonly kind: typeof AppStateKinds.Running;
+  readonly kind: typeof SessionWorkspaceStateKinds.Running;
 
   getSessionProgress(): number;
 }

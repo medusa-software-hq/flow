@@ -1,4 +1,7 @@
-import { AppStateKinds, TAppStateKind } from '../AppStateKinds';
+import {
+  SessionWorkspaceStateKinds,
+  TSessionWorkspaceStateKind,
+} from '../SessionWorkspaceStateKinds';
 import { TTaskId } from './edited_session/CEditedTask';
 
 export interface ITaskPosition {
@@ -7,7 +10,7 @@ export interface ITaskPosition {
 }
 
 export interface ITask {
-  get kind(): TAppStateKind;
+  get kind(): TSessionWorkspaceStateKind;
 
   get id(): TTaskId;
 
@@ -22,7 +25,7 @@ export interface ITask {
 }
 
 export interface IEditedTask extends ITask {
-  readonly kind: typeof AppStateKinds.Editing;
+  readonly kind: typeof SessionWorkspaceStateKinds.Editing;
 
   readonly editedTaskLabel: string;
 
@@ -37,7 +40,7 @@ export interface IEditedTask extends ITask {
 }
 
 export interface IRunningTask extends ITask {
-  readonly kind: typeof AppStateKinds.Running;
+  readonly kind: typeof SessionWorkspaceStateKinds.Running;
 
   getProgress(): number;
 }

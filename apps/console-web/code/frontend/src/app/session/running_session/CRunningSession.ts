@@ -1,10 +1,10 @@
 import { proxyMap } from 'valtio/utils';
-import { AppStateKinds } from '@/app/AppStateKinds';
 import { IRunningSessionTrait } from '@/app/ISessionTrait';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { IEditedTask } from '@/app/session/ITask';
 import { CBaseSession } from '@/app/session/running_session/CBaseSession';
 import { CRunningTask } from '@/app/session/running_session/CEditedTask';
+import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
 import type { IEditedSession, IRunningSession } from '../ISession';
 
 interface CRunningSessionArgs {
@@ -18,7 +18,7 @@ export class CRunningSession extends CBaseSession<IRunningSessionTrait> implemen
     });
   }
 
-  readonly kind = AppStateKinds.Running;
+  readonly kind = SessionWorkspaceStateKinds.Running;
 
   private constructor(args: CRunningSessionArgs) {
     super();

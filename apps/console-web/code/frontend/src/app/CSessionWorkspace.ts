@@ -1,12 +1,12 @@
-import { IEditingState, IRunningState, UAppState } from '@/app/IAppState';
+import { IEditingState, IRunningState, USessionWorkspaceState } from '@/app/ISessionWorkspaceState';
 import { CRunningSession } from '@/app/session/running_session/CRunningSession';
 import { CSessionEditor } from '@/app/session_editor/CSessionEditor';
-import { AppStateKinds } from './AppStateKinds';
-import { IApp, IAppSessionSummary } from './IApp';
+import { ISessionWorkspace, ISessionWorkspaceSummary } from './ISessionWorkspace';
+import { SessionWorkspaceStateKinds } from './SessionWorkspaceStateKinds';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const fakeSessions: readonly IAppSessionSummary[] = [
+const fakeSessions: readonly ISessionWorkspaceSummary[] = [
   { id: 'current', label: 'i', tone: 'blue', isSelected: true },
   { id: 'vim', label: 'v', tone: 'lime', isSelected: false },
   { id: 'notes', label: '■', tone: 'ink', isSelected: false },
@@ -15,12 +15,12 @@ const fakeSessions: readonly IAppSessionSummary[] = [
   { id: 'zap-2', label: 'z', tone: 'violet', isSelected: false },
 ];
 
-export class CApp implements IApp {
-  static async load(): Promise<IApp> {
+export class CSessionWorkspace implements ISessionWorkspace {
+  static async load(): Promise<ISessionWorkspace> {
     const initialSessionEditor = CSessionEditor.create();
 
     const initialState: IEditingState = {
-      kind: AppStateKinds.Editing,
+      kind: SessionWorkspaceStateKinds.Editing,
       sessionEditor: initialSessionEditor,
     };
 
@@ -30,27 +30,27 @@ export class CApp implements IApp {
       throw new Error('Random error!!!1');
     }
 
-    return new CApp(initialState);
+    return new CSessionWorkspace(initialState);
   }
 
-  _currentState: UAppState;
+  _currentState: USessionWorkspaceState;
 
   private constructor(initialState: IEditingState) {
     this._currentState = initialState;
   }
 
-  get currentState(): UAppState {
+  get currentState(): USessionWorkspaceState {
     return this._currentState;
   }
 
-  get sessions(): readonly IAppSessionSummary[] {
+  get sessions(): readonly ISessionWorkspaceSummary[] {
     return fakeSessions;
   }
 
   freeze(): void {
     const currentState = this.currentState;
 
-    if (currentState.kind !== AppStateKinds.Editing) {
+    if (currentState.kind !== SessionWorkspaceStateKinds.Editing) {
       throw new Error('Cannot freeze app state: current state is not editing');
     }
 
@@ -59,7 +59,7 @@ export class CApp implements IApp {
     const frozenRunningSession = CRunningSession.freeze(sessionEditor.editedSession);
 
     const frozenState: IRunningState = {
-      kind: AppStateKinds.Running,
+      kind: SessionWorkspaceStateKinds.Running,
       runningSession: frozenRunningSession,
     };
 

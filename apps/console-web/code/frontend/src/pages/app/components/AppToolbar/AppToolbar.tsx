@@ -1,5 +1,5 @@
 import { Button, Group } from '@mantine/core';
-import { AppStateKinds } from '@/app/AppStateKinds';
+import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
 import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import classes from '../../AppPage.module.css';
@@ -13,7 +13,8 @@ export function AppToolbar({ appTrampolineLive }: AppToolbarProps) {
 
   const isEditing =
     currentTrampolineState.kind === AppTrampolineStateKinds.Loaded &&
-    currentTrampolineState.loadedApp.currentState.kind === AppStateKinds.Editing;
+    currentTrampolineState.loadedSessionWorkspace.currentState.kind ===
+      SessionWorkspaceStateKinds.Editing;
 
   return (
     <Group className={classes.toolbar} justify="flex-end" p="md">
@@ -23,7 +24,7 @@ export function AppToolbar({ appTrampolineLive }: AppToolbarProps) {
             return;
           }
 
-          currentTrampolineState.loadedApp.freeze();
+          currentTrampolineState.loadedSessionWorkspace.freeze();
         }}
         disabled={!isEditing}
       >

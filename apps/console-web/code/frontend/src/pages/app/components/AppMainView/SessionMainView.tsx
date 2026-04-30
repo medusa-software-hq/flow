@@ -1,32 +1,33 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { useSnapshot } from 'valtio';
-import { AppStateKinds } from '@/app/AppStateKinds';
-import { IApp } from '@/app/IApp';
-import { UAppState } from '@/app/IAppState';
+import { ISessionWorkspace } from '@/app/ISessionWorkspace';
+import { USessionWorkspaceState } from '@/app/ISessionWorkspaceState';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
+import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
 import { SessionCanvas } from '../SessionCanvas/SessionCanvas';
 
 export interface SessionMainViewProps {
-  readonly appLive: IApp;
+  readonly sessionWorkspaceLive: ISessionWorkspace;
   readonly onTaskFocused: (taskId: TTaskId | null) => void;
 }
 
-export function SessionMainView({ appLive, onTaskFocused }: SessionMainViewProps) {
-  const appSnap = useSnapshot(appLive);
+export function SessionMainView({ sessionWorkspaceLive, onTaskFocused }: SessionMainViewProps) {
+  const sessionWorkspaceSnap = useSnapshot(sessionWorkspaceLive);
 
-  void appSnap.currentState;
+  void sessionWorkspaceSnap.currentState;
 
-  const currentAppStateLive: UAppState = appLive.currentState;
+  const currentSessionWorkspaceStateLive: USessionWorkspaceState =
+    sessionWorkspaceLive.currentState;
 
   const extractSessionLive = () => {
-    switch (currentAppStateLive.kind) {
-      case AppStateKinds.Editing: {
-        const sessionEditorLive = currentAppStateLive.sessionEditor;
+    switch (currentSessionWorkspaceStateLive.kind) {
+      case SessionWorkspaceStateKinds.Editing: {
+        const sessionEditorLive = currentSessionWorkspaceStateLive.sessionEditor;
         return sessionEditorLive.editedSession;
       }
 
-      case AppStateKinds.Running: {
-        return currentAppStateLive.runningSession;
+      case SessionWorkspaceStateKinds.Running: {
+        return currentSessionWorkspaceStateLive.runningSession;
       }
     }
   };

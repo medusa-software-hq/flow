@@ -15,7 +15,7 @@ export function AppMainView({ appTrampolineLive }: AppMainViewProps) {
       return <AppLoadingView />;
 
     case AppTrampolineStateKinds.Loaded:
-      return <SessionView appLive={currentStateLive.loadedApp} />;
+      return <SessionView sessionWorkspaceLive={currentStateLive.loadedSessionWorkspace} />;
 
     case AppTrampolineStateKinds.Failed:
       throw new Error('Failed trampoline state should be handled above AppView');

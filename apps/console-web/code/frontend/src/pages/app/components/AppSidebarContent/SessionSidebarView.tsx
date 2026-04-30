@@ -1,30 +1,33 @@
 import { Center, Image, Loader, Stack, Text } from '@mantine/core';
 import { useSnapshot } from 'valtio';
 import crashImageUrl from '@/../assets/crash.png';
-import { AppStateKinds } from '@/app/AppStateKinds';
-import { IApp } from '@/app/IApp';
+import { ISessionWorkspace } from '@/app/ISessionWorkspace';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
+import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
 import { EditedTaskView } from '../FocusedTaskView/EditedTaskView';
 
 export interface AppSidebarContentProps {
-  readonly appLive: IApp;
+  readonly sessionWorkspaceLive: ISessionWorkspace;
   readonly focusedTaskId: TTaskId | null;
 }
 
-export function SessionSidebarView({ appLive, focusedTaskId }: AppSidebarContentProps) {
-  const appSnap: IApp = useSnapshot(appLive);
+export function SessionSidebarView({
+  sessionWorkspaceLive,
+  focusedTaskId,
+}: AppSidebarContentProps) {
+  const sessionWorkspaceSnap: ISessionWorkspace = useSnapshot(sessionWorkspaceLive);
 
-  void appSnap.currentState;
+  void sessionWorkspaceSnap.currentState;
 
-  const currentAppStateLive = appLive.currentState;
+  const currentSessionWorkspaceStateLive = sessionWorkspaceLive.currentState;
 
-  switch (currentAppStateLive.kind) {
-    case AppStateKinds.Editing: {
+  switch (currentSessionWorkspaceStateLive.kind) {
+    case SessionWorkspaceStateKinds.Editing: {
       if (focusedTaskId === null) {
         return <Text>(no task)</Text>;
       }
 
-      const sessionEditorLive = currentAppStateLive.sessionEditor;
+      const sessionEditorLive = currentSessionWorkspaceStateLive.sessionEditor;
       const editedSessionLive = sessionEditorLive.editedSession;
       const focusedEditedTaskLive = editedSessionLive.getTaskById(focusedTaskId);
 
@@ -36,7 +39,7 @@ export function SessionSidebarView({ appLive, focusedTaskId }: AppSidebarContent
         return <EditedTaskView editedTaskLive={focusedEditedTaskLive} />;
       }
     }
-    case AppStateKinds.Running: {
+    case SessionWorkspaceStateKinds.Running: {
       return (
         <Center h="100%">
           <Stack align="center" gap="xs">

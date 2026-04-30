@@ -1,7 +1,7 @@
 import { proxyMap } from 'valtio/utils';
-import { AppStateKinds } from '@/app/AppStateKinds';
 import { IEditedSessionTrait } from '@/app/ISessionTrait';
 import { CBaseSession } from '@/app/session/running_session/CBaseSession';
+import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
 import type { IEditedSession } from '../ISession';
 import type { ITaskPosition } from '../ITask.ts';
 import { CEditedTask, type TTaskId } from './CEditedTask';
@@ -13,7 +13,7 @@ export class CEditedSession extends CBaseSession<IEditedSessionTrait> implements
     return new CEditedSession();
   }
 
-  readonly kind = AppStateKinds.Editing;
+  readonly kind = SessionWorkspaceStateKinds.Editing;
 
   private _stamp = 0;
   private _nextTaskId = 1n;

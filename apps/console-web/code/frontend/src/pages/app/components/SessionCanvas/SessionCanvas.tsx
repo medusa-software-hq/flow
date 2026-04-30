@@ -18,9 +18,9 @@ import {
 import { useCallback, useEffect, useMemo } from 'react';
 import { useSnapshot } from 'valtio';
 import { proxySet } from 'valtio/utils';
-import { AppStateKinds } from '@/app/AppStateKinds';
 import type { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { IEditedSession, UAnySession } from '@/app/session/ISession';
+import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
 import { KeyCodes } from '@/utils/KeyCodes';
 import { type TaskNode, taskNodeTag } from '../../components/SessionCanvas/TaskNode';
 import {
@@ -41,7 +41,7 @@ export interface SessionCanvasProps {
 
 function toEditedSession(session: UAnySession): IEditedSession | null {
   switch (session.kind) {
-    case AppStateKinds.Editing:
+    case SessionWorkspaceStateKinds.Editing:
       return session;
     default:
       return null;

@@ -1,5 +1,5 @@
 import { proxy } from 'valtio';
-import { CApp } from '@/app/CApp';
+import { CSessionWorkspace } from '@/app/CSessionWorkspace';
 import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import {
@@ -38,13 +38,13 @@ export class CAppTrampoline implements IAppTrampoline {
     try {
       console.log('Trying to load app...');
 
-      const loadedApp = await CApp.load();
+      const loadedSessionWorkspace = await CSessionWorkspace.load();
 
       console.log('App loaded successfully!');
 
       const loadedState: ILoadedState = {
         kind: AppTrampolineStateKinds.Loaded,
-        loadedApp,
+        loadedSessionWorkspace,
       };
 
       this._currentState = loadedState;
