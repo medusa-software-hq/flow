@@ -22,22 +22,64 @@ class ProcessSpawner private constructor() {
 
   private val childProcesses = java.util.concurrent.ConcurrentHashMap.newKeySet<Process>()
 
+  fun runCaptured(
+      executableHandle: ExecutableHandle,
+      workingDirectoryPath: Path,
+      args: List<String>,
+      env: Map<String, String>,
+  ): CapturedProcessResult {
+    val process =
+        startProcess(
+            executableHandle = executableHandle,
+            workingDirectoryPath = workingDirectoryPath,
+            args = args,
+            env = env,
+            inheritIo = false,
+        )
+
+    val output = process.inputStream.bufferedReader().use { it.readText() }
+    val exitCode = process.waitFor()
+
+    return CapturedProcessResult(
+        exitCode = exitCode,
+        output = output,
+    )
+  }
+
   fun spawn(
       executableHandle: ExecutableHandle,
       workingDirectoryPath: Path,
       args: List<String>,
       env: Map<String, String>,
+  ): Process =
+      startProcess(
+          executableHandle = executableHandle,
+          workingDirectoryPath = workingDirectoryPath,
+          args = args,
+          env = env,
+          inheritIo = true,
+      )
+
+  private fun startProcess(
+      executableHandle: ExecutableHandle,
+      workingDirectoryPath: Path,
+      args: List<String>,
+      env: Map<String, String>,
+      inheritIo: Boolean,
   ): Process {
-    val spawnedProcess =
+    val processBuilder =
         ProcessBuilder(listOf(executableHandle.path.toString()) + args)
-            .inheritIO()
             .directory(workingDirectoryPath.toFile())
             .redirectErrorStream(true)
             .apply { environment().apply { env.forEach { (key, value) -> this[key] = value } } }
-            .start()
+
+    if (inheritIo) {
+      processBuilder.inheritIO()
+    }
+
+    val spawnedProcess = processBuilder.start()
 
     childProcesses.add(spawnedProcess)
-
     spawnedProcess.onExit().thenRun { childProcesses.remove(spawnedProcess) }
 
     return spawnedProcess
@@ -65,3 +107,8 @@ class ProcessSpawner private constructor() {
     }
   }
 }
+
+data class CapturedProcessResult(
+    val exitCode: Int,
+    val output: String,
+)
