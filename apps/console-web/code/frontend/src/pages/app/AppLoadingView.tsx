@@ -1,12 +1,11 @@
-import { Center, Loader, Stack, Text } from '@mantine/core';
+import { Loader, Stack, Text } from '@mantine/core';
+import classes from './AppLoadingView.module.css';
 
 export function AppLoadingView() {
   return (
-    <Center h="100%">
-      <Stack align="center" gap="xs">
-        <Loader size="lg" />
-        <Text c="dimmed">Loading app...</Text>
-      </Stack>
-    </Center>
+    <Stack className={classes.loadingView} gap="xs">
+      <Loader size="lg" />
+      <Text c="dimmed">Loading app...</Text>
+    </Stack>
   );
 }

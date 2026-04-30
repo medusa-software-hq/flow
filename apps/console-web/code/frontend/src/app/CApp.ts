@@ -17,6 +17,10 @@ export class CApp implements IApp {
 
     await sleep(2000);
 
+    if (Math.random() < 0.1) {
+      throw new Error('Random error!!!1');
+    }
+
     return new CApp(initialState);
   }
 
