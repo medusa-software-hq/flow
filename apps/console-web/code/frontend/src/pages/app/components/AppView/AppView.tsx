@@ -1,10 +1,10 @@
 import { AppShell, Button, Group } from '@mantine/core';
 import { useState } from 'react';
+import { AppStateKinds } from '@/app/AppStateKinds';
 import { IApp } from '@/app/IApp';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { AppSidebarContent } from '@/pages/app/components/AppSidebarContent/AppSidebarContent';
-import { AppStateKinds } from '../../../../app/AppStateKinds';
-import { AppMainContent } from '../AppMainView/AppMainContent';
+import { SessionMainView } from '../AppMainView/SessionMainView';
 import classes from '../../AppPage.module.css';
 
 export interface AppViewProps {
@@ -28,7 +28,7 @@ export function AppView({ appLive }: AppViewProps) {
           <AppSidebarContent appLive={appLive} focusedTaskId={focusedTaskId} />
         </AppShell.Section>
 
-        <AppMainContent appLive={appLive} onTaskFocused={setFocusedTaskId} />
+        <SessionMainView appLive={appLive} onTaskFocused={setFocusedTaskId} />
       </AppShell>
     </div>
   );

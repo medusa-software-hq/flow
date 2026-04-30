@@ -6,12 +6,12 @@ import { UAppState } from '@/app/IAppState';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
 import { SessionCanvas } from '../SessionCanvas/SessionCanvas';
 
-export interface AppMainContentProps {
+export interface SessionMainViewProps {
   readonly appLive: IApp;
   readonly onTaskFocused: (taskId: TTaskId | null) => void;
 }
 
-export function AppMainContent({ appLive, onTaskFocused }: AppMainContentProps) {
+export function SessionMainView({ appLive, onTaskFocused }: SessionMainViewProps) {
   const appSnap = useSnapshot(appLive);
 
   void appSnap.currentState;
