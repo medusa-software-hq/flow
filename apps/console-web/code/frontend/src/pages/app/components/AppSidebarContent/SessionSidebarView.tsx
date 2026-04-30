@@ -1,9 +1,9 @@
 import { Center, Image, Loader, Stack, Text } from '@mantine/core';
 import { useSnapshot } from 'valtio';
 import crashImageUrl from '@/../assets/crash.png';
+import { AppStateKinds } from '@/app/AppStateKinds';
 import { IApp } from '@/app/IApp';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
-import { AppStateKinds } from '../../../../app/AppStateKinds';
 import { EditedTaskView } from '../FocusedTaskView/EditedTaskView';
 
 export interface AppSidebarContentProps {
@@ -11,7 +11,7 @@ export interface AppSidebarContentProps {
   readonly focusedTaskId: TTaskId | null;
 }
 
-export function AppSidebarContent({ appLive, focusedTaskId }: AppSidebarContentProps) {
+export function SessionSidebarView({ appLive, focusedTaskId }: AppSidebarContentProps) {
   const appSnap: IApp = useSnapshot(appLive);
 
   void appSnap.currentState;

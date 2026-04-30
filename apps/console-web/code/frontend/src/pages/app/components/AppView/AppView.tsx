@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { AppStateKinds } from '@/app/AppStateKinds';
 import { IApp } from '@/app/IApp';
 import { TTaskId } from '@/app/session/edited_session/CEditedTask';
-import { AppSidebarContent } from '@/pages/app/components/AppSidebarContent/AppSidebarContent';
 import { SessionMainView } from '../AppMainView/SessionMainView';
+import { SessionSidebarView } from '../AppSidebarContent/SessionSidebarView';
 import classes from '../../AppPage.module.css';
 
 export interface AppViewProps {
@@ -25,7 +25,7 @@ export function AppView({ appLive }: AppViewProps) {
 
       <AppShell className={classes.shell} navbar={{ width: 320, breakpoint: 'sm' }}>
         <AppShell.Section className={classes.sidebar} p="md">
-          <AppSidebarContent appLive={appLive} focusedTaskId={focusedTaskId} />
+          <SessionSidebarView appLive={appLive} focusedTaskId={focusedTaskId} />
         </AppShell.Section>
 
         <SessionMainView appLive={appLive} onTaskFocused={setFocusedTaskId} />
