@@ -13,6 +13,7 @@ sourceSets { main { proto { srcDir("../../../../proto") } } }
 dependencies {
   api(platform(libs.armeria.bom))
   api(platform(libs.grpc.bom))
+  api(project(":opencode-client"))
 
   api(libs.armeria.grpc)
   api(libs.armeria.grpc.kotlin)
