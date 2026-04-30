@@ -4,11 +4,11 @@ import { IEditedSession } from '@/app/session/ISession';
 import { CRunningSession } from '@/app/session/running_session/CRunningSession';
 import { CSessionEditor } from '@/app/session_editor/CSessionEditor';
 import {
-  SessionSummary,
-  TaskGraphSchema,
-  TaskSchema,
-  UpdateSessionRequestSchema,
-} from '@/gen/medusa/flow/core_service/v1/core_service_pb';
+  GrpcControlServiceUpdateSessionRequestSchema,
+  PbSessionSummary,
+  PbTaskGraphSchema,
+  PbTaskSchema,
+} from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { ISessionWorkspace } from './ISessionWorkspace';
 import { SessionWorkspaceStateKinds } from './SessionWorkspaceStateKinds';
@@ -37,7 +37,7 @@ export class CSessionWorkspace implements ISessionWorkspace {
 
   static restore(
     coreServiceClient: CoreServiceClient,
-    sessionSummary: SessionSummary
+    sessionSummary: PbSessionSummary
   ): ISessionWorkspace {
     const self = new CSessionWorkspace(
       coreServiceClient,
@@ -89,7 +89,7 @@ export class CSessionWorkspace implements ISessionWorkspace {
     }
 
     await this._coreServiceClient.updateSession(
-      create(UpdateSessionRequestSchema, {
+      create(GrpcControlServiceUpdateSessionRequestSchema, {
         sessionId: this._sessionId,
         title: this._title,
         taskGraph: serializeTaskGraph(currentState.sessionEditor.editedSession),
@@ -118,9 +118,9 @@ export class CSessionWorkspace implements ISessionWorkspace {
 }
 
 function serializeTaskGraph(editedSession: IEditedSession) {
-  return create(TaskGraphSchema, {
+  return create(PbTaskGraphSchema, {
     tasks: Array.from(editedSession.taskById.values(), (task) =>
-      create(TaskSchema, {
+      create(PbTaskSchema, {
         id: String(task.id),
         label: task.label,
         description: task.description,

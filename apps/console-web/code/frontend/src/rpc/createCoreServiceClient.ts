@@ -1,6 +1,6 @@
 import { createClient } from '@connectrpc/connect';
 import { createGrpcWebTransport } from '@connectrpc/connect-web';
-import { CoreService } from '@/gen/medusa/flow/core_service/v1/core_service_pb';
+import { GrpcControlService } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from './myGrpcTypes';
 
 export function createCoreServiceClient(): CoreServiceClient {
@@ -14,5 +14,5 @@ export function createCoreServiceClient(): CoreServiceClient {
     baseUrl,
   });
 
-  return createClient(CoreService, transport);
+  return createClient(GrpcControlService, transport);
 }

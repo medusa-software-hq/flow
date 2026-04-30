@@ -58,7 +58,7 @@ suspend fun runServer(
 
   val database = FlowDatabase(driver = driver)
 
-  val sessionManagementService =
+  val sessionControlService =
       SessionManagementService(
           database = database,
       )
@@ -69,7 +69,7 @@ suspend fun runServer(
             addService(
                 CoreServiceGrpcImpl(
                     coroutineDispatcher = coroutineDispatcher,
-                    sessionManagementService = sessionManagementService,
+                    sessionControlService = sessionControlService,
                 ),
             )
           }

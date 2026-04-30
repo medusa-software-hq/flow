@@ -1,5 +1,5 @@
 import { CEditedSession } from '@/app/session/edited_session/CEditedSession';
-import { TaskGraph } from '@/gen/medusa/flow/core_service/v1/core_service_pb';
+import { PbTaskGraph } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { IEditedSession, IRunningSession } from '../session/ISession';
 import { ISessionEditor } from './ISessionEditor';
 
@@ -8,7 +8,7 @@ export class CSessionEditor implements ISessionEditor {
     return new CSessionEditor(CEditedSession.createNew(), onChanged);
   }
 
-  static restore(taskGraph: TaskGraph | null, onChanged?: () => void): ISessionEditor {
+  static restore(taskGraph: PbTaskGraph | null, onChanged?: () => void): ISessionEditor {
     return new CSessionEditor(CEditedSession.restore(taskGraph), onChanged);
   }
 

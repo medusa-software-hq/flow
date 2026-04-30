@@ -2,10 +2,10 @@ import { create } from '@bufbuild/protobuf';
 import { proxy } from 'valtio';
 import { CSessionWorkspace } from '@/app/CSessionWorkspace';
 import {
-  SessionSummary,
-  StartSessionRequestSchema,
-  TaskGraph,
-} from '@/gen/medusa/flow/core_service/v1/core_service_pb';
+  GrpcControlServiceStartSessionRequestSchema,
+  PbSessionSummary,
+  PbTaskGraph,
+} from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { ISessionWorkspaceTrampoline } from './ISessionWorkspaceTrampoline';
 import {
@@ -19,9 +19,9 @@ import { SessionWorkspaceTrampolineStateKinds } from './SessionWorkspaceTrampoli
 export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline {
   static createProxied(args: {
     coreServiceClient: CoreServiceClient;
-    restoredSessionSummary?: SessionSummary;
+    restoredSessionSummary?: PbSessionSummary;
     initialTitle?: string;
-    initialTaskGraph?: TaskGraph;
+    initialTaskGraph?: PbTaskGraph;
   }): ISessionWorkspaceTrampoline {
     const self: CSessionWorkspaceTrampoline = proxy(new CSessionWorkspaceTrampoline(args));
 
@@ -31,9 +31,9 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
   }
 
   private readonly _coreServiceClient: CoreServiceClient;
-  private readonly _restoredSessionSummary: SessionSummary | null;
+  private readonly _restoredSessionSummary: PbSessionSummary | null;
   private readonly _initialTitle: string;
-  private readonly _initialTaskGraph: TaskGraph | null;
+  private readonly _initialTaskGraph: PbTaskGraph | null;
   private _sessionWorkspaceId: string | null;
 
   private _currentState: USessionWorkspaceTrampolineState = {
@@ -42,9 +42,9 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
 
   private constructor(args: {
     coreServiceClient: CoreServiceClient;
-    restoredSessionSummary?: SessionSummary;
+    restoredSessionSummary?: PbSessionSummary;
     initialTitle?: string;
-    initialTaskGraph?: TaskGraph;
+    initialTaskGraph?: PbTaskGraph;
   }) {
     this._coreServiceClient = args.coreServiceClient;
     this._restoredSessionSummary = args.restoredSessionSummary ?? null;
@@ -71,7 +71,7 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
         }
 
         const startSessionResponse = await this._coreServiceClient.startSession(
-          create(StartSessionRequestSchema, {
+          create(GrpcControlServiceStartSessionRequestSchema, {
             title: this._initialTitle,
             taskGraph: this._initialTaskGraph,
           })

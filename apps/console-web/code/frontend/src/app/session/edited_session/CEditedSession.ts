@@ -2,7 +2,7 @@ import { proxyMap } from 'valtio/utils';
 import { IEditedSessionTrait } from '@/app/ISessionTrait';
 import { CBaseSession } from '@/app/session/running_session/CBaseSession';
 import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
-import { TaskGraph } from '@/gen/medusa/flow/core_service/v1/core_service_pb';
+import { PbTaskGraph } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import type { IEditedSession } from '../ISession';
 import type { ITaskPosition } from '../ITask.ts';
 import { CEditedTask, type TTaskId } from './CEditedTask';
@@ -16,7 +16,7 @@ export class CEditedSession extends CBaseSession<IEditedSessionTrait> implements
     });
   }
 
-  static restore(taskGraph: TaskGraph | null): IEditedSession {
+  static restore(taskGraph: PbTaskGraph | null): IEditedSession {
     return new CEditedSession({
       initialTaskById: restoreTaskById(taskGraph),
     });
@@ -178,7 +178,7 @@ function createInitialTaskById(): Map<TTaskId, CEditedTask> {
   ]);
 }
 
-function restoreTaskById(taskGraph: TaskGraph | null): Map<TTaskId, CEditedTask> {
+function restoreTaskById(taskGraph: PbTaskGraph | null): Map<TTaskId, CEditedTask> {
   if (taskGraph === null || taskGraph.tasks.length === 0) {
     return createInitialTaskById();
   }

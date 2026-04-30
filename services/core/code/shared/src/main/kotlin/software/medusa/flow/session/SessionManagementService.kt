@@ -2,33 +2,48 @@ package software.medusa.flow.session
 
 import java.util.UUID
 import software.medusa.flow.db.FlowDatabase
-import software.medusa.flow.db.Session
+import software.medusa.flow.db.Session as DbSession
 
 class SessionManagementService(private val database: FlowDatabase) {
-  fun createSession(title: String, taskGraphProtoBytes: ByteArray): Session {
-    val sessionId = UUID.randomUUID().toString()
+  fun createSession(title: String, taskGraph: TaskGraph): Session {
+    val session =
+        Session(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            taskGraph = taskGraph,
+        )
+    val dbInsertSession = session.toDbInsert()
 
     database.sessionQueries.insertSession(
-        id = sessionId,
-        title = title,
-        task_graph_proto_bytes = taskGraphProtoBytes,
+        id = dbInsertSession.id,
+        title = dbInsertSession.title,
+        task_graph_proto_bytes = dbInsertSession.taskGraphProtoBytes,
     )
 
-    return database.sessionQueries.selectSessionById(id = sessionId).executeAsOne()
+    return requireNotNull(getSessionById(session.id))
   }
 
   fun getSessionById(id: String): Session? =
-      database.sessionQueries.selectSessionById(id).executeAsOneOrNull()
+      database.sessionQueries.selectSessionById(id).executeAsOneOrNull()?.toModel()
 
-  fun updateSession(id: String, title: String, taskGraphProtoBytes: ByteArray): Session? {
+  fun updateSession(id: String, title: String, taskGraph: TaskGraph): Session? {
+    val dbInsertSession =
+        Session(
+                id = id,
+                title = title,
+                taskGraph = taskGraph,
+            )
+            .toDbInsert()
+
     database.sessionQueries.updateSessionTaskGraph(
-        title = title,
-        task_graph_proto_bytes = taskGraphProtoBytes,
-        id = id,
+        title = dbInsertSession.title,
+        task_graph_proto_bytes = dbInsertSession.taskGraphProtoBytes,
+        id = dbInsertSession.id,
     )
 
     return getSessionById(id)
   }
 
-  fun getAllSessions(): List<Session> = database.sessionQueries.selectAllSessions().executeAsList()
+  fun getAllSessions(): List<Session> =
+      database.sessionQueries.selectAllSessions().executeAsList().map(DbSession::toModel)
 }

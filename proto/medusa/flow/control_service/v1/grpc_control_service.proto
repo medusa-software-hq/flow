@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package medusa.flow.control_service.v1;
+
+option java_multiple_files = true;
+option java_package = "software.medusa.grpc.flow.control_service.v1";
+
+service GrpcControlService {
+  rpc ListSessions(GrpcControlServiceListSessionsRequest)
+      returns (GrpcControlServiceListSessionsResponse);
+  rpc UpdateSession(GrpcControlServiceUpdateSessionRequest)
+      returns (GrpcControlServiceUpdateSessionResponse);
+  rpc CheckTaskGraph(GrpcControlServiceCheckTaskGraphRequest)
+      returns (GrpcControlServiceCheckTaskGraphResponse);
+  rpc StartSession(GrpcControlServiceStartSessionRequest)
+      returns (GrpcControlServiceStartSessionResponse);
+}
+
+message GrpcControlServiceListSessionsRequest {}
+
+message GrpcControlServiceListSessionsResponse {
+  repeated PbSessionSummary sessions = 1;
+}
+
+message PbSessionSummary {
+  string session_id = 1;
+  string title = 2;
+  PbTaskGraph task_graph = 3;
+}
+
+message GrpcControlServiceUpdateSessionRequest {
+  string session_id = 1;
+  string title = 2;
+  PbTaskGraph task_graph = 3;
+}
+
+message GrpcControlServiceUpdateSessionResponse {}
+
+message PbTaskGraphValidationFailedStatus {}
+
+message GrpcControlServiceCheckTaskGraphRequest {
+  PbTaskGraph task_graph = 1;
+}
+
+message GrpcControlServiceCheckTaskGraphResponse {
+  oneof result {
+    PbTaskGraphValidResult valid = 1;
+    PbTaskGraphValidationFailedStatus validation_failed = 2;
+  }
+}
+
+message PbTaskGraphValidResult {}
+
+message GrpcControlServiceStartSessionRequest {
+  string title = 1;
+  PbTaskGraph task_graph = 2;
+}
+
+message GrpcControlServiceStartSessionResponse {
+  oneof result {
+    PbSessionStartedResult started = 1;
+    PbTaskGraphValidationFailedStatus validation_failed = 2;
+  }
+}
+
+message PbSessionStartedResult {
+  string session_id = 1;
+}
+
+message PbTaskGraph {
+  repeated PbTask tasks = 1;
+}
+
+message PbTask {
+  string id = 1;
+  string label = 2;
+  string description = 3;
+  repeated string source_task_ids = 4;
+  double x = 5;
+  double y = 6;
+}

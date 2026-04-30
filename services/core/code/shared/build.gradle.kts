@@ -1,16 +1,27 @@
 plugins {
   alias(libs.plugins.kotlin.jvm)
+  alias(libs.plugins.protobuf)
   alias(libs.plugins.sqldelight)
 
   `java-library`
 }
 
+// Proto sources live at the repo root
+sourceSets { main { proto { srcDir("../../../../proto") } } }
+
 dependencies {
+  api(platform(libs.grpc.bom))
+
+  api(libs.grpc.protobuf)
+  api(libs.protobuf.kotlin)
+
   implementation(libs.sqldelight.sqlite.driver)
   implementation(libs.sqldelight.coroutines)
 
   testImplementation(libs.kotlin.test)
 }
+
+protobuf { protoc { artifact = "${libs.protobuf.protoc.get()}" } }
 
 sqldelight {
   databases {

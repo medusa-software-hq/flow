@@ -5,62 +5,56 @@ import io.grpc.StatusException
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import software.medusa.flow.session.SessionManagementService
-import software.medusa.grpc.flow.core_service.v1.CheckTaskGraphRequest
-import software.medusa.grpc.flow.core_service.v1.CheckTaskGraphResponse
-import software.medusa.grpc.flow.core_service.v1.CoreServiceGrpcKt
-import software.medusa.grpc.flow.core_service.v1.ListSessionsRequest
-import software.medusa.grpc.flow.core_service.v1.ListSessionsResponse
-import software.medusa.grpc.flow.core_service.v1.StartSessionRequest
-import software.medusa.grpc.flow.core_service.v1.StartSessionResponse
-import software.medusa.grpc.flow.core_service.v1.UpdateSessionRequest
-import software.medusa.grpc.flow.core_service.v1.UpdateSessionResponse
-import software.medusa.grpc.flow.core_service.v1.checkTaskGraphResponse
-import software.medusa.grpc.flow.core_service.v1.listSessionsResponse
-import software.medusa.grpc.flow.core_service.v1.sessionStartedResult
-import software.medusa.grpc.flow.core_service.v1.sessionSummary
-import software.medusa.grpc.flow.core_service.v1.startSessionResponse
-import software.medusa.grpc.flow.core_service.v1.taskGraphValidResult
-import software.medusa.grpc.flow.core_service.v1.updateSessionResponse
+import software.medusa.flow.session.toModel
+import software.medusa.flow.session.toPbSessionSummary
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceGrpcKt
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceListSessionsRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceListSessionsResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceStartSessionRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceStartSessionResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceUpdateSessionRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceUpdateSessionResponse
+import software.medusa.grpc.flow.control_service.v1.PbTaskGraph
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceCheckTaskGraphResponse
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceListSessionsResponse
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceStartSessionResponse
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceUpdateSessionResponse
+import software.medusa.grpc.flow.control_service.v1.pbSessionStartedResult
+import software.medusa.grpc.flow.control_service.v1.pbTaskGraphValidResult
+import software.medusa.grpc.flow.control_service.v1.pbTaskGraphValidationFailedStatus
 
 class CoreServiceGrpcImpl(
     private val coroutineDispatcher: CoroutineDispatcher,
-    private val sessionManagementService: SessionManagementService,
-) : CoreServiceGrpcKt.CoreServiceCoroutineImplBase() {
+    private val sessionControlService: SessionManagementService,
+) : GrpcControlServiceGrpcKt.GrpcControlServiceCoroutineImplBase() {
   override val context: CoroutineContext
     get() = coroutineDispatcher
 
   override suspend fun listSessions(
-      request: ListSessionsRequest,
-  ): ListSessionsResponse {
-    val sessions = sessionManagementService.getAllSessions()
+      request: GrpcControlServiceListSessionsRequest,
+  ): GrpcControlServiceListSessionsResponse {
+    val sessions = sessionControlService.getAllSessions()
 
-    return listSessionsResponse {
-      this.sessions += sessions.map { session ->
-        sessionSummary {
-          sessionId = session.id
-          title = session.title
-          taskGraph =
-              software.medusa.grpc.flow.core_service.v1.TaskGraph.parseFrom(
-                  session.task_graph_proto_bytes
-              )
-        }
-      }
+    return grpcControlServiceListSessionsResponse {
+      this.sessions += sessions.map { it.toPbSessionSummary() }
     }
   }
 
   override suspend fun checkTaskGraph(
-      request: CheckTaskGraphRequest,
-  ): CheckTaskGraphResponse {
+      request: GrpcControlServiceCheckTaskGraphRequest,
+  ): GrpcControlServiceCheckTaskGraphResponse {
     if (!request.hasTaskGraph() || !isTaskGraphValid(request.taskGraph)) {
       return checkTaskGraphValidationFailed()
     }
 
-    return checkTaskGraphResponse { valid = taskGraphValidResult {} }
+    return grpcControlServiceCheckTaskGraphResponse { valid = pbTaskGraphValidResult {} }
   }
 
   override suspend fun updateSession(
-      request: UpdateSessionRequest,
-  ): UpdateSessionResponse {
+      request: GrpcControlServiceUpdateSessionRequest,
+  ): GrpcControlServiceUpdateSessionResponse {
     if (request.sessionId.isBlank()) {
       throw statusException(Status.INVALID_ARGUMENT, "session_id is required")
     }
@@ -70,38 +64,38 @@ class CoreServiceGrpcImpl(
     }
 
     val updatedSession =
-        sessionManagementService.updateSession(
+        sessionControlService.updateSession(
             id = request.sessionId,
             title = request.title,
-            taskGraphProtoBytes = request.taskGraph.toByteArray(),
+            taskGraph = request.taskGraph.toModel(),
         )
 
     if (updatedSession == null) {
       throw statusException(Status.NOT_FOUND, "session not found")
     }
 
-    return updateSessionResponse {}
+    return grpcControlServiceUpdateSessionResponse {}
   }
 
   override suspend fun startSession(
-      request: StartSessionRequest,
-  ): StartSessionResponse {
+      request: GrpcControlServiceStartSessionRequest,
+  ): GrpcControlServiceStartSessionResponse {
     if (!request.hasTaskGraph() || !isTaskGraphValid(request.taskGraph)) {
       return startSessionValidationFailed()
     }
 
     val session =
-        sessionManagementService.createSession(
+        sessionControlService.createSession(
             title = request.title,
-            taskGraphProtoBytes = request.taskGraph.toByteArray(),
+            taskGraph = request.taskGraph.toModel(),
         )
 
-    return startSessionResponse { started = sessionStartedResult { sessionId = session.id } }
+    return grpcControlServiceStartSessionResponse {
+      started = pbSessionStartedResult { sessionId = session.id }
+    }
   }
 
-  private fun isTaskGraphValid(
-      taskGraph: software.medusa.grpc.flow.core_service.v1.TaskGraph
-  ): Boolean {
+  private fun isTaskGraphValid(taskGraph: PbTaskGraph): Boolean {
     val taskIds = taskGraph.tasksList.mapTo(mutableSetOf()) { it.id }
 
     if (taskIds.size != taskGraph.tasksCount) {
@@ -111,17 +105,15 @@ class CoreServiceGrpcImpl(
     return taskGraph.tasksList.all { task -> task.sourceTaskIdsList.all(taskIds::contains) }
   }
 
-  private fun checkTaskGraphValidationFailed(): CheckTaskGraphResponse {
-    return checkTaskGraphResponse {
-      validationFailed =
-          software.medusa.grpc.flow.core_service.v1.taskGraphValidationFailedStatus {}
+  private fun checkTaskGraphValidationFailed(): GrpcControlServiceCheckTaskGraphResponse {
+    return grpcControlServiceCheckTaskGraphResponse {
+      validationFailed = pbTaskGraphValidationFailedStatus {}
     }
   }
 
-  private fun startSessionValidationFailed(): StartSessionResponse {
-    return startSessionResponse {
-      validationFailed =
-          software.medusa.grpc.flow.core_service.v1.taskGraphValidationFailedStatus {}
+  private fun startSessionValidationFailed(): GrpcControlServiceStartSessionResponse {
+    return grpcControlServiceStartSessionResponse {
+      validationFailed = pbTaskGraphValidationFailedStatus {}
     }
   }
 
