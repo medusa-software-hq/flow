@@ -1,14 +1,12 @@
-package software.medusa.flow.core_service
+package software.medusa.flow.session
 
 import java.util.UUID
 import software.medusa.flow.db.FlowDatabase
 import software.medusa.flow.db.Session
-import software.medusa.grpc.flow.core_service.v1.TaskGraph
 
 class SessionManagementService(private val database: FlowDatabase) {
-  fun createSession(title: String, taskGraph: TaskGraph): Session {
+  fun createSession(title: String, taskGraphProtoBytes: ByteArray): Session {
     val sessionId = UUID.randomUUID().toString()
-    val taskGraphProtoBytes = taskGraph.toByteArray()
 
     database.sessionQueries.insertSession(
         id = sessionId,
@@ -22,10 +20,10 @@ class SessionManagementService(private val database: FlowDatabase) {
   fun getSessionById(id: String): Session? =
       database.sessionQueries.selectSessionById(id).executeAsOneOrNull()
 
-  fun updateSession(id: String, title: String, taskGraph: TaskGraph): Session? {
+  fun updateSession(id: String, title: String, taskGraphProtoBytes: ByteArray): Session? {
     database.sessionQueries.updateSessionTaskGraph(
         title = title,
-        task_graph_proto_bytes = taskGraph.toByteArray(),
+        task_graph_proto_bytes = taskGraphProtoBytes,
         id = id,
     )
 
@@ -33,7 +31,4 @@ class SessionManagementService(private val database: FlowDatabase) {
   }
 
   fun getAllSessions(): List<Session> = database.sessionQueries.selectAllSessions().executeAsList()
-
-  fun decodeTaskGraph(session: Session): TaskGraph =
-      TaskGraph.parseFrom(session.task_graph_proto_bytes)
 }

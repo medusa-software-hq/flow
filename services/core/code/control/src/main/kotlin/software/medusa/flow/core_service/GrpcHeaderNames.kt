@@ -2,12 +2,9 @@ package software.medusa.flow.core_service
 
 /** HTTP header names relevant to gRPC-Web and Connect protocol CORS configuration. */
 data object GrpcHeaderNames {
-  // -- Standard gRPC headers (gRPC HTTP/2 protocol) --
   const val GRPC_STATUS = "grpc-status"
   const val GRPC_MESSAGE = "grpc-message"
   const val GRPC_TIMEOUT = "grpc-timeout"
-
-  // -- gRPC-Web headers --
 
   /** gRPC-Web framing indicator sent by browsers. */
   const val X_GRPC_WEB = "x-grpc-web"
@@ -17,8 +14,6 @@ data object GrpcHeaderNames {
    * `User-Agent` which browsers forbid scripts from setting.
    */
   const val X_USER_AGENT = "x-user-agent"
-
-  // -- Connect protocol headers --
 
   /** Connect protocol version negotiation header. */
   const val CONNECT_PROTOCOL_VERSION = "connect-protocol-version"

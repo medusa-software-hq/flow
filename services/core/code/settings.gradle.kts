@@ -5,8 +5,10 @@ plugins {
 rootProject.name = "core-service"
 
 include("commons")
+include("control")
 include("git")
 include("opencode-client")
 include("opencode-enclosed")
 include("shared")
+include("worker")
 include("local")

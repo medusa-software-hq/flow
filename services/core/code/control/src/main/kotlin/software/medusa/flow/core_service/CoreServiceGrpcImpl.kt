@@ -4,6 +4,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
+import software.medusa.flow.session.SessionManagementService
 import software.medusa.grpc.flow.core_service.v1.CheckTaskGraphRequest
 import software.medusa.grpc.flow.core_service.v1.CheckTaskGraphResponse
 import software.medusa.grpc.flow.core_service.v1.CoreServiceGrpcKt
@@ -38,7 +39,10 @@ class CoreServiceGrpcImpl(
         sessionSummary {
           sessionId = session.id
           title = session.title
-          taskGraph = sessionManagementService.decodeTaskGraph(session)
+          taskGraph =
+              software.medusa.grpc.flow.core_service.v1.TaskGraph.parseFrom(
+                  session.task_graph_proto_bytes
+              )
         }
       }
     }
@@ -69,7 +73,7 @@ class CoreServiceGrpcImpl(
         sessionManagementService.updateSession(
             id = request.sessionId,
             title = request.title,
-            taskGraph = request.taskGraph,
+            taskGraphProtoBytes = request.taskGraph.toByteArray(),
         )
 
     if (updatedSession == null) {
@@ -87,7 +91,10 @@ class CoreServiceGrpcImpl(
     }
 
     val session =
-        sessionManagementService.createSession(title = request.title, taskGraph = request.taskGraph)
+        sessionManagementService.createSession(
+            title = request.title,
+            taskGraphProtoBytes = request.taskGraph.toByteArray(),
+        )
 
     return startSessionResponse { started = sessionStartedResult { sessionId = session.id } }
   }
