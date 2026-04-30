@@ -1,4 +1,4 @@
-package software.medusa.flow.session
+package software.medusa.flow.core_service.session
 
 import software.medusa.flow.db.Session as DbSession
 

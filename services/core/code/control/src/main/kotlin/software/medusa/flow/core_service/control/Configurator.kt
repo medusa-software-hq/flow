@@ -1,4 +1,4 @@
-package software.medusa.flow.core_service
+package software.medusa.flow.core_service.control
 
 private const val portEnvVarName = "PORT"
 private const val corsAllowedOriginRegexEnvVarName = "CORS_ALLOWED_ORIGIN_REGEX"

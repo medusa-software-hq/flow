@@ -6,14 +6,10 @@ option java_multiple_files = true;
 option java_package = "software.medusa.grpc.flow.control_service.v1";
 
 service GrpcControlService {
-  rpc ListSessions(GrpcControlServiceListSessionsRequest)
-      returns (GrpcControlServiceListSessionsResponse);
-  rpc UpdateSession(GrpcControlServiceUpdateSessionRequest)
-      returns (GrpcControlServiceUpdateSessionResponse);
-  rpc CheckTaskGraph(GrpcControlServiceCheckTaskGraphRequest)
-      returns (GrpcControlServiceCheckTaskGraphResponse);
-  rpc StartSession(GrpcControlServiceStartSessionRequest)
-      returns (GrpcControlServiceStartSessionResponse);
+  rpc ListSessions(GrpcControlServiceListSessionsRequest) returns (GrpcControlServiceListSessionsResponse);
+  rpc UpdateSession(GrpcControlServiceUpdateSessionRequest) returns (GrpcControlServiceUpdateSessionResponse);
+  rpc CheckTaskGraph(GrpcControlServiceCheckTaskGraphRequest) returns (GrpcControlServiceCheckTaskGraphResponse);
+  rpc StartSession(GrpcControlServiceStartSessionRequest) returns (GrpcControlServiceStartSessionResponse);
 }
 
 message GrpcControlServiceListSessionsRequest {}

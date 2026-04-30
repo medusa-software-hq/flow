@@ -1,4 +1,4 @@
-package software.medusa.flow.session
+package software.medusa.flow.core_service.session
 
 data class Session(
     val id: String,

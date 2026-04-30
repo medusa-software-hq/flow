@@ -1,12 +1,12 @@
-package software.medusa.flow.core_service
+package software.medusa.flow.core_service.control
 
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
-import software.medusa.flow.session.SessionManagementService
-import software.medusa.flow.session.toModel
-import software.medusa.flow.session.toPbSessionSummary
+import software.medusa.flow.core_service.session.SessionManagementService
+import software.medusa.flow.core_service.session.toModel
+import software.medusa.flow.core_service.session.toPbSessionSummary
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphRequest
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphResponse
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceGrpcKt

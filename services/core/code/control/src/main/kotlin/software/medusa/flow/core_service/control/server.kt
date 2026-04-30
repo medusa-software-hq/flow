@@ -1,4 +1,4 @@
-package software.medusa.flow.core_service
+package software.medusa.flow.core_service.control
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.linecorp.armeria.common.HttpHeaderNames
@@ -11,8 +11,8 @@ import com.linecorp.armeria.server.logging.LoggingService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.future.await
+import software.medusa.flow.core_service.session.SessionManagementService
 import software.medusa.flow.db.FlowDatabase
-import software.medusa.flow.session.SessionManagementService
 
 suspend fun runServer(
     configurator: Configurator,

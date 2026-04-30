@@ -1,4 +1,4 @@
-package software.medusa.flow.core_service
+package software.medusa.flow.core_service.control
 
 /** HTTP header names relevant to gRPC-Web and Connect protocol CORS configuration. */
 data object GrpcHeaderNames {
