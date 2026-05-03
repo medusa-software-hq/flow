@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package medusa.flow.control_service.v1;
+
+option java_multiple_files = true;
+option java_package = "software.medusa.grpc.flow.control_service.v1";
+
+service GrpcControlService {
+  rpc ListSessions(GrpcControlServiceListSessionsRequest) returns (GrpcControlServiceListSessionsResponse);
+  rpc CreateSession(GrpcControlServiceCreateSessionRequest) returns (GrpcControlServiceCreateSessionResponse);
+  rpc UpdateSession(GrpcControlServiceUpdateSessionRequest) returns (GrpcControlServiceUpdateSessionResponse);
+  rpc CheckTaskGraph(GrpcControlServiceCheckTaskGraphRequest) returns (GrpcControlServiceCheckTaskGraphResponse);
+  rpc StartSession(GrpcControlServiceStartSessionRequest) returns (GrpcControlServiceStartSessionResponse);
+  rpc GetRunningSessionProgress(GrpcControlServiceGetRunningSessionProgressRequest) returns (GrpcControlServiceGetRunningSessionProgressResponse);
+}
+
+message GrpcControlServiceListSessionsRequest {}
+
+message GrpcControlServiceListSessionsResponse {
+  repeated PbSessionDump sessions = 1;
+}
+
+message GrpcControlServiceCreateSessionRequest {
+  PbSessionDetails details = 3;
+}
+
+message GrpcControlServiceCreateSessionResponse {
+  string session_id = 1;
+}
+
+message PbSessionState {
+  oneof state {
+    PbSessionDraftState draft = 1;
+    PbSessionRunningState running = 2;
+  }
+}
+
+message PbSessionDraftState {}
+
+message PbSessionRunningState {}
+
+message PbSessionDump {
+  string id = 1;
+  PbSessionState state = 2;
+  PbSessionDetails details = 3;
+}
+
+message PbSessionDetails {
+  string title = 2;
+  PbTaskGraph task_graph = 4;
+}
+
+message GrpcControlServiceUpdateSessionRequest {
+  string session_id = 1;
+  PbSessionDetails details = 2;
+}
+
+message GrpcControlServiceUpdateSessionResponse {}
+
+message PbTaskGraphValidationFailedStatus {}
+
+message GrpcControlServiceCheckTaskGraphRequest {
+  PbTaskGraph task_graph = 1;
+}
+
+message GrpcControlServiceCheckTaskGraphResponse {
+  oneof result {
+    PbTaskGraphValidResult valid = 1;
+    PbTaskGraphValidationFailedStatus validation_failed = 2;
+  }
+}
+
+message PbTaskGraphValidResult {}
+
+message GrpcControlServiceStartSessionRequest {
+  string session_id = 1;
+  PbSessionDetails final_details = 2;
+}
+
+message GrpcControlServiceStartSessionResponse {
+  oneof result {
+    PbSessionStartedResult started = 1;
+    PbTaskGraphValidationFailedStatus validation_failed = 2;
+  }
+}
+
+message GrpcControlServiceGetRunningSessionProgressRequest {
+  string session_id = 1;
+}
+
+message GrpcControlServiceGetRunningSessionProgressResponse {
+  PbRunningSessionProgress running_session_progress = 1;
+}
+
+message PbSessionStartedResult {
+  PbSessionDetails started_session_details = 2;
+}
+
+message PbRunningSessionProgress {
+  repeated PbTaskExecutionProgress task_execution_progresses = 1;
+}
+
+message PbTaskExecutionProgress {
+  string task_id = 1;
+  double progress = 2;
+}
+
+message PbTaskGraph {
+  repeated PbTask tasks = 1;
+}
+
+message PbTask {
+  string id = 1;
+  string label = 2;
+  string description = 3;
+  repeated string source_task_ids = 4;
+  double progress = 7;
+  double x = 5;
+  double y = 6;
+}

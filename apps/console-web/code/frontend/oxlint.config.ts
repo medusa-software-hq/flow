@@ -15,7 +15,6 @@ export default {
     'default-case': 'off',
     'default-case-last': 'error',
     'no-alert': 'error',
-    'no-else-return': 'error',
     'no-eval': 'error',
     'no-lonely-if': 'error',
     'no-multi-assign': 'error',
@@ -80,6 +79,8 @@ export default {
     'react/no-string-refs': 'error',
     'react/self-closing-comp': 'error',
     'react/void-dom-elements-no-children': 'error',
+    'react/rules-of-hooks': 'error',
+    'react/jsx-key': 'error',
 
     'jsx-a11y/anchor-has-content': 'off',
     'jsx-a11y/anchor-is-valid': 'off',

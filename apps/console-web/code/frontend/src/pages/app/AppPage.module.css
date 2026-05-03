@@ -1,0 +1,241 @@
+.page {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.toolbar {
+  padding: 12px 18px;
+
+  border-bottom: 1px solid #e6e8ef;
+  background: linear-gradient(180deg, #fbfcff, #f5f7fc);
+}
+
+.toolbarMainRow {
+  display: flex;
+  min-width: 0;
+}
+
+.toolbarContent {
+  display: flex;
+  justify-content: space-between;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.toolbarDocIcon {
+  flex: 0 0 auto;
+
+  color: #fff;
+  background: linear-gradient(180deg, #4e8df7, #2463eb);
+  box-shadow: 0 6px 16px rgb(36 99 235 / 20%);
+}
+
+.toolbarTitleInput {
+  width: min(420px, 100%);
+  min-width: 0;
+
+  border: 1px solid transparent;
+  border-radius: 10px;
+
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+
+  color: #1f1f1f;
+  background: transparent;
+  box-shadow: none;
+}
+
+.toolbarTitleInput::placeholder {
+  font-style: italic;
+  color: #8a8f9c;
+  opacity: 1;
+}
+
+.toolbarTitleInput:hover {
+  border-color: #dfe3ec;
+  background: rgb(255 255 255 / 82%);
+}
+
+.toolbarTitleInput:focus,
+.toolbarTitleInput:focus-within {
+  border-color: #b7c8ff;
+  background: #fff;
+}
+
+.contentRow {
+  display: flex;
+  flex-grow: 1;
+  min-height: 0;
+}
+
+.workspace {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.centeredPaneContent {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sessionsColumn {
+  display: flex;
+  flex: 0 0 72px;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18px 10px;
+
+  border-right: 1px solid #e6e6e6;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 96%), rgb(249 249 247 / 92%)),
+    linear-gradient(180deg, #f5f2ea, #fff);
+}
+
+.sessionTile {
+  display: block;
+  padding: 3px;
+
+  border-radius: 14px;
+
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+.sessionTile:hover {
+  transform: translateY(-1px);
+}
+
+.sessionTile[data-create] {
+  opacity: 0.7;
+}
+
+.sessionTile[data-create]:hover {
+  opacity: 1;
+}
+
+.sessionTile[data-selected] {
+  background: linear-gradient(180deg, #262626, #5b5b5b);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 14%);
+}
+
+.sessionTileInner {
+  width: 36px;
+  height: 36px;
+
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: 11px;
+
+  color: #242424;
+  background: #fff;
+}
+
+.sessionTile[data-empty] {
+  pointer-events: none;
+}
+
+.sessionTile[data-empty] .sessionTileInner {
+  border-color: rgb(0 0 0 / 6%);
+  background: linear-gradient(180deg, #efefef, #dcdcdc);
+
+  animation: session-pulse 1.4s ease-in-out infinite;
+}
+
+.sessionTile[data-tone='blue'] .sessionTileInner {
+  color: #1f7ae0;
+  background: linear-gradient(180deg, #e6f5ff, #fff);
+}
+
+.sessionTile[data-tone='teal'] .sessionTileInner {
+  color: #137c72;
+  background: linear-gradient(180deg, #ddfbf5, #fff);
+}
+
+.sessionTile[data-tone='mint'] .sessionTileInner {
+  color: #2b8a63;
+  background: linear-gradient(180deg, #e7fff1, #fff);
+}
+
+.sessionTile[data-tone='green'] .sessionTileInner {
+  color: #347a2a;
+  background: linear-gradient(180deg, #eaf8df, #fff);
+}
+
+.sessionTile[data-tone='lime'] .sessionTileInner {
+  color: #6b7d1f;
+  background: linear-gradient(180deg, #edf8d4, #fbfff3);
+}
+
+.sessionTile[data-tone='yellow'] .sessionTileInner {
+  color: #8b6a00;
+  background: linear-gradient(180deg, #fff4c7, #fffdf1);
+}
+
+.sessionTile[data-tone='orange'] .sessionTileInner {
+  color: #b45a1b;
+  background: linear-gradient(180deg, #ffe5cc, #fff7f0);
+}
+
+.sessionTile[data-tone='coral'] .sessionTileInner {
+  color: #c14f47;
+  background: linear-gradient(180deg, #ffe0db, #fff6f4);
+}
+
+.sessionTile[data-tone='violet'] .sessionTileInner {
+  color: #8c46ff;
+  background: linear-gradient(180deg, #f3e9ff, #fff);
+}
+
+.sessionTile[data-tone='pink'] .sessionTileInner {
+  color: #dd3e9a;
+  background: linear-gradient(180deg, #ffe6f4, #fff);
+}
+
+.sessionRailDivider {
+  margin-top: 4px;
+
+  font-size: 32px;
+  line-height: 1;
+}
+
+@keyframes session-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+}
+
+.shell {
+  display: flex;
+  flex-grow: 1;
+
+  flex-direction: row;
+  justify-content: space-evenly;
+}
+
+.sidebar {
+  display: flex;
+  flex: 0 0 20%;
+  align-items: stretch;
+  flex-direction: column;
+
+  border-right: 2px solid #e0e0e0;
+}
+
+.main {
+  display: flex;
+  flex: 0 0 80%;
+}

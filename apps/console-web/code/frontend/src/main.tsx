@@ -1,10 +1,11 @@
+import 'core-js/actual';
 import './global.css';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import RootComponent from './RootComponent';
 
 const root = document.getElementById('root');
 if (root === null) {
   throw new Error('Root element not found');
 }
 
-ReactDOM.createRoot(root).render(<App />);
+ReactDOM.createRoot(root).render(<RootComponent />);

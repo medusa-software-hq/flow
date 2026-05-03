@@ -1,13 +1,18 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { HomePage } from '@/pages/home/Home.page';
+import { AppPage } from './pages/app/AppPage';
+import { CoreServiceClient } from './rpc/myGrpcTypes';
 
-const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <HomePage />,
-  },
-]);
+interface RouterProps {
+  readonly coreServiceClient: CoreServiceClient;
+}
 
-export function Router() {
+export function Router({ coreServiceClient }: RouterProps) {
+  const router = createBrowserRouter([
+    {
+      path: '/',
+      element: <AppPage coreServiceClient={coreServiceClient} />,
+    },
+  ]);
+
   return <RouterProvider router={router} />;
 }
