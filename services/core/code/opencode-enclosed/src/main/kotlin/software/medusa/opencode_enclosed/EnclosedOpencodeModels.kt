@@ -2,9 +2,20 @@ package software.medusa.opencode_enclosed
 
 import java.time.Instant
 
-@JvmInline value class EnclosedProviderId(val value: String)
+@JvmInline
+value class EnclosedProviderId(val value: String) {
+  companion object {
+    val OpenAI = EnclosedProviderId("openai")
+    val GithubCopilot = EnclosedProviderId("github-copilot")
+  }
+}
 
-@JvmInline value class EnclosedModelId(val value: String)
+@JvmInline
+value class EnclosedModelId(val value: String) {
+  companion object {
+    val Gpt5_4 = EnclosedModelId("gpt-5.4")
+  }
+}
 
 @JvmInline value class EnclosedToolCallId(val value: String)
 
@@ -12,10 +23,18 @@ import java.time.Instant
 
 @JvmInline value class EnclosedToolName(val value: String)
 
-data class EnclosedSupportedModel(
+data class EnclosedModelRef(
     val providerId: EnclosedProviderId,
     val modelId: EnclosedModelId,
-)
+) {
+  object GithubCopilot {
+    val Gpt5_4 =
+        EnclosedModelRef(
+            providerId = EnclosedProviderId.GithubCopilot,
+            modelId = EnclosedModelId.Gpt5_4,
+        )
+  }
+}
 
 enum class EnclosedMessageRole {
   User,

@@ -14,11 +14,8 @@ class EnclosedOpencodeSessionImpl(
   }
 
   override fun sendMessage(
+      model: EnclosedModelRef,
       text: String,
-      model: EnclosedSupportedModel,
-      agent: String?,
-      noReply: Boolean,
-      system: String?,
   ): EnclosedMessage =
       opencodeClient
           .sendMessage(
@@ -26,9 +23,9 @@ class EnclosedOpencodeSessionImpl(
               text = text,
               providerId = model.providerId.value,
               modelId = model.modelId.value,
-              agent = agent,
-              noReply = noReply,
-              system = system,
+              agent = null,
+              noReply = false,
+              system = null,
           )
           .toEnclosedMessage()
 

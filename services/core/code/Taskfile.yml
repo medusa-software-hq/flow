@@ -39,9 +39,11 @@ tasks:
     requires:
       vars:
         - PORT
+        - WORKING_DIRECTORY_PATH
     env:
       PORT: '{{.PORT}}'
       CORS_ALLOWED_ORIGIN_REGEX: "http://localhost(:\\d+)?"
+      WORKING_DIRECTORY_PATH: "{{.WORKING_DIRECTORY_PATH}}"
     cmds:
       - ./gradlew :local:run
     interactive: true

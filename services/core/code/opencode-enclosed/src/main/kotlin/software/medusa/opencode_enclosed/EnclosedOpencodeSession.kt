@@ -10,11 +10,8 @@ interface EnclosedOpencodeSession {
   fun authenticate(providerId: String, apiKey: String): Boolean
 
   fun sendMessage(
+      model: EnclosedModelRef,
       text: String,
-      model: EnclosedSupportedModel,
-      agent: String?,
-      noReply: Boolean,
-      system: String?,
   ): EnclosedMessage
 
   fun listMessages(limit: Int?): List<EnclosedMessage>
