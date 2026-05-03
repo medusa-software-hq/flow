@@ -6,8 +6,8 @@ import { AppEmptyView } from '@/pages/app/AppEmptyView';
 import { AppLoadingView } from '@/pages/app/AppLoadingView';
 import { SessionWorkspaceFailedView } from '@/pages/app/SessionWorkspaceFailedView';
 import { SessionWorkspaceLoadingView } from '@/pages/app/SessionWorkspaceLoadingView';
-import { ISessionWorkspaceTrampoline } from '@/session_workspace_trampoline/ISessionWorkspaceTrampoline';
-import { SessionWorkspaceTrampolineStateKinds } from '@/session_workspace_trampoline/SessionWorkspaceTrampolineStateKinds';
+import { ISessionWorkspaceTrampoline } from '../../../../app/session_workspace_trampoline/ISessionWorkspaceTrampoline';
+import { SessionWorkspaceTrampolineStateKinds } from '../../../../app/session_workspace_trampoline/SessionWorkspaceTrampolineStateKinds';
 import { SessionView } from '../SessionView/SessionView';
 import classes from '../../AppPage.module.css';
 
@@ -72,15 +72,15 @@ function SelectedSessionWorkspaceTrampolineView({
   const currentStateLive = sessionWorkspaceTrampolineLive.currentState;
 
   switch (currentStateLive.kind) {
-    case SessionWorkspaceTrampolineStateKinds.Loading:
+    case SessionWorkspaceTrampolineStateKinds.Creating:
       return (
         <div className={classes.centeredPaneContent}>
           <SessionWorkspaceLoadingView />
         </div>
       );
 
-    case SessionWorkspaceTrampolineStateKinds.Loaded:
-      return <SessionView sessionWorkspaceLive={currentStateLive.loadedSessionWorkspace} />;
+    case SessionWorkspaceTrampolineStateKinds.Operational:
+      return <SessionView sessionWorkspaceLive={currentStateLive.operationalSessionWorkspace} />;
 
     case SessionWorkspaceTrampolineStateKinds.Failed:
       return (

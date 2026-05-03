@@ -1,9 +1,9 @@
 import { Center, Image, Loader, Stack, Text } from '@mantine/core';
 import { useSnapshot } from 'valtio';
 import crashImageUrl from '@/../assets/crash.png';
-import { ISessionWorkspace } from '@/app/ISessionWorkspace';
-import { TTaskId } from '@/app/session/edited_session/CEditedTask';
-import { SessionWorkspaceStateKinds } from '@/app/SessionWorkspaceStateKinds';
+import { ISessionWorkspace } from '@/app/session_workspace/ISessionWorkspace';
+import { SessionWorkspaceStateKinds } from '@/app/session_workspace/SessionWorkspaceStateKinds';
+import { TTaskId } from '@/app/session_workspace/task_graph/edited/CEditedTask';
 import { EditedTaskView } from '../FocusedTaskView/EditedTaskView';
 
 export interface AppSidebarContentProps {
@@ -27,8 +27,7 @@ export function SessionSidebarView({
         return <EmptyTaskSelectionView />;
       }
 
-      const sessionEditorLive = currentSessionWorkspaceStateLive.sessionEditor;
-      const editedSessionLive = sessionEditorLive.editedSession;
+      const editedSessionLive = currentSessionWorkspaceStateLive.editedTaskGraph;
       const focusedEditedTaskLive = editedSessionLive.getTaskById(focusedTaskId);
 
       if (focusedEditedTaskLive === null) {
@@ -36,14 +35,7 @@ export function SessionSidebarView({
 
         return <CrashIcon />;
       } else {
-        return (
-          <EditedTaskView
-            editedTaskLive={focusedEditedTaskLive}
-            onChanged={() => {
-              void sessionWorkspaceLive.upload();
-            }}
-          />
-        );
+        return <EditedTaskView editedTaskLive={focusedEditedTaskLive} />;
       }
     }
     case SessionWorkspaceStateKinds.Running: {

@@ -1,0 +1,7 @@
+CREATE TABLE session_task_execution_state (
+  session_id TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  progress REAL NOT NULL DEFAULT 0,
+  result_int INTEGER,
+  PRIMARY KEY (session_id, task_id)
+);

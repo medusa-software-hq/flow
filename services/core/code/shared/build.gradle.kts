@@ -14,6 +14,7 @@ dependencies {
 
   api(libs.grpc.protobuf)
   api(libs.protobuf.kotlin)
+  api(libs.logback.classic)
 
   implementation(libs.sqldelight.sqlite.driver)
   implementation(libs.sqldelight.coroutines)

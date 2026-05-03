@@ -1,14 +1,11 @@
 import { create } from '@bufbuild/protobuf';
 import { proxyMap } from 'valtio/utils';
-import {
-  GrpcControlServiceListSessionsRequestSchema,
-  PbSessionSummary,
-  PbSessionSummarySchema,
-  PbTaskGraphSchema,
-} from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
-import { CSessionWorkspaceTrampoline } from '@/session_workspace_trampoline/CSessionWorkspaceTrampoline';
-import { ISessionWorkspaceTrampoline } from '@/session_workspace_trampoline/ISessionWorkspaceTrampoline';
-import { IApp, IAppLoadArgs, IAppSessionSummary, TSessionWorkspaceId } from './IApp';
+import { GrpcControlServiceListSessionsRequestSchema } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
+import { CoreServiceClient } from '@/rpc/myGrpcTypes';
+import { associate } from '@/utils/mapUtils';
+import { IApp, IAppLoadArgs, TSessionWorkspaceId } from './IApp';
+import { CSessionWorkspaceTrampoline } from './session_workspace_trampoline/CSessionWorkspaceTrampoline';
+import { ISessionWorkspaceTrampoline } from './session_workspace_trampoline/ISessionWorkspaceTrampoline';
 
 export class CApp implements IApp {
   static async load({ coreServiceClient }: IAppLoadArgs): Promise<IApp> {
@@ -16,43 +13,39 @@ export class CApp implements IApp {
       create(GrpcControlServiceListSessionsRequestSchema)
     );
 
+    const restoredSessionWorkspaceTrampolineById = associate(
+      listSessionsResponse.sessions,
+      (sessionDump) => {
+        const restoredSessionWorkspaceTrampoline = CSessionWorkspaceTrampoline.restore({
+          coreServiceClient,
+          receivedSessionDump: sessionDump,
+        });
+
+        return [sessionDump.id, restoredSessionWorkspaceTrampoline];
+      }
+    );
+
     return new CApp({
       coreServiceClient,
-      existingSessions: listSessionsResponse.sessions,
+      initialSessionWorkspaceTrampolineById: restoredSessionWorkspaceTrampolineById,
     });
   }
 
+  private readonly _coreServiceClient: CoreServiceClient;
+
   private _nextSessionWorkspaceNumber = 1;
   private _selectedSessionWorkspaceId: TSessionWorkspaceId | null = null;
-  private readonly _coreServiceClient;
-  private readonly _sessionSummaryById = proxyMap<TSessionWorkspaceId, PbSessionSummary>();
-
-  private _sessionWorkspaceTrampolineById: Map<TSessionWorkspaceId, ISessionWorkspaceTrampoline> =
-    proxyMap();
+  private readonly _sessionWorkspaceTrampolineById: Map<
+    TSessionWorkspaceId,
+    ISessionWorkspaceTrampoline
+  >;
 
   private constructor(args: {
-    coreServiceClient: IAppLoadArgs['coreServiceClient'];
-    existingSessions: readonly PbSessionSummary[];
+    coreServiceClient: CoreServiceClient;
+    initialSessionWorkspaceTrampolineById: Map<TSessionWorkspaceId, ISessionWorkspaceTrampoline>;
   }) {
     this._coreServiceClient = args.coreServiceClient;
-    const firstExistingSessionId = args.existingSessions[0]?.sessionId ?? null;
-
-    for (const sessionSummary of args.existingSessions) {
-      const sessionWorkspaceId = sessionSummary.sessionId;
-
-      this._sessionWorkspaceTrampolineById.set(
-        sessionWorkspaceId,
-        CSessionWorkspaceTrampoline.createProxied({
-          coreServiceClient: this._coreServiceClient,
-          restoredSessionSummary: sessionSummary,
-        })
-      );
-
-      this._sessionSummaryById.set(sessionWorkspaceId, sessionSummary);
-    }
-
-    this._nextSessionWorkspaceNumber = args.existingSessions.length + 1;
-    this._selectedSessionWorkspaceId = firstExistingSessionId;
+    this._sessionWorkspaceTrampolineById = proxyMap(args.initialSessionWorkspaceTrampolineById);
   }
 
   get selectedSessionWorkspaceId(): TSessionWorkspaceId | null {
@@ -69,16 +62,6 @@ export class CApp implements IApp {
     return this._sessionWorkspaceTrampolineById.get(selectedSessionWorkspaceId) ?? null;
   }
 
-  get selectedSessionTitle(): string | null {
-    const selectedSessionWorkspaceId = this.selectedSessionWorkspaceId;
-
-    if (selectedSessionWorkspaceId === null) {
-      return null;
-    }
-
-    return this._sessionSummaryById.get(selectedSessionWorkspaceId)?.title ?? '';
-  }
-
   get sessionWorkspaceTrampolineById(): ReadonlyMap<
     TSessionWorkspaceId,
     ISessionWorkspaceTrampoline
@@ -86,36 +69,14 @@ export class CApp implements IApp {
     return this._sessionWorkspaceTrampolineById;
   }
 
-  get sessions(): readonly IAppSessionSummary[] {
-    return Array.from(this._sessionWorkspaceTrampolineById.entries(), ([id, trampoline]) => {
-      return {
-        id,
-        title: this._sessionSummaryById.get(id)?.title ?? '',
-        isSelected: id === this._selectedSessionWorkspaceId,
-        stateKind: trampoline.currentState.kind,
-        onSelected: () => this.selectSessionWorkspace(id),
-      };
-    });
-  }
-
   createSessionWorkspace(): TSessionWorkspaceId {
     const newSessionWorkspaceId = `session-workspace-${this._nextSessionWorkspaceNumber++}`;
 
-    const newSessionWorkspaceTrampoline = CSessionWorkspaceTrampoline.createProxied({
+    const newSessionWorkspaceTrampoline = CSessionWorkspaceTrampoline.createNew({
       coreServiceClient: this._coreServiceClient,
-      initialTitle: '',
-      initialTaskGraph: create(PbTaskGraphSchema),
     });
 
     this._sessionWorkspaceTrampolineById.set(newSessionWorkspaceId, newSessionWorkspaceTrampoline);
-    this._sessionSummaryById.set(
-      newSessionWorkspaceId,
-      create(PbSessionSummarySchema, {
-        sessionId: newSessionWorkspaceId,
-        title: '',
-        taskGraph: create(PbTaskGraphSchema),
-      })
-    );
     this._selectedSessionWorkspaceId = newSessionWorkspaceId;
 
     return newSessionWorkspaceId;
@@ -127,19 +88,5 @@ export class CApp implements IApp {
     }
 
     this._selectedSessionWorkspaceId = sessionWorkspaceId;
-  }
-
-  setSessionTitle(sessionWorkspaceId: TSessionWorkspaceId, title: string): void {
-    if (!this._sessionWorkspaceTrampolineById.has(sessionWorkspaceId)) {
-      throw new Error(`Session workspace with ID ${sessionWorkspaceId} not found`);
-    }
-
-    const sessionSummary = this._sessionSummaryById.get(sessionWorkspaceId);
-
-    if (sessionSummary === undefined) {
-      throw new Error(`Session summary with ID ${sessionWorkspaceId} not found`);
-    }
-
-    sessionSummary.title = title;
   }
 }

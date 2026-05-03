@@ -1,10 +1,11 @@
 import { Center, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useSnapshot } from 'valtio';
-import { IApp, IAppSessionSummary } from '@/app/IApp';
+import { IApp } from '@/app/IApp';
+import { ISessionWorkspaceTrampoline } from '@/app/session_workspace_trampoline/ISessionWorkspaceTrampoline';
+import { SessionWorkspaceTrampolineStateKinds } from '@/app/session_workspace_trampoline/SessionWorkspaceTrampolineStateKinds';
 import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import { UAppTrampolineState } from '@/app_trampoline/IAppTrampolineState';
-import { SessionWorkspaceTrampolineStateKinds } from '@/session_workspace_trampoline/SessionWorkspaceTrampolineStateKinds';
 import classes from '../../AppPage.module.css';
 
 type TSessionIconTone =
@@ -158,7 +159,14 @@ function buildSessionRailViewModel({
 
     case AppTrampolineStateKinds.Loaded:
       return {
-        sessionIcons: currentStateLive.loadedApp.sessions.map(mapSessionToViewModel),
+        sessionIcons: Array.from(currentStateLive.loadedApp.sessionWorkspaceTrampolineById).map(
+          ([sessionWorkspaceId, sessionWorkspaceTrampoline]) =>
+            mapSessionTrampolineToViewModel({
+              loadedAppLive: currentStateLive.loadedApp,
+              sessionWorkspaceId,
+              sessionWorkspaceTrampoline,
+            })
+        ),
         onCreatePressed:
           loadedAppLive === null ? null : () => loadedAppLive.createSessionWorkspace(),
       };
@@ -182,35 +190,53 @@ function buildPlaceholderSessionIconViewModels(
   }));
 }
 
-function mapSessionToViewModel(session: IAppSessionSummary): SessionIconViewModel {
-  switch (session.stateKind) {
-    case SessionWorkspaceTrampolineStateKinds.Loading:
+interface MapSessionTrampolineToViewModelArgs {
+  readonly loadedAppLive: IApp;
+  readonly sessionWorkspaceId: string;
+  readonly sessionWorkspaceTrampoline: ISessionWorkspaceTrampoline;
+}
+
+function mapSessionTrampolineToViewModel({
+  loadedAppLive,
+  sessionWorkspaceId,
+  sessionWorkspaceTrampoline,
+}: MapSessionTrampolineToViewModelArgs): SessionIconViewModel {
+  const onSelected = () => loadedAppLive.selectSessionWorkspace(sessionWorkspaceId);
+  const isSelected = loadedAppLive.selectedSessionWorkspaceId === sessionWorkspaceId;
+
+  switch (sessionWorkspaceTrampoline.currentState.kind) {
+    case SessionWorkspaceTrampolineStateKinds.Creating:
       return {
-        key: session.id,
-        isSelected: session.isSelected,
+        key: sessionWorkspaceId,
+        isSelected,
         tone: null,
         content: null,
-        onPressed: session.onSelected,
+        onPressed: onSelected,
         isPlaceholder: false,
       };
 
-    case SessionWorkspaceTrampolineStateKinds.Loaded:
+    case SessionWorkspaceTrampolineStateKinds.Operational: {
+      const sessionTitle =
+        sessionWorkspaceTrampoline.currentState.operationalSessionWorkspace.currentState
+          .sessionTitle;
+
       return {
-        key: session.id,
-        isSelected: session.isSelected,
-        tone: getToneFromSessionId(session.id),
-        content: getSessionIconContent(session.title),
-        onPressed: session.onSelected,
+        key: sessionWorkspaceId,
+        isSelected,
+        tone: getToneFromSessionId(sessionWorkspaceId),
+        content: getSessionIconContent(sessionTitle),
+        onPressed: onSelected,
         isPlaceholder: false,
       };
+    }
 
     case SessionWorkspaceTrampolineStateKinds.Failed:
       return {
-        key: session.id,
-        isSelected: session.isSelected,
+        key: sessionWorkspaceId,
+        isSelected,
         tone: 'pink',
         content: '!',
-        onPressed: session.onSelected,
+        onPressed: onSelected,
         isPlaceholder: false,
       };
   }

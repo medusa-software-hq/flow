@@ -1,6 +1,7 @@
 import { Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { useSnapshot } from 'valtio';
-import type { IEditedTask, ITask } from '@/app/session/ITask';
+import { IEditedTask } from '@/app/session_workspace/task_graph/edited/IEditedTask';
+import type { ITask } from '@/app/session_workspace/task_graph/ITask';
 import classes from './FocusedTaskView.module.css';
 
 function EmptyFocusedTaskView() {
@@ -13,11 +14,10 @@ function EmptyFocusedTaskView() {
 
 interface ProperFocusedTaskViewProps {
   readonly focusedTaskLive: IEditedTask;
-  readonly onChanged: () => void;
 }
 
 function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
-  const { focusedTaskLive, onChanged } = props;
+  const { focusedTaskLive } = props;
   const focusedTaskLiveSnap: ITask = useSnapshot(focusedTaskLive);
 
   const label = focusedTaskLiveSnap.label;
@@ -31,7 +31,6 @@ function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
         value={label}
         onChange={(event) => {
           focusedTaskLive.label = event.currentTarget.value;
-          onChanged();
         }}
       />
       <Textarea
@@ -40,7 +39,6 @@ function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
         value={description}
         onChange={(event) => {
           focusedTaskLive.description = event.currentTarget.value;
-          onChanged();
         }}
         autosize
         minRows={8}
@@ -52,16 +50,15 @@ function ProperFocusedTaskView(props: ProperFocusedTaskViewProps) {
 
 interface EditedTaskViewProps {
   readonly editedTaskLive: IEditedTask | null;
-  readonly onChanged: () => void;
 }
 
 export function EditedTaskView(props: EditedTaskViewProps) {
-  const { editedTaskLive, onChanged } = props;
+  const { editedTaskLive } = props;
 
   switch (editedTaskLive) {
     case null:
       return <EmptyFocusedTaskView />;
     default:
-      return <ProperFocusedTaskView focusedTaskLive={editedTaskLive} onChanged={onChanged} />;
+      return <ProperFocusedTaskView focusedTaskLive={editedTaskLive} />;
   }
 }

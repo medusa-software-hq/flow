@@ -2,22 +2,26 @@ package software.medusa.flow.core_service.session
 
 import software.medusa.flow.db.Session as DbSession
 
-fun Session.toDbInsert(): DbInsertSession =
-    DbInsertSession(
-        id = id,
-        title = title,
-        taskGraphProtoBytes = taskGraph.toProtoBytes(),
+fun DbSession.toDump(): SessionDump =
+    SessionDump(
+        id = SessionId(raw = id),
+        state = state.toModel(),
+        details =
+            Session(
+                title = title,
+                taskGraph = task_graph_proto_bytes.toTaskGraphModel(),
+            ),
     )
 
-fun DbSession.toModel(): Session =
-    Session(
-        id = id,
-        title = title,
-        taskGraph = task_graph_proto_bytes.toTaskGraphModel(),
-    )
+fun String.toModel(): SessionState =
+    when (this) {
+      "draft" -> SessionState.DRAFT
+      "running" -> SessionState.RUNNING
+      else -> error("Unknown session state: $this")
+    }
 
-data class DbInsertSession(
-    val id: String,
-    val title: String,
-    val taskGraphProtoBytes: ByteArray,
-)
+fun SessionState.toDbValue(): String =
+    when (this) {
+      SessionState.DRAFT -> "draft"
+      SessionState.RUNNING -> "running"
+    }

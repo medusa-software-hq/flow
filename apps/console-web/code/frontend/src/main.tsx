@@ -1,3 +1,4 @@
+import 'core-js/actual';
 import './global.css';
 import ReactDOM from 'react-dom/client';
 import RootComponent from './RootComponent';

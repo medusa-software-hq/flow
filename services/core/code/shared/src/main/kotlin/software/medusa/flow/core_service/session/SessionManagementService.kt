@@ -1,49 +1,94 @@
 package software.medusa.flow.core_service.session
 
-import java.util.UUID
+import org.slf4j.LoggerFactory
+import software.medusa.flow.core_service.job_queue.SessionExecutionJobOffer
+import software.medusa.flow.core_service.job_queue.SessionExecutionJobQueueFront
 import software.medusa.flow.db.FlowDatabase
-import software.medusa.flow.db.Session as DbSession
 
-class SessionManagementService(private val database: FlowDatabase) {
-  fun createSession(title: String, taskGraph: TaskGraph): Session {
-    val session =
-        Session(
-            id = UUID.randomUUID().toString(),
-            title = title,
-            taskGraph = taskGraph,
-        )
-    val dbInsertSession = session.toDbInsert()
+class SessionManagementService(
+    private val database: FlowDatabase,
+    private val sessionExecutionJobQueueFront: SessionExecutionJobQueueFront,
+) {
+  companion object {
+    private val logger = LoggerFactory.getLogger(SessionManagementService::class.java)
+  }
+
+  fun createSession(
+      session: Session,
+  ): SessionId {
+    logger.info("Creating draft session title='{}'", session.title)
 
     database.sessionQueries.insertSession(
-        id = dbInsertSession.id,
-        title = dbInsertSession.title,
-        task_graph_proto_bytes = dbInsertSession.taskGraphProtoBytes,
+        title = session.title,
+        task_graph_proto_bytes = session.taskGraph.toProtoBytes(),
+        state = SessionState.DRAFT.toDbValue(),
     )
 
-    return requireNotNull(getSessionById(session.id))
+    val createdSessionId =
+        SessionId(
+            raw = database.sessionQueries.lastInsertRowId().executeAsOne(),
+        )
+
+    return createdSessionId
   }
 
-  fun getSessionById(id: String): Session? =
-      database.sessionQueries.selectSessionById(id).executeAsOneOrNull()?.toModel()
+  fun getSessionById(id: SessionId): SessionDump? =
+      database.sessionQueries.selectSessionById(id.raw).executeAsOneOrNull()?.toDump()
 
-  fun updateSession(id: String, title: String, taskGraph: TaskGraph): Session? {
-    val dbInsertSession =
-        Session(
-                id = id,
-                title = title,
-                taskGraph = taskGraph,
-            )
-            .toDbInsert()
+  fun updateSession(
+      id: SessionId,
+      session: Session,
+  ) {
+    logger.info("Updating session {} title='{}'", id, session.title)
 
-    database.sessionQueries.updateSessionTaskGraph(
-        title = dbInsertSession.title,
-        task_graph_proto_bytes = dbInsertSession.taskGraphProtoBytes,
-        id = dbInsertSession.id,
+    val existingSession = getSessionById(id) ?: error("Session $id not found")
+    require(existingSession.state == SessionState.DRAFT) { "Session $id is not editable" }
+
+    database.sessionQueries.updateSessionDetails(
+        title = session.title,
+        task_graph_proto_bytes = session.taskGraph.toProtoBytes(),
+        id = id.raw,
     )
-
-    return getSessionById(id)
   }
 
-  fun getAllSessions(): List<Session> =
-      database.sessionQueries.selectAllSessions().executeAsList().map(DbSession::toModel)
+  fun startSession(
+      id: SessionId,
+      finalSession: Session,
+  ) {
+    logger.info("Queueing session {} for execution", id)
+
+    val existingSession = getSessionById(id) ?: error("Session $id not found")
+    require(existingSession.state == SessionState.DRAFT) { "Session $id is not startable" }
+
+    database.sessionQueries.transaction {
+      database.sessionQueries.updateSessionDetails(
+          title = finalSession.title,
+          task_graph_proto_bytes = finalSession.taskGraph.toProtoBytes(),
+          id = id.raw,
+      )
+      database.sessionQueries.updateSessionState(
+          state = SessionState.RUNNING.toDbValue(),
+          id = id.raw,
+      )
+
+      finalSession.taskGraph.tasks.forEach { task ->
+        database.sessionQueries.upsertSessionTaskExecutionState(
+            session_id = id.raw,
+            task_id = task.id.raw,
+            progress = 0.0,
+            result_int = null,
+        )
+      }
+    }
+
+    sessionExecutionJobQueueFront.offerJob(
+        SessionExecutionJobOffer(
+            sessionId = id,
+        ),
+    )
+  }
+
+  fun getAllSessions(): List<SessionDump> {
+    return database.sessionQueries.selectAllSessions().executeAsList().map { it.toDump() }
+  }
 }

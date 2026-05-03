@@ -14,11 +14,11 @@ export interface ILoadedState extends IAppTrampolineState {
   readonly loadedApp: IApp;
 }
 
-export interface IFailedState extends IAppTrampolineState {
+export interface ILoadingFailedState extends IAppTrampolineState {
   readonly kind: typeof AppTrampolineStateKinds.Failed;
   readonly error: unknown;
 
-  retry(): void;
+  reload(): void;
 }
 
-export type UAppTrampolineState = ILoadingState | ILoadedState | IFailedState;
+export type UAppTrampolineState = ILoadingState | ILoadedState | ILoadingFailedState;

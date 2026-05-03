@@ -17,8 +17,9 @@
   min-width: 0;
 }
 
-.toolbarIdentity {
+.toolbarContent {
   display: flex;
+  justify-content: space-between;
   min-width: 0;
   flex: 1 1 auto;
 }

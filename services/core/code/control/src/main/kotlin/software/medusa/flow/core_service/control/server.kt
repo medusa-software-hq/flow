@@ -1,6 +1,5 @@
 package software.medusa.flow.core_service.control
 
-import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.linecorp.armeria.common.HttpHeaderNames
 import com.linecorp.armeria.common.HttpMethod
 import com.linecorp.armeria.server.Server
@@ -11,14 +10,17 @@ import com.linecorp.armeria.server.logging.LoggingService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.future.await
+import org.slf4j.LoggerFactory
+import software.medusa.flow.core_service.session.SessionExecutionService
 import software.medusa.flow.core_service.session.SessionManagementService
-import software.medusa.flow.db.FlowDatabase
 
-suspend fun runServer(
+suspend fun runControlService(
     configurator: Configurator,
 ) {
   val port = configurator.getPort()
   val originRegex = configurator.getCorsAllowedOriginRegex()
+
+  logger.info("Starting control service with port={} corsAllowedOriginRegex={}", port, originRegex)
 
   val singleThreadExecutor = Executors.newSingleThreadExecutor { r ->
     Thread(r, "armeria-single-thread")
@@ -52,14 +54,23 @@ suspend fun runServer(
           }
           .newDecorator()
 
-  val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+  val database = configurator.getFlowDatabase()
+  logger.debug("Control service obtained FlowDatabase instance {}", database)
 
-  FlowDatabase.Schema.create(driver = driver)
+  val sessionExecutionJobQueueFront = configurator.getSessionExecutionJobQueueFront()
+  logger.debug(
+      "Control service obtained SessionExecutionJobQueueFront {}",
+      sessionExecutionJobQueueFront,
+  )
 
-  val database = FlowDatabase(driver = driver)
-
-  val sessionControlService =
+  val sessionManagementService =
       SessionManagementService(
+          database = database,
+          sessionExecutionJobQueueFront = sessionExecutionJobQueueFront,
+      )
+
+  val sessionExecutionService =
+      SessionExecutionService(
           database = database,
       )
 
@@ -69,7 +80,8 @@ suspend fun runServer(
             addService(
                 CoreServiceGrpcImpl(
                     coroutineDispatcher = coroutineDispatcher,
-                    sessionControlService = sessionControlService,
+                    sessionControlService = sessionManagementService,
+                    sessionExecutionService = sessionExecutionService,
                 ),
             )
           }
@@ -92,6 +104,7 @@ suspend fun runServer(
   Runtime.getRuntime()
       .addShutdownHook(
           Thread {
+            logger.info("Stopping control service")
             server.stop().join()
             coroutineDispatcher.close()
             singleThreadExecutor.shutdown()
@@ -99,4 +112,7 @@ suspend fun runServer(
       )
 
   server.start().await()
+  logger.info("Control service started on port {}", port)
 }
+
+private val logger = LoggerFactory.getLogger("software.medusa.flow.core_service.control.Server")

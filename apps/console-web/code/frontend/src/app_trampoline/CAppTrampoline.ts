@@ -3,7 +3,7 @@ import { CApp } from '@/app/CApp';
 import { AppTrampolineStateKinds } from '@/app_trampoline/AppStateKinds';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import {
-  IFailedState,
+  ILoadingFailedState,
   ILoadedState,
   ILoadingState,
   UAppTrampolineState,
@@ -11,10 +11,10 @@ import {
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 
 export class CAppTrampoline implements IAppTrampoline {
-  static createProxied(args: { coreServiceClient: CoreServiceClient }): IAppTrampoline {
+  static setup(args: { coreServiceClient: CoreServiceClient }): IAppTrampoline {
     const self: CAppTrampoline = proxy(new CAppTrampoline(args));
 
-    self._initialize();
+    void self._tryLoadingApp();
 
     return self;
   }
@@ -27,10 +27,6 @@ export class CAppTrampoline implements IAppTrampoline {
 
   private constructor(args: { coreServiceClient: CoreServiceClient }) {
     this._coreServiceClient = args.coreServiceClient;
-  }
-
-  private _initialize() {
-    void this._tryLoadingApp();
   }
 
   private async _tryLoadingApp() {
@@ -58,11 +54,11 @@ export class CAppTrampoline implements IAppTrampoline {
     } catch (e: unknown) {
       console.error('Failed to load app:', e);
 
-      const failedState: IFailedState = {
+      const failedState: ILoadingFailedState = {
         kind: AppTrampolineStateKinds.Failed,
         error: e,
 
-        retry: () => {
+        reload: () => {
           if (this.currentState.kind !== AppTrampolineStateKinds.Failed) {
             console.warn('Cannot retry loading app: current state is not failed');
           }

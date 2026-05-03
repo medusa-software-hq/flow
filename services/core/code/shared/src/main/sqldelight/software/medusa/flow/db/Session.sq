@@ -1,22 +1,58 @@
 CREATE TABLE session (
-  id TEXT NOT NULL PRIMARY KEY,
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   task_graph_proto_bytes BLOB NOT NULL,
-  title TEXT NOT NULL DEFAULT ''
+  title TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL DEFAULT 'draft'
+);
+
+CREATE TABLE session_task_execution_state (
+  session_id INTEGER NOT NULL,
+  task_id TEXT NOT NULL,
+  progress REAL NOT NULL DEFAULT 0,
+  result_int INTEGER,
+  PRIMARY KEY (session_id, task_id)
 );
 
 insertSession:
-INSERT INTO session(id, title, task_graph_proto_bytes)
+INSERT INTO session(title, task_graph_proto_bytes, state)
 VALUES (?, ?, ?);
+
+lastInsertRowId:
+SELECT last_insert_rowid();
 
 selectSessionById:
 SELECT * FROM session
 WHERE id = ?;
 
-updateSessionTaskGraph:
+updateSessionDetails:
 UPDATE session
 SET title = ?, task_graph_proto_bytes = ?
+WHERE id = ?;
+
+updateSessionState:
+UPDATE session
+SET state = ?
 WHERE id = ?;
 
 selectAllSessions:
 SELECT * FROM session
 ORDER BY id;
+
+selectSessionTaskExecutionStatesBySessionId:
+SELECT task_id, progress, result_int FROM session_task_execution_state
+WHERE session_id = ?
+ORDER BY task_id;
+
+upsertSessionTaskExecutionState:
+INSERT OR REPLACE INTO session_task_execution_state(session_id, task_id, progress, result_int)
+VALUES (?, ?, ?, ?);
+
+updateSessionTaskProgress:
+UPDATE session_task_execution_state
+SET progress = ?
+WHERE session_id = ? AND task_id = ?;
+
+updateSessionTaskResult:
+UPDATE session_task_execution_state
+SET progress = 1.0, result_int = ?
+WHERE session_id = ? AND task_id = ?;

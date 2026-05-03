@@ -5,7 +5,7 @@ import { CAppTrampoline } from '@/app_trampoline/CAppTrampoline';
 import { IAppTrampoline } from '@/app_trampoline/IAppTrampoline';
 import { AppView } from '@/pages/app/components/AppView/AppView';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
-import { AppFailedView } from './AppFailedView';
+import { AppLoadingFailedView } from './AppLoadingFailedView';
 
 interface AppPageProps {
   readonly coreServiceClient: CoreServiceClient;
@@ -13,7 +13,7 @@ interface AppPageProps {
 
 export function AppPage({ coreServiceClient }: AppPageProps) {
   const appTrampolineLive: IAppTrampoline = useMemo(
-    () => CAppTrampoline.createProxied({ coreServiceClient }),
+    () => CAppTrampoline.setup({ coreServiceClient }),
     [coreServiceClient]
   );
   const appTrampolineSnap = useSnapshot(appTrampolineLive);
@@ -23,7 +23,9 @@ export function AppPage({ coreServiceClient }: AppPageProps) {
 
   switch (currentStateLive.kind) {
     case AppTrampolineStateKinds.Failed:
-      return <AppFailedView error={currentStateLive.error} retry={currentStateLive.retry} />;
+      return (
+        <AppLoadingFailedView error={currentStateLive.error} retry={currentStateLive.reload} />
+      );
 
     case AppTrampolineStateKinds.Loading:
     case AppTrampolineStateKinds.Loaded:
