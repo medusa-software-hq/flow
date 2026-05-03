@@ -1,14 +1,14 @@
 package software.medusa.flow.core_service.worker
 
-import java.nio.file.Path
 import org.slf4j.LoggerFactory
 import software.medusa.flow.core_service.session.Task
+import software.medusa.git.GitRepository
 import software.medusa.opencode_enclosed.EnclosedModelRef
 import software.medusa.opencode_enclosed.EnclosedOpencodeSessionStarter
 
 class TaskExecutorImpl(
     private val opencodeSessionStarter: EnclosedOpencodeSessionStarter,
-    private val workingDirectoryPath: Path,
+    private val gitRepository: GitRepository,
 ) : TaskExecutor {
   companion object {
     private val logger = LoggerFactory.getLogger(TaskExecutor::class.java)
@@ -22,7 +22,7 @@ class TaskExecutorImpl(
     val opencodeSession =
         opencodeSessionStarter.startSession(
             title = "Session for task '${taskDefinition.label}'",
-            workingDirectoryPath = workingDirectoryPath,
+            workingDirectoryPath = gitRepository.path,
         )
 
     opencodeSession.sendMessage(
@@ -30,12 +30,20 @@ class TaskExecutorImpl(
         text = taskDefinition.description,
     )
 
+    val commitHash =
+        gitRepository
+            .commit(
+                message = "Task '${taskDefinition.label}'",
+            )
+            .commitHash
+
     progressUpdater.updateProgress(1.0)
 
     logger.info(
-        "Executed fake task label='{}' description='{}'",
+        "Executed fake task label='{}' description='{}' commitHash='{}'",
         taskDefinition.label,
         taskDefinition.description,
+        commitHash,
     )
 
     return TaskExecutor.TaskExecutionResult(

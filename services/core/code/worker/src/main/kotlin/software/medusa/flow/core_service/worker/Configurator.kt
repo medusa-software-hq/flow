@@ -25,6 +25,8 @@ class Configurator(
         logger.debug("Providing worker SessionExecutionJobQueueBack {}", it)
       }
 
+  fun getGitExecutableHandle(): ExecutableHandle = ExecutableHandle.locate(commandName = "git")
+
   fun getOpencodeExecutableHandle(): ExecutableHandle =
       ExecutableHandle.locate(commandName = "opencode")
 

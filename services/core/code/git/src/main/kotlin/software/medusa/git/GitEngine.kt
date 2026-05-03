@@ -7,13 +7,12 @@ interface GitEngine {
 }
 
 interface GitRepository {
-  fun commit(request: GitCommitRequest): GitCommitResult
-}
+  val path: Path
 
-data class GitCommitRequest(
-    val message: String,
-    val pathspecs: List<String> = listOf("."),
-)
+  fun commit(
+      message: String,
+  ): GitCommitResult
+}
 
 data class GitCommitResult(
     val commitHash: String,

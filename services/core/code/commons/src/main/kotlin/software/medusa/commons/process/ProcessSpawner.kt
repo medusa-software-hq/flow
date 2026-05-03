@@ -67,11 +67,16 @@ class ProcessSpawner private constructor() {
       env: Map<String, String>,
       inheritIo: Boolean,
   ): Process {
+    val argv = listOf(executableHandle.path.toString()) + args
+
     val processBuilder =
-        ProcessBuilder(listOf(executableHandle.path.toString()) + args)
+        ProcessBuilder(argv)
             .directory(workingDirectoryPath.toFile())
             .redirectErrorStream(true)
-            .apply { environment().apply { env.forEach { (key, value) -> this[key] = value } } }
+            .apply {
+              environment().clear()
+              environment().putAll(env)
+            }
 
     if (inheritIo) {
       processBuilder.inheritIO()

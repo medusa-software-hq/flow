@@ -5,6 +5,7 @@ import software.medusa.commons.network.ServerSocketPortAllocator
 import software.medusa.commons.process.ProcessSpawner
 import software.medusa.flow.core_service.job_queue.SessionExecutionJobQueueBack
 import software.medusa.flow.core_service.session.SessionExecutionService
+import software.medusa.git.GitCliEngine
 import software.medusa.opencode_enclosed.EnclosedOpencodeSessionStarterImpl
 import software.medusa.opencode_enclosed.LocalOpencodeServerSpawner
 import software.medusa.opencode_enclosed.UuidPasswordGenerator
@@ -44,6 +45,7 @@ suspend fun runWorker(
 
   val sessionExecutionJobQueueBack = configurator.getSessionExecutionJobQueueBack()
 
+  val gitExecutableHandle = configurator.getGitExecutableHandle()
   val opencodeExecutableHandle = configurator.getOpencodeExecutableHandle()
 
   val workingDirectoryPath = configurator.getWorkingDirectoryPath()
@@ -66,10 +68,21 @@ suspend fun runWorker(
           passwordGenerator = UuidPasswordGenerator,
       )
 
+  val gitEngine =
+      GitCliEngine(
+          processSpawner = processSpawner,
+          gitExecutableHandle = gitExecutableHandle,
+      )
+
+  val gitRepository =
+      gitEngine.openRepository(
+          repoPath = workingDirectoryPath,
+      )
+
   val taskExecutor =
       TaskExecutorImpl(
           opencodeSessionStarter = opencodeSessionStarter,
-          workingDirectoryPath = workingDirectoryPath,
+          gitRepository = gitRepository,
       )
 
   val workingSessionExecutor =
