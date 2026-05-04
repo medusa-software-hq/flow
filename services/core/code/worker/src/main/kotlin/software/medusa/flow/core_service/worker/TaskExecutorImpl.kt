@@ -2,13 +2,13 @@ package software.medusa.flow.core_service.worker
 
 import org.slf4j.LoggerFactory
 import software.medusa.flow.core_service.session.Task
-import software.medusa.git.GitRepository
+import software.medusa.git.GitEngineRepository
 import software.medusa.opencode_enclosed.EnclosedModelRef
 import software.medusa.opencode_enclosed.EnclosedOpencodeSessionStarter
 
 class TaskExecutorImpl(
     private val opencodeSessionStarter: EnclosedOpencodeSessionStarter,
-    private val gitRepository: GitRepository,
+    private val gitRepository: GitEngineRepository,
 ) : TaskExecutor {
   companion object {
     private val logger = LoggerFactory.getLogger(TaskExecutor::class.java)

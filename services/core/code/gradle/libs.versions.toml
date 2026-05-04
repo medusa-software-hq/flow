@@ -32,6 +32,7 @@ protobuf-protocGen-grpc-java = { module = "io.grpc:protoc-gen-grpc-java", versio
 protobuf-protocGen-grpc-kotlin = "io.grpc:protoc-gen-grpc-kotlin:1.5.0"
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
+jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version = "7.6.0.202603022253-r" }
 
 [plugins]
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

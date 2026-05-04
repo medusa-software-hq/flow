@@ -9,7 +9,7 @@ class GitCliEngine(
     private val processSpawner: ProcessSpawner,
     private val gitExecutableHandle: ExecutableHandle,
 ) : GitEngine {
-  override fun openRepository(repoPath: Path): GitRepository {
+  override fun openRepository(repoPath: Path): GitEngineRepository {
     require(repoPath.isAbsolute) { "Expected an absolute repository path, but got: $repoPath" }
     require(repoPath.isDirectory()) { "Expected a repository directory path, but got: $repoPath" }
 

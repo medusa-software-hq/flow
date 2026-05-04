@@ -8,7 +8,7 @@ internal class GitCliRepository(
     override val path: Path,
     private val gitExecutableHandle: ExecutableHandle,
     private val processSpawner: ProcessSpawner,
-) : GitRepository {
+) : GitEngineRepository {
   override fun commit(message: String): GitCommitResult {
     require(message.isNotBlank()) { "Commit message must not be blank" }
 

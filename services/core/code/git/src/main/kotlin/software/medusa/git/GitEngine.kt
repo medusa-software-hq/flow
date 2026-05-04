@@ -3,10 +3,10 @@ package software.medusa.git
 import java.nio.file.Path
 
 interface GitEngine {
-  fun openRepository(repoPath: Path): GitRepository
+  fun openRepository(repoPath: Path): GitEngineRepository
 }
 
-interface GitRepository {
+interface GitEngineRepository {
   val path: Path
 
   fun commit(
