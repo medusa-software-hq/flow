@@ -2,13 +2,13 @@ package software.medusa.flow.core_service.worker
 
 import org.slf4j.LoggerFactory
 import software.medusa.flow.core_service.session.Task
-import software.medusa.git.GitEngineRepository
+import software.medusa.git.GitRepository
 import software.medusa.opencode_enclosed.EnclosedModelRef
 import software.medusa.opencode_enclosed.EnclosedOpencodeSessionStarter
 
 class TaskExecutorImpl(
     private val opencodeSessionStarter: EnclosedOpencodeSessionStarter,
-    private val gitRepository: GitEngineRepository,
+    private val gitRepository: GitRepository,
 ) : TaskExecutor {
   companion object {
     private val logger = LoggerFactory.getLogger(TaskExecutor::class.java)
@@ -31,11 +31,9 @@ class TaskExecutorImpl(
     )
 
     val commitHash =
-        gitRepository
-            .commit(
-                message = "Task '${taskDefinition.label}'",
-            )
-            .commitHash
+        gitRepository.commit(
+            message = "Task '${taskDefinition.label}'",
+        )
 
     progressUpdater.updateProgress(1.0)
 

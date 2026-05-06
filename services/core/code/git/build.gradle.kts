@@ -10,4 +10,6 @@ dependencies {
   implementation(libs.jgit)
 
   testImplementation(libs.kotlin.test)
+  testImplementation(libs.kotlinx.io.core)
+  testImplementation(libs.kotlinx.io.bytestring)
 }
