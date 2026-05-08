@@ -10,75 +10,75 @@ import software.medusa.flow.core_service.flows.FlowId
 import software.medusa.flow.core_service.flows.FlowManagementService
 import software.medusa.flow.core_service.flows.RunningFlowProgressProvider
 import software.medusa.flow.core_service.flows.toModel
-import software.medusa.flow.core_service.flows.toPbRunningSessionProgress
-import software.medusa.flow.core_service.flows.toPbSessionDetails
-import software.medusa.flow.core_service.flows.toPbSessionDump
+import software.medusa.flow.core_service.flows.toPbFlowDetails
+import software.medusa.flow.core_service.flows.toPbFlowDump
+import software.medusa.flow.core_service.flows.toPbRunningFlowProgress
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphRequest
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphResponse
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCreateSessionRequest
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCreateSessionResponse
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceGetRunningSessionProgressRequest
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceGetRunningSessionProgressResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCreateFlowRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCreateFlowResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceGetRunningFlowProgressRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceGetRunningFlowProgressResponse
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceGrpcKt
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceListSessionsRequest
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceListSessionsResponse
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceStartSessionRequest
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceStartSessionResponse
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceUpdateSessionRequest
-import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceUpdateSessionResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceListFlowsRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceListFlowsResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceStartFlowRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceStartFlowResponse
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceUpdateFlowRequest
+import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceUpdateFlowResponse
 import software.medusa.grpc.flow.control_service.v1.PbTaskGraph
 import software.medusa.grpc.flow.control_service.v1.detailsOrNull
 import software.medusa.grpc.flow.control_service.v1.grpcControlServiceCheckTaskGraphResponse
-import software.medusa.grpc.flow.control_service.v1.grpcControlServiceCreateSessionResponse
-import software.medusa.grpc.flow.control_service.v1.grpcControlServiceGetRunningSessionProgressResponse
-import software.medusa.grpc.flow.control_service.v1.grpcControlServiceListSessionsResponse
-import software.medusa.grpc.flow.control_service.v1.grpcControlServiceStartSessionResponse
-import software.medusa.grpc.flow.control_service.v1.grpcControlServiceUpdateSessionResponse
-import software.medusa.grpc.flow.control_service.v1.pbSessionStartedResult
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceCreateFlowResponse
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceGetRunningFlowProgressResponse
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceListFlowsResponse
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceStartFlowResponse
+import software.medusa.grpc.flow.control_service.v1.grpcControlServiceUpdateFlowResponse
+import software.medusa.grpc.flow.control_service.v1.pbFlowStartedResult
 import software.medusa.grpc.flow.control_service.v1.pbTaskGraphValidResult
 import software.medusa.grpc.flow.control_service.v1.pbTaskGraphValidationFailedStatus
 import software.medusa.grpc.flow.control_service.v1.taskGraphOrNull
 
 class CoreServiceGrpcImpl(
     private val coroutineDispatcher: CoroutineDispatcher,
-    private val sessionControlService: FlowManagementService,
+    private val flowManagementService: FlowManagementService,
     private val runningFlowProgressProvider: RunningFlowProgressProvider,
 ) : GrpcControlServiceGrpcKt.GrpcControlServiceCoroutineImplBase() {
   override val context: CoroutineContext
     get() = coroutineDispatcher
 
-  override suspend fun listSessions(
-      request: GrpcControlServiceListSessionsRequest,
-  ): GrpcControlServiceListSessionsResponse {
-    val sessions = sessionControlService.getAllSessions()
+  override suspend fun listFlows(
+      request: GrpcControlServiceListFlowsRequest,
+  ): GrpcControlServiceListFlowsResponse {
+    val flows = flowManagementService.getAllFlows()
 
-    return grpcControlServiceListSessionsResponse {
-      this.sessions += sessions.map { it.toPbSessionDump() }
+    return grpcControlServiceListFlowsResponse {
+      this.flows += flows.map { it.toPbFlowDump() }
     }
   }
 
-  override suspend fun createSession(
-      request: GrpcControlServiceCreateSessionRequest,
-  ): GrpcControlServiceCreateSessionResponse {
-    val createdSession = request.details.toModel()
+  override suspend fun createFlow(
+      request: GrpcControlServiceCreateFlowRequest,
+  ): GrpcControlServiceCreateFlowResponse {
+    val createdFlow = request.details.toModel()
 
-    val createdSessionId =
-        sessionControlService.createSession(
-            flowBlueprint = createdSession,
+    val createdFlowId =
+        flowManagementService.createFlow(
+            flowBlueprint = createdFlow,
         )
 
-    return grpcControlServiceCreateSessionResponse { sessionId = createdSessionId.raw.toString() }
+    return grpcControlServiceCreateFlowResponse { flowId = createdFlowId.raw.toString() }
   }
 
-  override suspend fun updateSession(
-      request: GrpcControlServiceUpdateSessionRequest,
-  ): GrpcControlServiceUpdateSessionResponse {
-    val rawSessionId =
-        request.sessionId.ifBlank {
-          throw statusException(Status.INVALID_ARGUMENT, "session_id is required")
+  override suspend fun updateFlow(
+      request: GrpcControlServiceUpdateFlowRequest,
+  ): GrpcControlServiceUpdateFlowResponse {
+    val rawFlowId =
+        request.flowId.ifBlank {
+          throw statusException(Status.INVALID_ARGUMENT, "flow_id is required")
         }
 
-    val sessionId = parseSessionId(rawSessionId)
+    val flowId = parseFlowId(rawFlowId)
 
     val details =
         request.detailsOrNull
@@ -102,12 +102,12 @@ class CoreServiceGrpcImpl(
             taskGraph = taskGraph,
         )
 
-    sessionControlService.updateSession(
-        id = sessionId,
+    flowManagementService.updateFlow(
+        id = flowId,
         flowBlueprint = updatedFlowBlueprint,
     )
 
-    return grpcControlServiceUpdateSessionResponse {}
+    return grpcControlServiceUpdateFlowResponse {}
   }
 
   override suspend fun checkTaskGraph(
@@ -122,45 +122,45 @@ class CoreServiceGrpcImpl(
     return grpcControlServiceCheckTaskGraphResponse { valid = pbTaskGraphValidResult {} }
   }
 
-  override suspend fun startSession(
-      request: GrpcControlServiceStartSessionRequest,
-  ): GrpcControlServiceStartSessionResponse {
-    val rawSessionId =
-        request.sessionId.ifBlank {
-          throw statusException(Status.INVALID_ARGUMENT, "session_id is required")
+  override suspend fun startFlow(
+      request: GrpcControlServiceStartFlowRequest,
+  ): GrpcControlServiceStartFlowResponse {
+    val rawFlowId =
+        request.flowId.ifBlank {
+          throw statusException(Status.INVALID_ARGUMENT, "flow_id is required")
         }
 
-    val sessionId = parseSessionId(rawSessionId)
+    val flowId = parseFlowId(rawFlowId)
 
-    val finalSession = request.finalDetails.toModel()
+    val finalFlow = request.finalDetails.toModel()
 
-    sessionControlService.triggerFlowRun(
-        id = sessionId,
-        finalFlowBlueprint = finalSession,
+    flowManagementService.triggerFlowRun(
+        id = flowId,
+        finalFlowBlueprint = finalFlow,
     )
 
-    return grpcControlServiceStartSessionResponse {
-      started = pbSessionStartedResult { startedSessionDetails = finalSession.toPbSessionDetails() }
+    return grpcControlServiceStartFlowResponse {
+      started = pbFlowStartedResult { startedFlowDetails = finalFlow.toPbFlowDetails() }
     }
   }
 
-  override suspend fun getRunningSessionProgress(
-      request: GrpcControlServiceGetRunningSessionProgressRequest,
-  ): GrpcControlServiceGetRunningSessionProgressResponse {
-    val rawSessionId = request.sessionId
+  override suspend fun getRunningFlowProgress(
+      request: GrpcControlServiceGetRunningFlowProgressRequest,
+  ): GrpcControlServiceGetRunningFlowProgressResponse {
+    val rawFlowId = request.flowId
 
-    if (rawSessionId.isBlank()) {
-      throw statusException(Status.INVALID_ARGUMENT, "session_id is required")
+    if (rawFlowId.isBlank()) {
+      throw statusException(Status.INVALID_ARGUMENT, "flow_id is required")
     }
 
-    val sessionId = parseSessionId(rawSessionId)
+    val flowId = parseFlowId(rawFlowId)
 
-    val runningSessionProgress =
-        runningFlowProgressProvider.getRunningFlowProgress(flowId = sessionId)
+    val runningFlowProgress =
+        runningFlowProgressProvider.getRunningFlowProgress(flowId = flowId)
             ?: throw statusException(Status.NOT_FOUND, "flow not found")
 
-    return grpcControlServiceGetRunningSessionProgressResponse {
-      this.runningSessionProgress = runningSessionProgress.toPbRunningSessionProgress()
+    return grpcControlServiceGetRunningFlowProgressResponse {
+      this.runningFlowProgress = runningFlowProgress.toPbRunningFlowProgress()
     }
   }
 
@@ -183,12 +183,12 @@ class CoreServiceGrpcImpl(
   private fun statusException(status: Status, description: String): StatusException =
       status.withDescription(description).asException()
 
-  private fun parseSessionId(rawSessionId: String): FlowId {
-    val numericSessionId =
-        rawSessionId.toLongOrNull()
-            ?: throw statusException(Status.INVALID_ARGUMENT, "session_id must be numeric")
+  private fun parseFlowId(rawFlowId: String): FlowId {
+    val numericFlowId =
+        rawFlowId.toLongOrNull()
+            ?: throw statusException(Status.INVALID_ARGUMENT, "flow_id must be numeric")
 
-    return FlowId(raw = numericSessionId)
+    return FlowId(raw = numericFlowId)
   }
 
   companion object {

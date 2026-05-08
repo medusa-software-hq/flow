@@ -22,7 +22,7 @@ class InMemoryFlowJobQueue : FlowJobQueueFront, FlowJobQueueBack {
     logger.debug("Waiting for next execution job")
 
     return channel.receive().also {
-      logger.info("Dequeued execution job for session {}", it.flowId)
+      logger.info("Dequeued execution job for flow {}", it.flowId)
     }
   }
 }
