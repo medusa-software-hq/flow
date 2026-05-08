@@ -3,6 +3,7 @@ import { memo, useState } from 'react';
 import { useSnapshot } from 'valtio';
 import { IEditedTask } from '@/app/session_workspace/task_graph/edited/IEditedTask';
 import {
+  BlankTaskDefinition,
   IFeatureTaskDefinition,
   MergeTaskDefinition,
   TaskDefinitionKinds,
@@ -62,36 +63,41 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
 
   return (
     <div className={classes.root}>
-      {focusedTaskDefinition.kind === TaskDefinitionKinds.Blank ? null : (
-        <SegmentedControl
-          value={focusedTaskDefinition.kind}
-          onChange={(newValue) => {
-            switch (newValue) {
-              case TaskDefinitionKinds.Feature: {
-                const blankDefinition: IFeatureTaskDefinition = {
-                  kind: TaskDefinitionKinds.Feature,
-                  label: '',
-                  description: '',
-                };
+      <SegmentedControl
+        value={focusedTaskDefinition.kind}
+        onChange={(newValue) => {
+          switch (newValue) {
+            case TaskDefinitionKinds.Blank: {
+              focusedTaskLive.definition = BlankTaskDefinition;
 
-                focusedTaskLive.definition = blankDefinition;
-
-                break;
-              }
-
-              case TaskDefinitionKinds.Merge: {
-                focusedTaskLive.definition = MergeTaskDefinition;
-
-                break;
-              }
+              break;
             }
-          }}
-          data={[
-            { label: 'Feature', value: TaskDefinitionKinds.Feature },
-            { label: 'Merge', value: TaskDefinitionKinds.Merge },
-          ]}
-        />
-      )}
+
+            case TaskDefinitionKinds.Feature: {
+              const featureDefinition: IFeatureTaskDefinition = {
+                kind: TaskDefinitionKinds.Feature,
+                label: '',
+                description: '',
+              };
+
+              focusedTaskLive.definition = featureDefinition;
+
+              break;
+            }
+
+            case TaskDefinitionKinds.Merge: {
+              focusedTaskLive.definition = MergeTaskDefinition;
+
+              break;
+            }
+          }
+        }}
+        data={[
+          { label: 'Blank', value: TaskDefinitionKinds.Blank },
+          { label: 'Feature', value: TaskDefinitionKinds.Feature },
+          { label: 'Merge', value: TaskDefinitionKinds.Merge },
+        ]}
+      />
       {buildContent()}
     </div>
   );
@@ -147,15 +153,19 @@ const FilledFocusedFeatureTaskView = memo(RawFilledFocusedFeatureTaskView);
 
 function FilledFocusedBlankTaskView() {
   return (
-    <div className={classes.mergeRoot}>
-      <Text c="dimmed">Blank tasks cannot be edited yet</Text>
+    <div className={classes.infoRoot}>
+      <Text fw={500}>Blank task</Text>
+      <Text c="dimmed">
+        This helper node intentionally does nothing. Use it to organize the graph, split flows, or
+        leave yourself a visual waypoint.
+      </Text>
     </div>
   );
 }
 
 function FilledFocusedMergeTaskView() {
   return (
-    <div className={classes.mergeRoot}>
+    <div className={classes.infoRoot}>
       <Text c="dimmed">Merge tasks cannot be edited</Text>
     </div>
   );

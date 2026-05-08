@@ -17,7 +17,8 @@
   justify-content: center;
 }
 
-.mergeRoot {
+.infoRoot {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
 }

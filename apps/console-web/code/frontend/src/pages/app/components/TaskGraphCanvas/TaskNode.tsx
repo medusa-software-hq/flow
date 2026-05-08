@@ -2,6 +2,7 @@ import { Text } from '@mantine/core';
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react';
 import { JSX, memo } from 'react';
 import { useSnapshot } from 'valtio';
+import blankIconUrl from '@/../assets/blank.png';
 import mergeIconUrl from '@/../assets/merge-icon.svg';
 import { SessionWorkspaceStateKinds } from '@/app/session_workspace/SessionWorkspaceStateKinds';
 import type { TTaskId } from '@/app/session_workspace/task_graph/edited/CEditedTask';
@@ -39,17 +40,11 @@ function RawTaskNode(props: NodeProps<TaskNode>) {
       }
 
       case TaskDefinitionKinds.Blank: {
-        return <Text c="dimmed">Blank</Text>;
+        return <TaskKindLabel iconUrl={blankIconUrl} iconAlt="Blank icon" label="Blank" />;
       }
 
-      // mergeIconUrl
       case TaskDefinitionKinds.Merge: {
-        return (
-          <div className={classes.mergeLabelWrapper}>
-            <img height={16} src={mergeIconUrl} alt="Merge icon" className={classes.mergeIcon} />
-            <Text fw="bold">Merge</Text>
-          </div>
-        );
+        return <TaskKindLabel iconUrl={mergeIconUrl} iconAlt="Merge icon" label="Merge" />;
       }
     }
   };
@@ -65,6 +60,19 @@ function RawTaskNode(props: NodeProps<TaskNode>) {
 }
 
 export const TaskNode = memo(RawTaskNode);
+
+function TaskKindLabel(props: {
+  iconUrl: string;
+  iconAlt: string;
+  label: string;
+}): JSX.Element {
+  return (
+    <div className={classes.kindLabelWrapper}>
+      <img src={props.iconUrl} alt={props.iconAlt} className={classes.kindLabelIcon} />
+      <Text fw={700}>{props.label}</Text>
+    </div>
+  );
+}
 
 function TaskStatus(props: { taskLive: UTask }): JSX.Element {
   const { taskLive } = props;
