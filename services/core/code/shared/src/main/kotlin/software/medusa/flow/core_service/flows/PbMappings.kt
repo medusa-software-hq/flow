@@ -4,8 +4,10 @@ import software.medusa.flow.core_service.flows.FlowBlueprint.TaskGraph
 import software.medusa.grpc.flow.control_service.v1.PbFlowDetails
 import software.medusa.grpc.flow.control_service.v1.PbFlowDraftState
 import software.medusa.grpc.flow.control_service.v1.PbFlowDump
+import software.medusa.grpc.flow.control_service.v1.PbFeatureTask
 import software.medusa.grpc.flow.control_service.v1.PbFlowRunningState
 import software.medusa.grpc.flow.control_service.v1.PbFlowState
+import software.medusa.grpc.flow.control_service.v1.PbMergeTask
 import software.medusa.grpc.flow.control_service.v1.PbRunningFlowProgress
 import software.medusa.grpc.flow.control_service.v1.PbTask
 import software.medusa.grpc.flow.control_service.v1.PbTaskExecutionProgress
@@ -50,13 +52,15 @@ fun Task.toPbTask(): PbTask =
         .apply {
           when (val currentDefinition = definition) {
             is Task.FeatureDefinition -> {
-              label = currentDefinition.label
-              description = currentDefinition.description
+              featureTask =
+                  PbFeatureTask.newBuilder()
+                      .setLabel(currentDefinition.label)
+                      .setDescription(currentDefinition.description)
+                      .build()
             }
 
             Task.MergeDefinition -> {
-              label = ""
-              description = ""
+              mergeTask = PbMergeTask.getDefaultInstance()
             }
           }
         }
@@ -94,13 +98,15 @@ fun PbTask.toModel(): Task =
     Task(
         id = TaskId(raw = id),
         definition =
-            if (sourceTaskIdsCount > 1) {
-              Task.MergeDefinition
-            } else {
-              Task.FeatureDefinition(
-                  label = label,
-                  description = description,
-              )
+            when (kindCase) {
+              PbTask.KindCase.FEATURE_TASK ->
+                  Task.FeatureDefinition(
+                      label = featureTask.label,
+                      description = featureTask.description,
+                  )
+
+              PbTask.KindCase.MERGE_TASK -> Task.MergeDefinition
+              PbTask.KindCase.KIND_NOT_SET -> error("Task kind is required")
             },
         inputTaskIds = sourceTaskIdsList.map(::TaskId),
         x = x,
