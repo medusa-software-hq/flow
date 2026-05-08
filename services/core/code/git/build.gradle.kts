@@ -8,10 +8,10 @@ dependencies {
   api(project(":commons"))
 
   implementation(libs.jgit)
+  implementation(libs.kotlinx.io.bytestring)
 
   testImplementation(libs.kotlin.test)
   testImplementation(libs.kotlinx.io.core)
-  testImplementation(libs.kotlinx.io.bytestring)
 }
 
 kotlin { compilerOptions { freeCompilerArgs.set(listOf("-Xcontext-parameters")) } }

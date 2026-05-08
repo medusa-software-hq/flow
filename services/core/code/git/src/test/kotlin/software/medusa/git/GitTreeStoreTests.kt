@@ -10,6 +10,7 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.FileMode
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.lib.ObjectChecker
 import org.eclipse.jgit.treewalk.TreeWalk
 import software.medusa.git.tree.GitTreeFile
 import software.medusa.git.tree.GitTreeGroup
@@ -98,6 +99,8 @@ class GitTreeStoreTests {
           repository.newObjectInserter().use { objectInserter ->
             testTreeGroup.store(objectInserter)
           }
+
+      ObjectChecker().checkTree(repository.open(treeId).cachedBytes)
 
       repository.walk(treeId).toSet()
     }
