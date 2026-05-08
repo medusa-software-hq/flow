@@ -52,9 +52,7 @@ class CoreServiceGrpcImpl(
   ): GrpcControlServiceListFlowsResponse {
     val flows = flowManagementService.getAllFlows()
 
-    return grpcControlServiceListFlowsResponse {
-      this.flows += flows.map { it.toPbFlowDump() }
-    }
+    return grpcControlServiceListFlowsResponse { this.flows += flows.map { it.toPbFlowDump() } }
   }
 
   override suspend fun createFlow(

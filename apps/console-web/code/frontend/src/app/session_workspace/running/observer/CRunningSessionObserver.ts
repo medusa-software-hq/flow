@@ -49,7 +49,10 @@ export class CRunningSessionObserver implements IRunningSessionObserver {
         const polledSnapshot: ITaskProgressSnapshot = {
           progressByTaskId: new Map(
             response.runningFlowProgress?.taskExecutionProgresses.map(
-              (taskProgress: PbTaskExecutionProgress) => [taskProgress.taskId, taskProgress.progress]
+              (taskProgress: PbTaskExecutionProgress) => [
+                taskProgress.taskId,
+                taskProgress.progress,
+              ]
             ) ?? []
           ),
         };

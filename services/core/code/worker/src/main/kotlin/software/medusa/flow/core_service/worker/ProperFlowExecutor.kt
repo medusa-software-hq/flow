@@ -53,6 +53,13 @@ class ProperFlowExecutor(
       taskDefinition: Task.FeatureDefinition,
       inputCommitHash: GitCommitHash?,
   ): FeatureTaskResult {
+    logger.info(
+        "Starting feature task label='{}' description='{}' inputCommitHash='{}'",
+        taskDefinition.label,
+        taskDefinition.description,
+        inputCommitHash?.raw ?: "null",
+    )
+
     // A feature task without input nodes implicitly depends on the root
     val baseCommitHash = inputCommitHash ?: baselineContext.rootCommitHash
 

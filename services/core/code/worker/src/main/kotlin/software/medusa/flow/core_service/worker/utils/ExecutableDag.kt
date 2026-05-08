@@ -35,9 +35,9 @@ class ExecutableDag<ExecutionContextT : Any, NodeOutputT : Any>(
         mutableMapOf<Node<ExecutionContextT, NodeOutputT>, Deferred<NodeOutputT>>()
 
     suspend fun execute(): Map<Node<ExecutionContextT, NodeOutputT>, NodeOutputT> =
-        nodes.executeAll()
+        nodes.ensureAreBeingExecuted()
 
-    private suspend fun Set<Node<ExecutionContextT, NodeOutputT>>.executeAll():
+    private suspend fun Set<Node<ExecutionContextT, NodeOutputT>>.ensureAreBeingExecuted():
         Map<Node<ExecutionContextT, NodeOutputT>, NodeOutputT> =
         map { node ->
               val deferredOutput = node.ensureIsBeingExecuted()
@@ -58,7 +58,7 @@ class ExecutableDag<ExecutionContextT : Any, NodeOutputT : Any>(
       val deferredOutputByDependencyNode:
           Deferred<Map<Node<ExecutionContextT, NodeOutputT>, NodeOutputT>> =
           coroutineScope.async {
-            dependencyNodes.executeAll()
+            dependencyNodes.ensureAreBeingExecuted()
           }
 
       return coroutineScope.async {
