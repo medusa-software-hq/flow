@@ -21,8 +21,6 @@ class InMemoryFlowJobQueue : FlowJobQueueFront, FlowJobQueueBack {
   override suspend fun waitForJob(): FlowJobOffer {
     logger.debug("Waiting for next execution job")
 
-    return channel.receive().also {
-      logger.info("Dequeued execution job for flow {}", it.flowId)
-    }
+    return channel.receive().also { logger.info("Dequeued execution job for flow {}", it.flowId) }
   }
 }

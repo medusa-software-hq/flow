@@ -117,10 +117,11 @@ abstract class GitTreeGroup : GitTreeNode {
       val name: String,
       val child: GitTreeNode,
   ) {
-    internal val gitSortingName: ByteString = when (child) {
-      is GitTreeGroup -> "$name/".encodeToByteString()
-      else -> name.encodeToByteString()
-    }
+    internal val gitSortingName: ByteString =
+        when (child) {
+          is GitTreeGroup -> "$name/".encodeToByteString()
+          else -> name.encodeToByteString()
+        }
   }
 
   val childByName: Map<String, GitTreeNode>
