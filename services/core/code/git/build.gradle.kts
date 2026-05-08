@@ -13,3 +13,5 @@ dependencies {
   testImplementation(libs.kotlinx.io.core)
   testImplementation(libs.kotlinx.io.bytestring)
 }
+
+kotlin { compilerOptions { freeCompilerArgs.set(listOf("-Xcontext-parameters")) } }

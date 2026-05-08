@@ -2,42 +2,40 @@ package software.medusa.git.tree
 
 import java.io.InputStream
 import software.medusa.git.GitFileMode
-import software.medusa.git.utils.checkIfNotEmpty
 import software.medusa.git.worktree.GitWorktreeDirectory
 import software.medusa.git.worktree.GitWorktreeFile
 import software.medusa.git.worktree.GitWorktreeNode
 import software.medusa.git.worktree.GitWorktreeSymlink
 
 internal class GitWorktreeTreeGroup
-private constructor(override val childEntries: Sequence<GitTreeGroup.ChildEntry>) : GitTreeGroup() {
+private constructor(
+    private val worktreeDirectory: GitWorktreeDirectory,
+) : GitTreeGroup() {
+  override val childEntries: Sequence<ChildEntry>
+    get() =
+        worktreeDirectory.entries.mapNotNull { (name, worktreeNode) ->
+          val childNode: GitTreeNode =
+              GitWorktreeTreeUtils.interpret(
+                  worktreeNode = worktreeNode,
+              ) ?: return@mapNotNull null
+
+          ChildEntry(
+              name = name,
+              child = childNode,
+          )
+        }
+
   companion object {
     fun interpret(
         worktreeDirectory: GitWorktreeDirectory,
-    ): GitWorktreeTreeGroup? {
-      val childEntries =
-          worktreeDirectory.entries.mapNotNull { (name, worktreeNode) ->
-            val childNode: GitTreeNode =
-                GitWorktreeTreeUtils.interpret(
-                    worktreeNode = worktreeNode,
-                ) ?: return@mapNotNull null
-
-            ChildEntry(
-                name = name,
-                child = childNode,
-            )
-          }
-
-      return when {
-        // This check might involve recursive computations in a corner case when a filtered
-        // directory where the first non-ignored file is deeply nested.
-        childEntries.checkIfNotEmpty() ->
-            GitWorktreeTreeGroup(
-                childEntries = childEntries,
-            )
-
-        else -> null
-      }
-    }
+    ): GitWorktreeTreeGroup? =
+        when {
+          worktreeDirectory.isEmpty() -> null
+          else ->
+              GitWorktreeTreeGroup(
+                  worktreeDirectory = worktreeDirectory,
+              )
+        }
   }
 }
 

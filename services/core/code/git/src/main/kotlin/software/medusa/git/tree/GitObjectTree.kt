@@ -40,10 +40,25 @@ internal class GitObjectTreeGroup(
       }
     }
   }
+
+  override fun equals(other: Any?): Boolean =
+      when {
+        other is GitTreeGroup ->
+            when {
+              other is GitObjectTreeGroup -> jTreeId == other.jTreeId
+              else -> super.equals(other)
+            }
+
+        else -> false
+      }
+
+  override fun hashCode(): Int {
+    return super.hashCode()
+  }
 }
 
 /** A tree file node backed by a Git object. */
-internal class GitObjectFile(
+internal class GitObjectTreeFile(
     private val jObjectReader: ObjectReader,
     private val jObjectId: ObjectId,
     override val mode: GitFileMode,
@@ -58,6 +73,21 @@ internal class GitObjectFile(
   ) {
     val objectLoader = jObjectReader.open(jObjectId)
     objectLoader.copyTo(outputStream)
+  }
+
+  override fun equals(other: Any?): Boolean =
+      when {
+        other is GitTreeFile ->
+            when {
+              other is GitObjectTreeFile -> jObjectId == other.jObjectId && mode == other.mode
+              else -> super.equals(other)
+            }
+
+        else -> false
+      }
+
+  override fun hashCode(): Int {
+    TODO()
   }
 }
 
@@ -78,7 +108,7 @@ internal object GitObjectTreeUtils {
                 else -> throw IllegalStateException("Unexpected file mode: $jFileMode")
               }
 
-          GitObjectFile(
+          GitObjectTreeFile(
               jObjectReader = jObjectReader,
               jObjectId = jChildObjectId,
               mode = fileMode,

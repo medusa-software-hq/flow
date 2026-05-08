@@ -5,14 +5,14 @@ import io.grpc.StatusException
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import org.slf4j.LoggerFactory
-import software.medusa.flow.core_service.session.Session
-import software.medusa.flow.core_service.session.SessionExecutionService
-import software.medusa.flow.core_service.session.SessionId
-import software.medusa.flow.core_service.session.SessionManagementService
-import software.medusa.flow.core_service.session.toModel
-import software.medusa.flow.core_service.session.toPbRunningSessionProgress
-import software.medusa.flow.core_service.session.toPbSessionDetails
-import software.medusa.flow.core_service.session.toPbSessionDump
+import software.medusa.flow.core_service.flows.FlowBlueprint
+import software.medusa.flow.core_service.flows.FlowId
+import software.medusa.flow.core_service.flows.FlowManagementService
+import software.medusa.flow.core_service.flows.RunningFlowProgressProvider
+import software.medusa.flow.core_service.flows.toModel
+import software.medusa.flow.core_service.flows.toPbRunningSessionProgress
+import software.medusa.flow.core_service.flows.toPbSessionDetails
+import software.medusa.flow.core_service.flows.toPbSessionDump
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphRequest
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCheckTaskGraphResponse
 import software.medusa.grpc.flow.control_service.v1.GrpcControlServiceCreateSessionRequest
@@ -41,8 +41,8 @@ import software.medusa.grpc.flow.control_service.v1.taskGraphOrNull
 
 class CoreServiceGrpcImpl(
     private val coroutineDispatcher: CoroutineDispatcher,
-    private val sessionControlService: SessionManagementService,
-    private val sessionExecutionService: SessionExecutionService,
+    private val sessionControlService: FlowManagementService,
+    private val runningFlowProgressProvider: RunningFlowProgressProvider,
 ) : GrpcControlServiceGrpcKt.GrpcControlServiceCoroutineImplBase() {
   override val context: CoroutineContext
     get() = coroutineDispatcher
@@ -64,7 +64,7 @@ class CoreServiceGrpcImpl(
 
     val createdSessionId =
         sessionControlService.createSession(
-            session = createdSession,
+            flowBlueprint = createdSession,
         )
 
     return grpcControlServiceCreateSessionResponse { sessionId = createdSessionId.raw.toString() }
@@ -96,15 +96,15 @@ class CoreServiceGrpcImpl(
 
     val taskGraph = rawTaskGraph.toModel()
 
-    val updatedSession =
-        Session(
+    val updatedFlowBlueprint =
+        FlowBlueprint(
             title = details.title,
             taskGraph = taskGraph,
         )
 
     sessionControlService.updateSession(
         id = sessionId,
-        session = updatedSession,
+        flowBlueprint = updatedFlowBlueprint,
     )
 
     return grpcControlServiceUpdateSessionResponse {}
@@ -134,9 +134,9 @@ class CoreServiceGrpcImpl(
 
     val finalSession = request.finalDetails.toModel()
 
-    sessionControlService.startSession(
+    sessionControlService.triggerFlowRun(
         id = sessionId,
-        finalSession = finalSession,
+        finalFlowBlueprint = finalSession,
     )
 
     return grpcControlServiceStartSessionResponse {
@@ -156,8 +156,8 @@ class CoreServiceGrpcImpl(
     val sessionId = parseSessionId(rawSessionId)
 
     val runningSessionProgress =
-        sessionExecutionService.getRunningSessionProgress(sessionId = sessionId)
-            ?: throw statusException(Status.NOT_FOUND, "session not found")
+        runningFlowProgressProvider.getRunningFlowProgress(flowId = sessionId)
+            ?: throw statusException(Status.NOT_FOUND, "flow not found")
 
     return grpcControlServiceGetRunningSessionProgressResponse {
       this.runningSessionProgress = runningSessionProgress.toPbRunningSessionProgress()
@@ -183,12 +183,12 @@ class CoreServiceGrpcImpl(
   private fun statusException(status: Status, description: String): StatusException =
       status.withDescription(description).asException()
 
-  private fun parseSessionId(rawSessionId: String): SessionId {
+  private fun parseSessionId(rawSessionId: String): FlowId {
     val numericSessionId =
         rawSessionId.toLongOrNull()
             ?: throw statusException(Status.INVALID_ARGUMENT, "session_id must be numeric")
 
-    return SessionId(raw = numericSessionId)
+    return FlowId(raw = numericSessionId)
   }
 
   companion object {

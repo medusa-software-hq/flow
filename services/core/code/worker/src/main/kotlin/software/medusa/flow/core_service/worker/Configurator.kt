@@ -3,14 +3,14 @@ package software.medusa.flow.core_service.worker
 import java.nio.file.Path
 import org.slf4j.LoggerFactory
 import software.medusa.commons.process.ExecutableHandle
-import software.medusa.flow.core_service.job_queue.SessionExecutionJobQueueBack
+import software.medusa.flow.core_service.job_queue.FlowJobQueueBack
 import software.medusa.flow.db.FlowDatabase
 
 private const val workingDirectoryPathEnvVarName = "WORKING_DIRECTORY_PATH"
 
 class Configurator(
     private val flowDatabase: FlowDatabase,
-    private val sessionExecutionJobQueueBack: SessionExecutionJobQueueBack,
+    private val flowJobQueueBack: FlowJobQueueBack,
 ) {
   companion object {
     private val logger = LoggerFactory.getLogger(Configurator::class.java)
@@ -20,12 +20,9 @@ class Configurator(
     logger.debug("Providing worker FlowDatabase {}", it)
   }
 
-  fun getSessionExecutionJobQueueBack(): SessionExecutionJobQueueBack =
-      sessionExecutionJobQueueBack.also {
-        logger.debug("Providing worker SessionExecutionJobQueueBack {}", it)
-      }
-
-  fun getGitExecutableHandle(): ExecutableHandle = ExecutableHandle.locate(commandName = "git")
+  fun getFlowJobQueueBack(): FlowJobQueueBack = flowJobQueueBack.also {
+    logger.debug("Providing worker FlowJobQueueBack {}", it)
+  }
 
   fun getOpencodeExecutableHandle(): ExecutableHandle =
       ExecutableHandle.locate(commandName = "opencode")

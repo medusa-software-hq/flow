@@ -19,6 +19,8 @@ dependencies {
   implementation(libs.sqldelight.sqlite.driver)
   implementation(libs.sqldelight.coroutines)
 
+  api(project(":git"))
+
   testImplementation(libs.kotlin.test)
 }
 

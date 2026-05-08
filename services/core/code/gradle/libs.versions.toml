@@ -6,7 +6,7 @@ grpc-kotlin = "1.5.0"
 kotlin = "2.3.21"
 kotlin-coroutines = "1.10.2"
 kotlin-serialization = "1.11.0"
-kotlinx-io = "0.8.1"
+kotlinx-io = "0.9.0"
 ktfmt = "0.26.0"
 logback = "1.5.32"
 protobuf = "4.34.1"
@@ -26,8 +26,9 @@ grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
 jgit = "org.eclipse.jgit:org.eclipse.jgit:7.6.0.202603022253-r"
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlin-coroutines" }
-kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlin-coroutines" }
 kotlinx-io-bytestring = { module = "org.jetbrains.kotlinx:kotlinx-io-bytestring", version.ref = "kotlinx-io" }
+kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlin-serialization" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }

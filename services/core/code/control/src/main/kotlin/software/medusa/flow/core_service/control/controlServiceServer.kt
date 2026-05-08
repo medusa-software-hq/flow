@@ -11,8 +11,8 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.future.await
 import org.slf4j.LoggerFactory
-import software.medusa.flow.core_service.session.SessionExecutionService
-import software.medusa.flow.core_service.session.SessionManagementService
+import software.medusa.flow.core_service.flows.FlowManagementService
+import software.medusa.flow.core_service.flows.storage.FlowStore
 
 suspend fun runControlService(
     configurator: Configurator,
@@ -54,25 +54,22 @@ suspend fun runControlService(
           }
           .newDecorator()
 
-  val database = configurator.getFlowDatabase()
-  logger.debug("Control service obtained FlowDatabase instance {}", database)
+  val flowDatabase = configurator.getFlowDatabase()
+  logger.debug("Control service obtained FlowDatabase instance {}", flowDatabase)
 
   val sessionExecutionJobQueueFront = configurator.getSessionExecutionJobQueueFront()
   logger.debug(
-      "Control service obtained SessionExecutionJobQueueFront {}",
+      "Control service obtained FlowJobQueueFront {}",
       sessionExecutionJobQueueFront,
   )
 
-  val sessionManagementService =
-      SessionManagementService(
-          database = database,
-          sessionExecutionJobQueueFront = sessionExecutionJobQueueFront,
+  val flowManagementService =
+      FlowManagementService(
+          database = flowDatabase,
+          flowJobQueueFront = sessionExecutionJobQueueFront,
       )
 
-  val sessionExecutionService =
-      SessionExecutionService(
-          database = database,
-      )
+  val flowStore = FlowStore(flowDatabase = flowDatabase)
 
   val grpcService =
       GrpcService.builder()
@@ -80,8 +77,8 @@ suspend fun runControlService(
             addService(
                 CoreServiceGrpcImpl(
                     coroutineDispatcher = coroutineDispatcher,
-                    sessionControlService = sessionManagementService,
-                    sessionExecutionService = sessionExecutionService,
+                    sessionControlService = flowManagementService,
+                    runningFlowProgressProvider = flowStore,
                 ),
             )
           }

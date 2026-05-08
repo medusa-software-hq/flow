@@ -4,14 +4,23 @@ import java.nio.file.Path
 import org.eclipse.jgit.lib.CommitBuilder
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.ObjectId
+import org.eclipse.jgit.lib.ObjectInserter
+import org.eclipse.jgit.lib.ObjectReader
 import org.eclipse.jgit.lib.RefUpdate
 import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
+import org.eclipse.jgit.revwalk.filter.RevFilter
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
-import software.medusa.git.tree.GitProperTree
 import software.medusa.git.tree.GitTree
 import software.medusa.git.worktree.GitWorktree
 import software.medusa.git.worktree.GitWorktreeFilter
+
+class GitSession(
+    internal val jRepository: Repository,
+    internal val jObjectReader: ObjectReader,
+    internal val jObjectInserter: ObjectInserter,
+) {}
 
 class GitRepository(
     private val jRepository: Repository,
@@ -31,157 +40,162 @@ class GitRepository(
     ): GitRepository =
         GitRepository(
             jRepository =
-                FileRepositoryBuilder().findGitDir(path.toFile()).setMustExist(true).build(),
+                FileRepositoryBuilder().setWorkTree(path.toFile()).setMustExist(true).build(),
         )
-  }
 
-  fun resolveCommitRef(
-      commitRef: GitRefPath,
-  ): GitCommitHash? =
-      jRepository.resolve(commitRef.refName)?.let { resolvedObjectId ->
-        GitCommitHash(raw = resolvedObjectId.name)
+    context(session: GitSession)
+    fun resolveHead(): GitCommitHash =
+        resolveCommitRef(GitRefPath.of(Constants.HEAD))
+            ?: error("Expected HEAD to resolve to a commit")
+
+    context(session: GitSession)
+    fun resolveCommitRef(
+        commitRef: GitRefPath,
+    ): GitCommitHash? =
+        session.jRepository.resolve(commitRef.toRefString())?.let { resolvedObjectId ->
+          GitCommitHash(raw = resolvedObjectId.name)
+        }
+
+    context(session: GitSession)
+    fun createCommitRef(
+        commitHash: GitCommitHash,
+        newRefPath: GitRefPath,
+    ): GitRef {
+      val refUpdate = session.jRepository.updateRef(newRefPath.toRefString())
+      refUpdate.setNewObjectId(commitHash.objectId)
+
+      when (val updateResult = refUpdate.update()) {
+        RefUpdate.Result.NEW,
+        RefUpdate.Result.FAST_FORWARD,
+        RefUpdate.Result.FORCED,
+        RefUpdate.Result.NO_CHANGE,
+        -> return GitRef(path = newRefPath)
+
+        else -> error("Failed to update ref ${newRefPath.toRefString()}: $updateResult")
       }
+    }
 
-  fun createCommitRef(
-      commitHash: GitCommitHash,
-      newRefPath: GitRefPath,
-  ): GitRef {
-    val refUpdate = jRepository.updateRef(newRefPath.refName)
-    refUpdate.setNewObjectId(commitHash.objectId)
+    context(session: GitSession)
+    fun readCommit(
+        commitHash: GitCommitHash,
+    ): GitCommit =
+        RevWalk(session.jObjectReader).use { revWalk ->
+          val revCommit = revWalk.parseCommit(commitHash.objectId)
 
-    when (val updateResult = refUpdate.update()) {
-      RefUpdate.Result.NEW,
-      RefUpdate.Result.FAST_FORWARD,
-      RefUpdate.Result.FORCED,
-      RefUpdate.Result.NO_CHANGE,
-      -> return GitRef(path = newRefPath)
+          revCommit.wrap(session = session)
+        }
 
-      else -> error("Failed to update ref ${newRefPath.refName}: $updateResult")
+    context(session: GitSession)
+    fun createCommit(
+        parentCommitId: GitCommitHash,
+        details: GitCommitDetails,
+        tree: GitTree,
+    ): GitCommitHash {
+      val jTreeId: ObjectId =
+          tree.store(
+              jObjectInserter = session.jObjectInserter,
+          )
+
+      val jCommitId =
+          session.jObjectInserter.insert(
+              CommitBuilder().apply {
+                setParentId(parentCommitId.objectId)
+
+                author = details.authorDetails.personIdent
+                committer = details.committerDetails?.personIdent
+                message = details.message
+
+                setTreeId(jTreeId)
+              },
+          )
+
+      session.jObjectInserter.flush()
+
+      return GitCommitHash(raw = jCommitId.name)
+    }
+
+    context(session: GitSession)
+    fun createMergeCommit(
+        parentCommitHashes: Set<GitCommitHash>,
+        personalDetails: GitPersonalDetails,
+    ): GitCommitHash {
+      val parentTrees = parentCommitHashes.map { commitHash -> readCommit(commitHash = commitHash) }
+
+      TODO("Not yet implemented")
+    }
+
+    context(session: GitSession)
+    private fun findMergeBase(
+        commitHashes: Set<GitCommitHash>,
+    ): Set<GitCommit> =
+        RevWalk(session.jObjectReader).use { revWalk ->
+          revWalk.setRevFilter(RevFilter.MERGE_BASE)
+
+          commitHashes.forEach { commitHash ->
+            val jStartCommit = revWalk.parseCommit(commitHash.objectId)
+
+            revWalk.markStart(jStartCommit)
+          }
+
+          revWalk.commits.map { mergeBaseCommit -> mergeBaseCommit.wrap(session = session) }.toSet()
+        }
+
+    context(session: GitSession)
+    fun checkOut(
+        sourceCommitId: GitCommitHash,
+        targetWorktreePath: Path,
+    ) {
+      val sourceCommit = readCommit(commitHash = sourceCommitId)
+
+      val realizedWorktree = sourceCommit.tree.realize()
+
+      realizedWorktree.write(worktreePath = targetWorktreePath)
+    }
+
+    context(session: GitSession)
+    fun checkIn(
+        parentCommitId: GitCommitHash,
+        sourceWorktreePath: Path,
+        commitDetails: GitCommitDetails,
+    ): GitCommitHash {
+      val sourceWorktree = GitWorktree.read(worktreePath = sourceWorktreePath)
+
+      val filteredSourceWorktree =
+          sourceWorktree.filtered(
+              globalFilter = GitWorktreeFilter.Passive,
+          )
+
+      val sourceTree =
+          GitTree.interpret(
+              worktree = filteredSourceWorktree,
+          )
+
+      return createCommit(
+          parentCommitId = parentCommitId,
+          details = commitDetails,
+          tree = sourceTree,
+      )
     }
   }
 
-  fun commit(
-      message: String,
-  ): GitCommitHash {
-    require(message.isNotBlank()) { "Commit message must not be blank" }
-
-    val parentCommitId =
-        resolveCommitRef(commitRef = GitRefPath.of(Constants.HEAD))
-            ?: error("Cannot commit without an existing HEAD commit")
-
-    val commitHash =
-        checkIn(
-            parentCommitId = parentCommitId,
-            sourceWorktreePath = path,
-            commitDetails =
-                GitCommitDetails(
-                    authorDetails = FlowPersonalDetails,
-                    committerDetails = FlowPersonalDetails,
-                    message = message,
-                ),
-        )
-
-    createCommitRef(
-        commitHash = commitHash,
-        newRefPath = currentHeadRefPath(),
-    )
-
-    return commitHash
-  }
-
-  // TODO: Add tests
-  fun readCommit(
-      commitHash: GitCommitHash,
-  ): GitCommit =
-      RevWalk(jRepository).use { revWalk ->
-        val revCommit = revWalk.parseCommit(commitHash.objectId)
-
-        val parentCommitHashes = revCommit.parents.map { GitCommitHash(it.id.name) }.toSet()
-
-        val details =
-            GitCommitDetails(
-                authorDetails = GitPersonalDetails.from(revCommit.authorIdent),
-                committerDetails = revCommit.committerIdent?.let { GitPersonalDetails.from(it) },
-                message = revCommit.fullMessage,
-            )
-
-        jRepository.newObjectReader().use { jObjectReader ->
-          val tree =
-              GitProperTree.load(
+  fun <T> process(
+      block:
+          context(GitSession)
+          () -> T,
+  ): T =
+      jRepository.newObjectReader().use { jObjectReader ->
+        jRepository.newObjectInserter().use { jObjectInserter ->
+          with(
+              GitSession(
+                  jRepository = jRepository,
                   jObjectReader = jObjectReader,
-                  jTreeId = revCommit.tree.id,
-              )
-
-          return GitCommit(
-              parentCommitHashes = parentCommitHashes,
-              details = details,
-              tree = tree,
-          )
+                  jObjectInserter = jObjectInserter,
+              ),
+          ) {
+            block()
+          }
         }
       }
-
-  // TODO: Add tests
-  fun createCommit(
-      parentCommitId: GitCommitHash,
-      details: GitCommitDetails,
-      tree: GitTree,
-  ): GitCommitHash =
-      jRepository.newObjectInserter().use { jObjectInserter ->
-        val jTreeId: ObjectId =
-            tree.store(
-                jObjectInserter = jObjectInserter,
-            )
-
-        val jCommitId =
-            jObjectInserter.insert(
-                CommitBuilder().apply {
-                  setParentId(parentCommitId.objectId)
-
-                  author = details.authorDetails.personIdent
-                  committer = details.committerDetails?.personIdent
-                  message = details.message
-
-                  setTreeId(jTreeId)
-                },
-            )
-
-        return GitCommitHash(raw = jCommitId.name)
-      }
-
-  fun checkOut(
-      sourceCommitId: GitCommitHash,
-      targetWorktreePath: Path,
-  ) {
-    val sourceCommit = readCommit(commitHash = sourceCommitId)
-
-    val realizedWorktree = sourceCommit.tree.realize()
-
-    realizedWorktree.write(worktreePath = targetWorktreePath)
-  }
-
-  fun checkIn(
-      parentCommitId: GitCommitHash,
-      sourceWorktreePath: Path,
-      commitDetails: GitCommitDetails,
-  ): GitCommitHash {
-    val sourceWorktree = GitWorktree.read(worktreePath = sourceWorktreePath)
-
-    val filteredSourceWorktree =
-        sourceWorktree.filtered(
-            globalFilter = GitWorktreeFilter.Passive,
-        )
-
-    val sourceTree =
-        GitTree.interpret(
-            worktree = filteredSourceWorktree,
-        )
-
-    return createCommit(
-        parentCommitId = parentCommitId,
-        details = commitDetails,
-        tree = sourceTree,
-    )
-  }
 
   private fun currentHeadRefPath(): GitRefPath {
     val targetRefName = jRepository.exactRef(Constants.HEAD).target.name
@@ -190,7 +204,21 @@ class GitRepository(
   }
 }
 
-private val FlowPersonalDetails = GitPersonalDetails(name = "Flow", email = "flow@medusa.software")
+private val RevWalk.commits: Sequence<RevCommit>
+  get() = sequence {
+    var nextCommit: RevCommit? = next()
 
-private val GitRefPath.refName: String
-  get() = segments.joinToString("/")
+    while (nextCommit != null) {
+      yield(nextCommit)
+
+      nextCommit = next()
+    }
+  }
+
+
+
+private fun RevCommit.wrap(session: GitSession): GitCommit =
+    GitCommit(
+        session = session,
+        jRevCommit = this,
+    )

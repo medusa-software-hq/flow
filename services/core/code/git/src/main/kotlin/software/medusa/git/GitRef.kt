@@ -10,6 +10,14 @@ value class GitRefPath(
     ): GitRefPath = GitRefPath(segments.toList())
   }
 
+  init {
+    require(segments.isNotEmpty() && segments.none { it.isBlank() || it.contains("/") }) {
+      "Git ref segments must be non-empty and cannot contain slashes"
+    }
+  }
+
+  fun toRefString(): String = segments.joinToString("/")
+
   fun resolve(
       innerPath: GitRefPath,
   ): GitRefPath = GitRefPath(segments + innerPath.segments)

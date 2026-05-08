@@ -146,6 +146,8 @@ abstract class GitWorktreeDirectory : GitWorktreeNode() {
     }
   }
 
+  fun isEmpty(): Boolean = entries.none()
+
   abstract fun read(name: String): GitWorktreeNode?
 
   abstract val entries: Sequence<Entry>

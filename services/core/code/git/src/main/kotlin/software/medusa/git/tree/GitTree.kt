@@ -12,6 +12,7 @@ import org.eclipse.jgit.lib.TreeFormatter
 import software.medusa.git.GitCommitHash
 import software.medusa.git.GitFileMode
 import software.medusa.git.UnixPath
+import software.medusa.git.utils.contentEquals
 import software.medusa.git.worktree.GitRealizedWorktreeDirectory
 import software.medusa.git.worktree.GitRealizedWorktreeFile
 import software.medusa.git.worktree.GitWorktree
@@ -119,6 +120,16 @@ abstract class GitTreeGroup : GitTreeNode {
     get() = childEntries.associate { it.name to it.child }
 
   abstract val childEntries: Sequence<ChildEntry>
+
+  override fun equals(other: Any?): Boolean {
+    if (other !is GitTreeGroup) return false
+
+    return childEntries.contentEquals(other.childEntries)
+  }
+
+  override fun hashCode(): Int {
+    TODO()
+  }
 }
 
 private fun GitTreeGroup.storeGroup(
@@ -170,6 +181,14 @@ abstract class GitTreeFile : GitTreeNode {
       outputStream: OutputStream,
   ) {
     read().use { it.copyTo(outputStream) }
+  }
+
+  override fun equals(other: Any?): Boolean {
+    TODO("Compare input stream + mode") // Can InputStreams be compared effectively? :)
+  }
+
+  override fun hashCode(): Int {
+    TODO() // efficient InputStream hashcode?
   }
 }
 
