@@ -1,4 +1,12 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch;
+}
+
 .stack {
+  display: flex;
   align-items: stretch;
 }
 
@@ -6,5 +14,10 @@
   display: flex;
   flex-grow: 1;
   align-items: center;
+  justify-content: center;
+}
+
+.mergeRoot {
+  display: flex;
   justify-content: center;
 }

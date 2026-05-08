@@ -1,6 +1,7 @@
 import { TSessionWorkspaceStateKind } from '../SessionWorkspaceStateKinds';
 import { TTaskId } from './edited/CEditedTask';
 import { IEditedTask } from './edited/IEditedTask';
+import { UTaskDefinition } from './ITaskDefinition';
 import { IRunningTask } from './running/IRunningTask';
 
 export interface ITaskPosition {
@@ -13,9 +14,7 @@ export interface ITask {
 
   get id(): TTaskId;
 
-  get label(): string;
-
-  get description(): string;
+  get definition(): UTaskDefinition;
 
   get position(): ITaskPosition;
 

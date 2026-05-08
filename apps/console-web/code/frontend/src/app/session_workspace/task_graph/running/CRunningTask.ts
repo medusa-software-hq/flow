@@ -1,3 +1,7 @@
+import {
+  TaskDefinitionUtils,
+  UTaskDefinition,
+} from '@/app/session_workspace/task_graph/ITaskDefinition';
 import { PbTask } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { IRunningSessionObserver } from '../../running/observer/IRunningSessionObserver';
 import { SessionWorkspaceStateKinds } from '../../SessionWorkspaceStateKinds';
@@ -18,8 +22,7 @@ export class CRunningTask implements IRunningTask {
   readonly _runningSessionObserver: IRunningSessionObserver;
 
   readonly id: TTaskId;
-  readonly label: string;
-  readonly description: string;
+  readonly definition: UTaskDefinition;
   readonly position: ITaskPosition;
   readonly sourceTaskIds: ReadonlySet<TTaskId>;
 
@@ -27,11 +30,12 @@ export class CRunningTask implements IRunningTask {
     this._runningSessionObserver = args.runningSessionObserver;
 
     this.id = BigInt(args.baseTask.id);
+
     this.sourceTaskIds = new Set(
       args.baseTask.sourceTaskIds.map((sourceTaskId) => BigInt(sourceTaskId))
     );
-    this.label = args.baseTask.label;
-    this.description = args.baseTask.description;
+
+    this.definition = TaskDefinitionUtils.load(args.baseTask.definition);
     this.position = { x: args.baseTask.x, y: args.baseTask.y };
   }
 

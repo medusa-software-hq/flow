@@ -1,6 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { asyncScheduler, Subject, throttleTime } from 'rxjs';
 import { SessionWorkspaceStateKinds } from '@/app/session_workspace/SessionWorkspaceStateKinds';
+import { TaskDefinitionUtils } from '@/app/session_workspace/task_graph/ITaskDefinition';
 import {
   GrpcControlServiceStartFlowRequestSchema,
   GrpcControlServiceUpdateFlowRequestSchema,
@@ -8,7 +9,6 @@ import {
   PbFlowDetailsSchema,
   PbFlowDump,
   PbFlowStartedResult,
-  PbTaskExecutionProgress,
   PbTaskGraph,
   PbTaskGraphSchema,
   PbTaskSchema,
@@ -213,8 +213,7 @@ function dumpTaskGraph(editedTaskGraph: IEditedTaskGraph): PbTaskGraph {
     tasks: Array.from(editedTaskGraph.taskById.values(), (task) =>
       create(PbTaskSchema, {
         id: String(task.id),
-        label: task.label,
-        description: task.description,
+        definition: TaskDefinitionUtils.dump(task.definition),
         sourceTaskIds: Array.from(task.sourceTaskIds, String),
         x: task.position.x,
         y: task.position.y,

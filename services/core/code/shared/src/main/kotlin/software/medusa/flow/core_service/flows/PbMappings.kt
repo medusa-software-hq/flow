@@ -1,13 +1,13 @@
 package software.medusa.flow.core_service.flows
 
 import software.medusa.flow.core_service.flows.FlowBlueprint.TaskGraph
+import software.medusa.grpc.flow.control_service.v1.PbFeatureTaskDefinition
 import software.medusa.grpc.flow.control_service.v1.PbFlowDetails
 import software.medusa.grpc.flow.control_service.v1.PbFlowDraftState
 import software.medusa.grpc.flow.control_service.v1.PbFlowDump
-import software.medusa.grpc.flow.control_service.v1.PbFeatureTask
 import software.medusa.grpc.flow.control_service.v1.PbFlowRunningState
 import software.medusa.grpc.flow.control_service.v1.PbFlowState
-import software.medusa.grpc.flow.control_service.v1.PbMergeTask
+import software.medusa.grpc.flow.control_service.v1.PbMergeTaskDefinition
 import software.medusa.grpc.flow.control_service.v1.PbRunningFlowProgress
 import software.medusa.grpc.flow.control_service.v1.PbTask
 import software.medusa.grpc.flow.control_service.v1.PbTaskExecutionProgress
@@ -53,14 +53,14 @@ fun Task.toPbTask(): PbTask =
           when (val currentDefinition = definition) {
             is Task.FeatureDefinition -> {
               featureTask =
-                  PbFeatureTask.newBuilder()
+                  PbFeatureTaskDefinition.newBuilder()
                       .setLabel(currentDefinition.label)
                       .setDescription(currentDefinition.description)
                       .build()
             }
 
             Task.MergeDefinition -> {
-              mergeTask = PbMergeTask.getDefaultInstance()
+              mergeTask = PbMergeTaskDefinition.getDefaultInstance()
             }
           }
         }
@@ -98,15 +98,15 @@ fun PbTask.toModel(): Task =
     Task(
         id = TaskId(raw = id),
         definition =
-            when (kindCase) {
-              PbTask.KindCase.FEATURE_TASK ->
+            when (definitionCase) {
+              PbTask.DefinitionCase.FEATURE_TASK ->
                   Task.FeatureDefinition(
                       label = featureTask.label,
                       description = featureTask.description,
                   )
 
-              PbTask.KindCase.MERGE_TASK -> Task.MergeDefinition
-              PbTask.KindCase.KIND_NOT_SET -> error("Task kind is required")
+              PbTask.DefinitionCase.MERGE_TASK -> Task.MergeDefinition
+              PbTask.DefinitionCase.DEFINITION_NOT_SET -> error("Task kind is required")
             },
         inputTaskIds = sourceTaskIdsList.map(::TaskId),
         x = x,

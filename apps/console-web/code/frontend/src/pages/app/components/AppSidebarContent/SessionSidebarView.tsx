@@ -4,7 +4,7 @@ import crashImageUrl from '@/../assets/crash.png';
 import { ISessionWorkspace } from '@/app/session_workspace/ISessionWorkspace';
 import { SessionWorkspaceStateKinds } from '@/app/session_workspace/SessionWorkspaceStateKinds';
 import { TTaskId } from '@/app/session_workspace/task_graph/edited/CEditedTask';
-import { EditedTaskView } from '../FocusedTaskView/EditedTaskView';
+import { FocusedTaskView } from '../FocusedTaskView/FocusedTaskView';
 
 export interface AppSidebarContentProps {
   readonly sessionWorkspaceLive: ISessionWorkspace;
@@ -35,7 +35,7 @@ export function SessionSidebarView({
 
         return <CrashIcon />;
       } else {
-        return <EditedTaskView editedTaskLive={focusedEditedTaskLive} />;
+        return <FocusedTaskView editedTaskLive={focusedEditedTaskLive} />;
       }
     }
     case SessionWorkspaceStateKinds.Running: {

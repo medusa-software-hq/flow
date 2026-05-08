@@ -112,19 +112,21 @@ message PbTaskGraph {
 message PbTask {
   string id = 1;
   repeated string source_task_ids = 4;
-  double progress = 7;
+
   double x = 5;
   double y = 6;
 
-  oneof kind {
-    PbFeatureTask feature_task = 2;
-    PbMergeTask merge_task = 3;
+  double progress = 7;
+
+  oneof definition {
+    PbFeatureTaskDefinition feature_task = 2;
+    PbMergeTaskDefinition merge_task = 3;
   }
 }
 
-message PbFeatureTask {
+message PbFeatureTaskDefinition {
   string label = 1;
   string description = 2;
 }
 
-message PbMergeTask {}
+message PbMergeTaskDefinition {}
