@@ -62,6 +62,7 @@ class GitRepository(
         newRefPath: GitRefPath,
     ): GitRef {
       val refUpdate = session.jRepository.updateRef(newRefPath.toRefString())
+
       refUpdate.setNewObjectId(commitHash.objectId)
 
       when (val updateResult = refUpdate.update()) {
@@ -214,8 +215,6 @@ private val RevWalk.commits: Sequence<RevCommit>
       nextCommit = next()
     }
   }
-
-
 
 private fun RevCommit.wrap(session: GitSession): GitCommit =
     GitCommit(

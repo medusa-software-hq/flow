@@ -1,6 +1,8 @@
 package software.medusa.flow.core_service.worker
 
+import java.util.UUID
 import software.medusa.flow.core_service.flows.FeatureTaskResult
+import software.medusa.flow.core_service.flows.FlowId
 import software.medusa.flow.core_service.flows.MergeTaskResult
 import software.medusa.flow.core_service.flows.Task
 import software.medusa.flow.core_service.flows.TaskId
@@ -10,11 +12,13 @@ import software.medusa.git.GitCommitHash
 
 interface FlowExecutor {
   interface EnvironmentContext {
+    val flowId: FlowId
     val taskResultRestorer: TaskResultRestorer
     val taskProgressSaver: TaskProgressSaver
   }
 
   interface BaselineContext {
+    val flowUuid: UUID
     val rootCommitHash: GitCommitHash
   }
 

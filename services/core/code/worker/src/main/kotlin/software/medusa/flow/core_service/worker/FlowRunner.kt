@@ -36,6 +36,8 @@ class FlowRunner(
 
                       val environmentContext =
                           object : FlowExecutor.EnvironmentContext {
+                            override val flowId = flowId
+
                             override val taskResultRestorer = leasedFlowStore
 
                             override val taskProgressSaver = leasedFlowStore

@@ -2,6 +2,7 @@ package software.medusa.flow.core_service.worker
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import software.medusa.flow.core_service.flows.FeatureTaskResult
 import software.medusa.flow.core_service.flows.MergeTaskResult
@@ -33,11 +34,15 @@ class ProperFlowExecutor(
 
   context(environmentContext: EnvironmentContext)
   override suspend fun initializeFlow(): BaselineContext {
+    val flowUuid = UUID.randomUUID()
+
     val rootCommitHash = gitRepository.process { resolveHead() }
 
     logger.debug("Initialized flow with root commit hash '{}'", rootCommitHash.raw)
 
     return object : BaselineContext {
+      override val flowUuid = flowUuid
+
       override val rootCommitHash = rootCommitHash
     }
   }
@@ -93,9 +98,11 @@ class ProperFlowExecutor(
         }
 
     val taskRef = gitRepository.process {
+      val flowUuidPrefix = baselineContext.flowUuid.toString().take(6)
+
       createCommitRef(
           commitHash = taskCommitHash,
-          newRefPath = GitRefPath.of("refs", "flow", "tasks", taskId.raw),
+          newRefPath = GitRefPath.of("refs", "flow", flowUuidPrefix, "tasks", taskId.raw),
       )
     }
 
