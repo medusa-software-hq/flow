@@ -1,4 +1,5 @@
 import { SegmentedControl, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { memo, useState } from 'react';
 import { useSnapshot } from 'valtio';
 import { IEditedTask } from '@/app/session_workspace/task_graph/edited/IEditedTask';
 import {
@@ -42,6 +43,7 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
       case TaskDefinitionKinds.Feature: {
         return (
           <FilledFocusedFeatureTaskView
+            key={focusedTaskSnap.id}
             focusedTaskLive={focusedTaskLive}
             definition={focusedTaskDefinition}
           />
@@ -61,13 +63,13 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
         onChange={(newValue) => {
           switch (newValue) {
             case TaskDefinitionKinds.Feature: {
-              const newDefinition: IFeatureTaskDefinition = {
+              const blankDefinition: IFeatureTaskDefinition = {
                 kind: TaskDefinitionKinds.Feature,
                 label: '',
                 description: '',
               };
 
-              focusedTaskLive.definition = newDefinition;
+              focusedTaskLive.definition = blankDefinition;
 
               break;
             }
@@ -89,32 +91,41 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
   );
 }
 
-function FilledFocusedFeatureTaskView(props: {
+function RawFilledFocusedFeatureTaskView(props: {
   readonly focusedTaskLive: IEditedTask;
   readonly definition: IFeatureTaskDefinition;
 }) {
   const { focusedTaskLive, definition } = props;
+
+  const [label, setLabel] = useState(definition.label);
+  const [description, setDescription] = useState(definition.description);
 
   return (
     <Stack className={classes.stack}>
       <TextInput
         label="Label"
         placeholder="short title"
-        value={definition.label}
+        value={label}
         onChange={(event) => {
+          setLabel(event.currentTarget.value);
+
           focusedTaskLive.definition = {
-            ...definition,
+            kind: TaskDefinitionKinds.Feature,
             label: event.currentTarget.value,
+            description,
           };
         }}
       />
       <Textarea
         label="Description"
         placeholder="task description"
-        value={definition.description}
+        value={description}
         onChange={(event) => {
+          setDescription(event.currentTarget.value);
+
           focusedTaskLive.definition = {
-            ...definition,
+            kind: TaskDefinitionKinds.Feature,
+            label,
             description: event.currentTarget.value,
           };
         }}
@@ -125,6 +136,8 @@ function FilledFocusedFeatureTaskView(props: {
     </Stack>
   );
 }
+
+const FilledFocusedFeatureTaskView = memo(RawFilledFocusedFeatureTaskView);
 
 function FilledFocusedMergeTaskView() {
   return (
