@@ -1,8 +1,8 @@
 import { USessionWorkspaceState } from '@/app/session_workspace/ISessionWorkspaceState';
 import { CRunningSessionWorkspaceState } from '@/app/session_workspace/running/CRunningSessionWorkspaceState';
 import {
-  PbSessionDetails,
-  PbSessionDump,
+  PbFlowDetails,
+  PbFlowDump,
 } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { DisposableField } from '@/utils/DisposableField';
@@ -17,7 +17,7 @@ import { ISessionWorkspace } from './ISessionWorkspace';
 export class CSessionWorkspace implements ISessionWorkspace {
   static restore(args: {
     coreServiceClient: CoreServiceClient;
-    receivedSessionDump: PbSessionDump;
+    receivedSessionDump: PbFlowDump;
   }): ISessionWorkspace {
     const selfLoop = new Loop<CSessionWorkspace>();
 
@@ -89,7 +89,7 @@ export class CSessionWorkspace implements ISessionWorkspace {
     sessionWorkspaceLazy: Lazy<CSessionWorkspace>
   ): IEditingSessionWorkspaceStateTransistor {
     return {
-      enterRunningState(args: { runningSessionDetails: PbSessionDetails }) {
+      enterRunningState(args: { runningSessionDetails: PbFlowDetails }) {
         const sessionWorkspace = sessionWorkspaceLazy.value;
 
         const newState = CRunningSessionWorkspaceState.observe({
