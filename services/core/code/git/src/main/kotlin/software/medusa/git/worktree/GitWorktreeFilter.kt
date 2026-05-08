@@ -1,0 +1,93 @@
+package software.medusa.git.worktree
+
+import java.io.InputStream
+import org.eclipse.jgit.ignore.IgnoreNode
+import software.medusa.git.UnixPath
+
+interface GitWorktreeFilter {
+  data object Passive : GitWorktreeFilter {
+    override fun classify(
+        path: UnixPath.Relative,
+        nodeKind: GitWorktreeNode.Kind,
+    ): Classification? = null
+  }
+
+  companion object {
+    fun parse(
+        gitignoreInputStream: InputStream,
+    ): GitWorktreeFilter {
+      val ignoreNode = IgnoreNode()
+      ignoreNode.parse(gitignoreInputStream)
+
+      return object : GitWorktreeFilter {
+        override fun classify(
+            path: UnixPath.Relative,
+            nodeKind: GitWorktreeNode.Kind,
+        ): Classification? {
+          val matchResult =
+              ignoreNode.isIgnored(
+                  path.toUnixPathString(),
+                  nodeKind == GitWorktreeNode.Kind.Directory,
+              )
+
+          return when (matchResult) {
+            IgnoreNode.MatchResult.CHECK_PARENT -> null
+            IgnoreNode.MatchResult.CHECK_PARENT_NEGATE_FIRST_MATCH -> null
+            IgnoreNode.MatchResult.IGNORED -> Classification.Ignore
+            IgnoreNode.MatchResult.NOT_IGNORED -> Classification.Include
+          }
+        }
+      }
+    }
+  }
+
+  enum class Classification {
+    Ignore,
+    Include,
+  }
+
+  fun classify(
+      path: UnixPath.Relative,
+      nodeKind: GitWorktreeNode.Kind,
+  ): Classification?
+}
+
+fun GitWorktreeFilter.classifyEffectively(
+    path: UnixPath.Relative,
+    nodeKind: GitWorktreeNode.Kind,
+): GitWorktreeFilter.Classification =
+    classify(
+        path = path,
+        nodeKind = nodeKind,
+    ) ?: GitWorktreeFilter.Classification.Include
+
+fun GitWorktreeFilter.nest(
+    directoryName: String,
+): GitWorktreeFilter {
+  val baseFilter = this@nest
+
+  return object : GitWorktreeFilter {
+    override fun classify(
+        path: UnixPath.Relative,
+        nodeKind: GitWorktreeNode.Kind,
+    ): GitWorktreeFilter.Classification? =
+        baseFilter.classify(
+            path = path.prepend(directoryName),
+            nodeKind = nodeKind,
+        )
+  }
+}
+
+fun GitWorktreeFilter.chain(
+    baseFilter: GitWorktreeFilter,
+): GitWorktreeFilter {
+  val innerFilter = this@chain
+
+  return object : GitWorktreeFilter {
+    override fun classify(
+        path: UnixPath.Relative,
+        nodeKind: GitWorktreeNode.Kind,
+    ): GitWorktreeFilter.Classification? =
+        innerFilter.classify(path, nodeKind) ?: baseFilter.classify(path, nodeKind)
+  }
+}

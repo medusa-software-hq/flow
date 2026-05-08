@@ -5,28 +5,59 @@ import software.medusa.commons.process.ExecutableHandle
 import software.medusa.commons.process.ProcessSpawner
 
 internal class GitCliRepository(
-    private val repoPath: Path,
+    override val path: Path,
     private val gitExecutableHandle: ExecutableHandle,
     private val processSpawner: ProcessSpawner,
-) : GitRepository {
-  override fun commit(request: GitCommitRequest): GitCommitResult {
-    require(request.message.isNotBlank()) { "Commit message must not be blank" }
-    require(request.pathspecs.isNotEmpty()) { "Commit pathspecs must not be empty" }
+) : GitEngineRepository {
+  override fun commit(message: String): GitCommitResult {
+    require(message.isNotBlank()) { "Commit message must not be blank" }
 
-    runGitCommand(args = listOf("add", "--") + request.pathspecs)
-    runGitCommand(args = listOf("commit", "-m", request.message))
+    runGitCommand(
+        subcommandName = "add", // https://git-scm.com/docs/git-add
+        subcommandArgs =
+            listOf(
+                "--all", // adds, modifies, and removes index entries to match the working tree.
+            ),
+    )
 
-    val commitHash = runGitCommand(args = listOf("rev-parse", "HEAD")).trim()
+    runGitCommand(
+        subcommandName = "commit", // https://git-scm.com/docs/git-commit
+        subcommandArgs =
+            listOf(
+                "--message", // use <msg> as the commit message
+                message, // <msg>
+            ),
+        config =
+            mapOf(
+                "user.name" to "Flow",
+                "user.email" to "flow@medusa.software",
+            ),
+    )
+
+    val commitHash =
+        runGitCommand(
+                subcommandName = "rev-parse",
+                subcommandArgs = listOf("HEAD"),
+            )
+            .trim()
 
     return GitCommitResult(commitHash = commitHash)
   }
 
-  private fun runGitCommand(args: List<String>): String {
+  private fun runGitCommand(
+      subcommandName: String,
+      subcommandArgs: List<String>,
+      config: Map<String, String> = emptyMap(),
+  ): String {
+    val configArgs = config.flatMap { (key, value) -> listOf("-c", "$key=$value") }
+
+    val fullArgs = configArgs + listOf(subcommandName) + subcommandArgs
+
     val result =
         processSpawner.runCaptured(
             executableHandle = gitExecutableHandle,
-            workingDirectoryPath = repoPath,
-            args = args,
+            workingDirectoryPath = path,
+            args = fullArgs,
             env = emptyMap(),
         )
 
@@ -34,9 +65,9 @@ internal class GitCliRepository(
       throw IllegalStateException(
           buildString {
             append("Git command failed in ")
-            append(repoPath)
+            append(path)
             append(": git ")
-            append(args.joinToString(" "))
+            append(subcommandArgs.joinToString(" "))
             append(" (exit code ")
             append(result.exitCode)
             append(")")
@@ -46,7 +77,7 @@ internal class GitCliRepository(
               append(": ")
               append(trimmedOutput)
             }
-          }
+          },
       )
     }
 
