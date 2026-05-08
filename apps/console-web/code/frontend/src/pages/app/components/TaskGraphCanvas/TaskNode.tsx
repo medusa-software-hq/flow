@@ -43,7 +43,7 @@ function RawTaskNode(props: NodeProps<TaskNode>) {
 
 export const TaskNode = memo(RawTaskNode);
 
-function TaskStatus(props: { taskLive: UTask }): JSX.Element | null {
+function TaskStatus(props: { taskLive: UTask }): JSX.Element {
   const { taskLive } = props;
   const taskSnap: UTask = useSnapshot(props.taskLive);
 
@@ -51,7 +51,7 @@ function TaskStatus(props: { taskLive: UTask }): JSX.Element | null {
 
   switch (taskLive.kind) {
     case SessionWorkspaceStateKinds.Editing: {
-      return null;
+      return <ProgressBar progress={0} />;
     }
 
     case SessionWorkspaceStateKinds.Running: {
@@ -63,5 +63,20 @@ function TaskStatus(props: { taskLive: UTask }): JSX.Element | null {
 function RunningTaskStatus(props: { runningTaskLive: IRunningTask }): JSX.Element {
   const runningTaskSnap: UTask = useSnapshot(props.runningTaskLive);
 
-  return <Text>Progress: {runningTaskSnap.getProgress()}</Text>;
+  return <ProgressBar progress={runningTaskSnap.getProgress()} />;
+}
+
+function ProgressBar(props: { progress: number }): JSX.Element {
+  const boundedProgress = Math.min(Math.max(props.progress, 0), 1);
+
+  return (
+    <div className="task-node-progress" aria-hidden="true">
+      <div className="task-node-progress__track">
+        <div
+          className="task-node-progress__fill"
+          style={{ transform: `scaleX(${boundedProgress})` }}
+        />
+      </div>
+    </div>
+  );
 }
