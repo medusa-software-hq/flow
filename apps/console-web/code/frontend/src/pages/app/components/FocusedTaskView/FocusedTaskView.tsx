@@ -1,71 +1,27 @@
 import { SegmentedControl, Stack, Text, Textarea, TextInput } from '@mantine/core';
-import { memo, useState } from 'react';
+import React, { memo, useState } from 'react';
 import { useSnapshot } from 'valtio';
-import { IEditedTask } from '@/app/session_workspace/task_graph/edited/IEditedTask';
+import { SessionWorkspaceStateKinds } from '@/app/session_workspace/SessionWorkspaceStateKinds';
+import { UTask } from '@/app/session_workspace/task_graph/ITask';
 import {
   BlankTaskDefinition,
   IFeatureTaskDefinition,
   MergeTaskDefinition,
   TaskDefinitionKinds,
+  TTaskDefinitionKind,
 } from '@/app/session_workspace/task_graph/ITaskDefinition';
 import classes from './FocusedTaskView.module.css';
 
-interface EditedTaskViewProps {
-  readonly editedTaskLive: IEditedTask | null;
-}
-
-export function FocusedTaskView(props: EditedTaskViewProps) {
-  const { editedTaskLive } = props;
-
-  switch (editedTaskLive) {
-    case null:
-      return <EmptyFocusedTaskView />;
-    default:
-      return <FilledFocusedTaskView focusedTaskLive={editedTaskLive} />;
-  }
-}
-
-function EmptyFocusedTaskView() {
-  return (
-    <div className={classes.empty}>
-      <Text c="dimmed">Select a single task</Text>
-    </div>
-  );
-}
-
-function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask }) {
+export function FocusedTaskView(props: { readonly focusedTaskLive: UTask }) {
   const { focusedTaskLive } = props;
 
   const focusedTaskSnap = useSnapshot(focusedTaskLive);
   const focusedTaskDefinition = focusedTaskSnap.definition;
 
-  const buildContent = () => {
-    switch (focusedTaskDefinition.kind) {
-      case TaskDefinitionKinds.Feature: {
-        return (
-          <FilledFocusedFeatureTaskView
-            key={focusedTaskSnap.id}
-            focusedTaskLive={focusedTaskLive}
-            definition={focusedTaskDefinition}
-          />
-        );
-      }
-
-      case TaskDefinitionKinds.Blank: {
-        return <FilledFocusedBlankTaskView />;
-      }
-
-      case TaskDefinitionKinds.Merge: {
-        return <FilledFocusedMergeTaskView />;
-      }
-    }
-  };
-
-  return (
-    <div className={classes.root}>
-      <SegmentedControl
-        value={focusedTaskDefinition.kind}
-        onChange={(newValue) => {
+  const onKindChange = (() => {
+    switch (focusedTaskLive.kind) {
+      case SessionWorkspaceStateKinds.Editing: {
+        return (newValue: TTaskDefinitionKind) => {
           switch (newValue) {
             case TaskDefinitionKinds.Blank: {
               focusedTaskLive.definition = BlankTaskDefinition;
@@ -91,7 +47,43 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
               break;
             }
           }
-        }}
+        };
+      }
+
+      case SessionWorkspaceStateKinds.Running: {
+        return undefined;
+      }
+    }
+  })();
+
+  const buildContent = () => {
+    switch (focusedTaskDefinition.kind) {
+      case TaskDefinitionKinds.Feature: {
+        return (
+          <FocusedFeatureTaskView
+            key={focusedTaskSnap.id}
+            focusedTaskDefinition={focusedTaskDefinition}
+            focusedTaskLive={focusedTaskLive}
+          />
+        );
+      }
+
+      case TaskDefinitionKinds.Blank: {
+        return <FilledFocusedBlankTaskView />;
+      }
+
+      case TaskDefinitionKinds.Merge: {
+        return <FocusedMergeTaskView />;
+      }
+    }
+  };
+
+  return (
+    <div className={classes.root}>
+      <SegmentedControl
+        value={focusedTaskDefinition.kind}
+        onChange={onKindChange}
+        disabled={onKindChange === undefined}
         data={[
           { label: 'Blank', value: TaskDefinitionKinds.Blank },
           { label: 'Feature', value: TaskDefinitionKinds.Feature },
@@ -104,21 +96,18 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
 }
 
 function RawFilledFocusedFeatureTaskView(props: {
-  readonly focusedTaskLive: IEditedTask;
-  readonly definition: IFeatureTaskDefinition;
+  readonly focusedTaskDefinition: IFeatureTaskDefinition;
+  readonly focusedTaskLive: UTask;
 }) {
-  const { focusedTaskLive, definition } = props;
+  const { focusedTaskDefinition, focusedTaskLive } = props;
 
-  const [label, setLabel] = useState(definition.label);
-  const [description, setDescription] = useState(definition.description);
+  const [label, setLabel] = useState(focusedTaskDefinition.label);
+  const [description, setDescription] = useState(focusedTaskDefinition.description);
 
-  return (
-    <Stack className={classes.stack}>
-      <TextInput
-        label="Label"
-        placeholder="short title"
-        value={label}
-        onChange={(event) => {
+  const onLabelChange = (() => {
+    switch (focusedTaskLive.kind) {
+      case SessionWorkspaceStateKinds.Editing: {
+        return (event: React.ChangeEvent<HTMLInputElement>) => {
           setLabel(event.currentTarget.value);
 
           focusedTaskLive.definition = {
@@ -126,13 +115,19 @@ function RawFilledFocusedFeatureTaskView(props: {
             label: event.currentTarget.value,
             description,
           };
-        }}
-      />
-      <Textarea
-        label="Description"
-        placeholder="task description"
-        value={description}
-        onChange={(event) => {
+        };
+      }
+
+      case SessionWorkspaceStateKinds.Running: {
+        return undefined;
+      }
+    }
+  })();
+
+  const onDescriptionChange = (() => {
+    switch (focusedTaskLive.kind) {
+      case SessionWorkspaceStateKinds.Editing: {
+        return (event: React.ChangeEvent<HTMLTextAreaElement>) => {
           setDescription(event.currentTarget.value);
 
           focusedTaskLive.definition = {
@@ -140,7 +135,30 @@ function RawFilledFocusedFeatureTaskView(props: {
             label,
             description: event.currentTarget.value,
           };
-        }}
+        };
+      }
+
+      case SessionWorkspaceStateKinds.Running: {
+        return undefined;
+      }
+    }
+  })();
+
+  return (
+    <Stack className={classes.stack}>
+      <TextInput
+        label="Label"
+        placeholder="short title"
+        value={label}
+        onChange={onLabelChange}
+        readOnly={onLabelChange === undefined}
+      />
+      <Textarea
+        label="Description"
+        placeholder="task description"
+        value={description}
+        onChange={onDescriptionChange}
+        readOnly={onDescriptionChange === undefined}
         autosize
         minRows={8}
         maxRows={24}
@@ -149,7 +167,7 @@ function RawFilledFocusedFeatureTaskView(props: {
   );
 }
 
-const FilledFocusedFeatureTaskView = memo(RawFilledFocusedFeatureTaskView);
+const FocusedFeatureTaskView = memo(RawFilledFocusedFeatureTaskView);
 
 function FilledFocusedBlankTaskView() {
   return (
@@ -163,7 +181,7 @@ function FilledFocusedBlankTaskView() {
   );
 }
 
-function FilledFocusedMergeTaskView() {
+function FocusedMergeTaskView() {
   return (
     <div className={classes.infoRoot}>
       <Text c="dimmed">Merge tasks cannot be edited</Text>

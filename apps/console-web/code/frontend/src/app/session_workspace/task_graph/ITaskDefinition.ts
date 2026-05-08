@@ -13,6 +13,7 @@ export const TaskDefinitionKinds = {
   Feature: 'feature',
   Merge: 'merge',
 } as const;
+
 export type TTaskDefinitionKind = (typeof TaskDefinitionKinds)[keyof typeof TaskDefinitionKinds];
 
 export interface ITaskDefinition {

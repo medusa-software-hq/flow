@@ -61,11 +61,7 @@ function RawTaskNode(props: NodeProps<TaskNode>) {
 
 export const TaskNode = memo(RawTaskNode);
 
-function TaskKindLabel(props: {
-  iconUrl: string;
-  iconAlt: string;
-  label: string;
-}): JSX.Element {
+function TaskKindLabel(props: { iconUrl: string; iconAlt: string; label: string }): JSX.Element {
   return (
     <div className={classes.kindLabelWrapper}>
       <img src={props.iconUrl} alt={props.iconAlt} className={classes.kindLabelIcon} />
