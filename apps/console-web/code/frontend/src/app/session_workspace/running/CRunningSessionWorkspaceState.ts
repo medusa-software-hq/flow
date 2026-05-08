@@ -2,7 +2,7 @@ import { IRunningSessionTrait } from '@/app/session_workspace/ISessionTrait';
 import { ITaskGraph, UAnyTaskGraph } from '@/app/session_workspace/task_graph/ITaskGraph';
 import { CRunningTaskGraph } from '@/app/session_workspace/task_graph/running/CRunningTaskGraph';
 import { IRunningTaskGraph } from '@/app/session_workspace/task_graph/running/IRunningTaskGraph';
-import { PbSessionDetails } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
+import { PbFlowDetails } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { SessionWorkspaceStateKinds } from '../SessionWorkspaceStateKinds';
 import { IRunningSessionWorkspaceState } from './IRunningSessionWorkspaceState';
@@ -13,7 +13,7 @@ export class CRunningSessionWorkspaceState implements IRunningSessionWorkspaceSt
   static observe(args: {
     coreServiceClient: CoreServiceClient;
     sessionId: string;
-    baseSessionDetails: PbSessionDetails;
+    baseSessionDetails: PbFlowDetails;
   }) {
     const runningSessionObserver: IRunningSessionObserver = CRunningSessionObserver.observe({
       coreServiceClient: args.coreServiceClient,

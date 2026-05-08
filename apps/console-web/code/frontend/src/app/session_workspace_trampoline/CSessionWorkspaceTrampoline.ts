@@ -1,8 +1,8 @@
 import { create } from '@bufbuild/protobuf';
 import { proxy } from 'valtio';
 import {
-  GrpcControlServiceCreateSessionRequestSchema,
-  PbSessionDump,
+  GrpcControlServiceCreateFlowRequestSchema,
+  PbFlowDump,
 } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { CSessionWorkspace } from '../session_workspace/CSessionWorkspace';
@@ -18,7 +18,7 @@ import { SessionWorkspaceTrampolineStateKinds } from './SessionWorkspaceTrampoli
 export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline {
   static restore(args: {
     coreServiceClient: CoreServiceClient;
-    receivedSessionDump: PbSessionDump;
+    receivedSessionDump: PbFlowDump;
   }): ISessionWorkspaceTrampoline {
     const restoredState: IOperationalState = {
       kind: SessionWorkspaceTrampolineStateKinds.Operational,
@@ -73,13 +73,13 @@ export class CSessionWorkspaceTrampoline implements ISessionWorkspaceTrampoline 
     this._currentState = loadingState;
 
     try {
-      const response = await this._coreServiceClient.createSession(
-        create(GrpcControlServiceCreateSessionRequestSchema)
+      const response = await this._coreServiceClient.createFlow(
+        create(GrpcControlServiceCreateFlowRequestSchema)
       );
 
       const createdSessionWorkspace = CSessionWorkspace.createNew({
         coreServiceClient: this._coreServiceClient,
-        sessionId: response.sessionId,
+        sessionId: response.flowId,
       });
 
       const loadedState: IOperationalState = {

@@ -2,12 +2,13 @@ import { create } from '@bufbuild/protobuf';
 import { asyncScheduler, Subject, throttleTime } from 'rxjs';
 import { SessionWorkspaceStateKinds } from '@/app/session_workspace/SessionWorkspaceStateKinds';
 import {
-  GrpcControlServiceStartSessionRequestSchema,
-  GrpcControlServiceUpdateSessionRequestSchema,
-  PbSessionDetails,
-  PbSessionDetailsSchema,
-  PbSessionDump,
-  PbSessionStartedResult,
+  GrpcControlServiceStartFlowRequestSchema,
+  GrpcControlServiceUpdateFlowRequestSchema,
+  PbFlowDetails,
+  PbFlowDetailsSchema,
+  PbFlowDump,
+  PbFlowStartedResult,
+  PbTaskExecutionProgress,
   PbTaskGraph,
   PbTaskGraphSchema,
   PbTaskSchema,
@@ -25,13 +26,13 @@ import { IEditingSessionWorkspaceState } from './IEditingSessionWorkspaceState';
 const uploadIntervalMs = 2000;
 
 export interface IEditingSessionWorkspaceStateTransistor {
-  enterRunningState(args: { runningSessionDetails: PbSessionDetails }): void;
+  enterRunningState(args: { runningSessionDetails: PbFlowDetails }): void;
 }
 
 export class CEditingSessionWorkspaceState implements IEditingSessionWorkspaceState {
   static restore(args: {
     coreServiceClient: CoreServiceClient;
-    receivedSessionDump: PbSessionDump;
+    receivedSessionDump: PbFlowDump;
     stateTransistor: IEditingSessionWorkspaceStateTransistor;
   }): IEditingSessionWorkspaceState {
     const loopSessionEditNotifier = new CLoopSessionEditNotifier();
@@ -158,9 +159,9 @@ export class CEditingSessionWorkspaceState implements IEditingSessionWorkspaceSt
 
       console.info('Detected session edits, uploading session details...');
 
-      await this._coreServiceClient.updateSession(
-        create(GrpcControlServiceUpdateSessionRequestSchema, {
-          sessionId: this._sessionId,
+      await this._coreServiceClient.updateFlow(
+        create(GrpcControlServiceUpdateFlowRequestSchema, {
+          flowId: this._sessionId,
           details: dumpSession(this),
         })
       );
@@ -168,9 +169,9 @@ export class CEditingSessionWorkspaceState implements IEditingSessionWorkspaceSt
   }
 
   private async _start(): Promise<void> {
-    const response = await this._coreServiceClient.startSession(
-      create(GrpcControlServiceStartSessionRequestSchema, {
-        sessionId: this._sessionId,
+    const response = await this._coreServiceClient.startFlow(
+      create(GrpcControlServiceStartFlowRequestSchema, {
+        flowId: this._sessionId,
         finalDetails: dumpSession(this),
       })
     );
@@ -179,9 +180,9 @@ export class CEditingSessionWorkspaceState implements IEditingSessionWorkspaceSt
 
     switch (result.case) {
       case 'started': {
-        const sessionStartedResult: PbSessionStartedResult = result.value;
-        const runningSessionDetails: PbSessionDetails | undefined =
-          sessionStartedResult.startedSessionDetails;
+        const sessionStartedResult: PbFlowStartedResult = result.value;
+        const runningSessionDetails: PbFlowDetails | undefined =
+          sessionStartedResult.startedFlowDetails;
 
         if (runningSessionDetails === undefined) {
           throw new Error('Missing startedSessionDetails in startSession response');
@@ -200,8 +201,8 @@ export class CEditingSessionWorkspaceState implements IEditingSessionWorkspaceSt
   }
 }
 
-function dumpSession(sessionEditor: IEditingSessionWorkspaceState): PbSessionDetails {
-  return create(PbSessionDetailsSchema, {
+function dumpSession(sessionEditor: IEditingSessionWorkspaceState): PbFlowDetails {
+  return create(PbFlowDetailsSchema, {
     title: sessionEditor.sessionTitle,
     taskGraph: dumpTaskGraph(sessionEditor.editedTaskGraph),
   });

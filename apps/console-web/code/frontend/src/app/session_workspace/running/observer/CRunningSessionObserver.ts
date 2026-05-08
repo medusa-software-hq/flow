@@ -1,6 +1,9 @@
 import { create } from '@bufbuild/protobuf';
 import { proxy } from 'valtio';
-import { GrpcControlServiceGetRunningSessionProgressRequestSchema } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
+import {
+  GrpcControlServiceGetRunningFlowProgressRequestSchema,
+  PbTaskExecutionProgress,
+} from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { sleep } from '@/utils/promiseUtils';
 import { IRunningSessionObserver, ITaskProgressSnapshot } from './IRunningSessionObserver';
@@ -37,18 +40,17 @@ export class CRunningSessionObserver implements IRunningSessionObserver {
 
         console.info(`Polling running session progress for session ID '${sessionId}'...`);
 
-        const response = await this._coreServiceClient.getRunningSessionProgress(
-          create(GrpcControlServiceGetRunningSessionProgressRequestSchema, {
-            sessionId,
+        const response = await this._coreServiceClient.getRunningFlowProgress(
+          create(GrpcControlServiceGetRunningFlowProgressRequestSchema, {
+            flowId: sessionId,
           })
         );
 
         const polledSnapshot: ITaskProgressSnapshot = {
           progressByTaskId: new Map(
-            response.runningSessionProgress?.taskExecutionProgresses.map((taskProgress) => [
-              taskProgress.taskId,
-              taskProgress.progress,
-            ]) ?? []
+            response.runningFlowProgress?.taskExecutionProgresses.map(
+              (taskProgress: PbTaskExecutionProgress) => [taskProgress.taskId, taskProgress.progress]
+            ) ?? []
           ),
         };
 
