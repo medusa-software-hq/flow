@@ -53,11 +53,18 @@ class ProperFlowExecutor(
       taskDefinition: Task.FeatureDefinition,
       inputCommitHash: GitCommitHash?,
   ): FeatureTaskResult {
+    val taskProgressSaver = environmentContext.taskProgressSaver
+
     logger.info(
         "Starting feature task label='{}' description='{}' inputCommitHash='{}'",
         taskDefinition.label,
         taskDefinition.description,
         inputCommitHash?.raw ?: "null",
+    )
+
+    taskProgressSaver.updateTaskProgress(
+        taskId = taskId,
+        progress = 0.1,
     )
 
     // A feature task without input nodes implicitly depends on the root
@@ -104,6 +111,11 @@ class ProperFlowExecutor(
           )
         }
 
+    taskProgressSaver.updateTaskProgress(
+        taskId = taskId,
+        progress = 0.8,
+    )
+
     val taskRef = gitRepository.process {
       val flowUuidPrefix = baselineContext.flowUuid.toString().take(6)
 
@@ -113,7 +125,7 @@ class ProperFlowExecutor(
       )
     }
 
-    environmentContext.taskProgressSaver.updateTaskProgress(
+    taskProgressSaver.updateTaskProgress(
         taskId = taskId,
         progress = 1.0,
     )
