@@ -4,5 +4,6 @@
     "bash": "allow",
     "external_directory": "allow",
     "webfetch": "allow"
-  }
+  },
+  "$schema": "https://opencode.ai/config.json"
 }
