@@ -48,7 +48,7 @@ class FlowStore(
       throw IllegalArgumentException("FlowBlueprint with ID ${flowId.raw} not found")
     }
 
-    val session = dbSession.toModel()
+    val flowBlueprint = dbSession.toModel()
 
     val leasedFlowStore =
         object : LeasedFlowStore {
@@ -76,7 +76,7 @@ class FlowStore(
         }
 
     processor.processLeasedFlow(
-        flowBlueprint = session,
+        flowBlueprint = flowBlueprint,
         leasedFlowStore = leasedFlowStore,
     )
 
@@ -86,11 +86,11 @@ class FlowStore(
   override fun getRunningFlowProgress(
       flowId: FlowId,
   ): RunningFlowProgress? {
-    val session =
+    val flow =
         flowDatabase.sessionQueries.selectSessionById(flowId.raw).executeAsOneOrNull()
             ?: return null
 
-    if (session.state.toModel() != FlowState.RUNNING) {
+    if (flow.state.toModel() != FlowState.RUNNING) {
       return null
     }
 
