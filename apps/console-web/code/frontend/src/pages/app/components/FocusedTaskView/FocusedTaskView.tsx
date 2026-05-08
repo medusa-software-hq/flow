@@ -50,6 +50,10 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
         );
       }
 
+      case TaskDefinitionKinds.Blank: {
+        return <FilledFocusedBlankTaskView />;
+      }
+
       case TaskDefinitionKinds.Merge: {
         return <FilledFocusedMergeTaskView />;
       }
@@ -58,34 +62,36 @@ function FilledFocusedTaskView(props: { readonly focusedTaskLive: IEditedTask })
 
   return (
     <div className={classes.root}>
-      <SegmentedControl
-        value={focusedTaskDefinition.kind}
-        onChange={(newValue) => {
-          switch (newValue) {
-            case TaskDefinitionKinds.Feature: {
-              const blankDefinition: IFeatureTaskDefinition = {
-                kind: TaskDefinitionKinds.Feature,
-                label: '',
-                description: '',
-              };
+      {focusedTaskDefinition.kind === TaskDefinitionKinds.Blank ? null : (
+        <SegmentedControl
+          value={focusedTaskDefinition.kind}
+          onChange={(newValue) => {
+            switch (newValue) {
+              case TaskDefinitionKinds.Feature: {
+                const blankDefinition: IFeatureTaskDefinition = {
+                  kind: TaskDefinitionKinds.Feature,
+                  label: '',
+                  description: '',
+                };
 
-              focusedTaskLive.definition = blankDefinition;
+                focusedTaskLive.definition = blankDefinition;
 
-              break;
+                break;
+              }
+
+              case TaskDefinitionKinds.Merge: {
+                focusedTaskLive.definition = MergeTaskDefinition;
+
+                break;
+              }
             }
-
-            case TaskDefinitionKinds.Merge: {
-              focusedTaskLive.definition = MergeTaskDefinition;
-
-              break;
-            }
-          }
-        }}
-        data={[
-          { label: 'Feature', value: TaskDefinitionKinds.Feature },
-          { label: 'Merge', value: TaskDefinitionKinds.Merge },
-        ]}
-      />
+          }}
+          data={[
+            { label: 'Feature', value: TaskDefinitionKinds.Feature },
+            { label: 'Merge', value: TaskDefinitionKinds.Merge },
+          ]}
+        />
+      )}
       {buildContent()}
     </div>
   );
@@ -138,6 +144,14 @@ function RawFilledFocusedFeatureTaskView(props: {
 }
 
 const FilledFocusedFeatureTaskView = memo(RawFilledFocusedFeatureTaskView);
+
+function FilledFocusedBlankTaskView() {
+  return (
+    <div className={classes.mergeRoot}>
+      <Text c="dimmed">Blank tasks cannot be edited yet</Text>
+    </div>
+  );
+}
 
 function FilledFocusedMergeTaskView() {
   return (

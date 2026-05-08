@@ -1,6 +1,7 @@
 package software.medusa.flow.core_service.flows
 
 import software.medusa.flow.core_service.flows.FlowBlueprint.TaskGraph
+import software.medusa.grpc.flow.control_service.v1.PbBlankTaskDefinition
 import software.medusa.grpc.flow.control_service.v1.PbFeatureTaskDefinition
 import software.medusa.grpc.flow.control_service.v1.PbFlowDetails
 import software.medusa.grpc.flow.control_service.v1.PbFlowDraftState
@@ -51,6 +52,10 @@ fun Task.toPbTask(): PbTask =
         .setId(id.raw)
         .apply {
           when (val currentDefinition = definition) {
+            Task.BlankDefinition -> {
+              blankTask = PbBlankTaskDefinition.getDefaultInstance()
+            }
+
             is Task.FeatureDefinition -> {
               featureTask =
                   PbFeatureTaskDefinition.newBuilder()
@@ -99,6 +104,8 @@ fun PbTask.toModel(): Task =
         id = TaskId(raw = id),
         definition =
             when (definitionCase) {
+              PbTask.DefinitionCase.BLANK_TASK -> Task.BlankDefinition
+
               PbTask.DefinitionCase.FEATURE_TASK ->
                   Task.FeatureDefinition(
                       label = featureTask.label,

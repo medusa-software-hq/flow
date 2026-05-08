@@ -37,6 +37,11 @@ function RawTaskNode(props: NodeProps<TaskNode>) {
 
         return <Text>{label}</Text>;
       }
+
+      case TaskDefinitionKinds.Blank: {
+        return <Text c="dimmed">Blank</Text>;
+      }
+
       // mergeIconUrl
       case TaskDefinitionKinds.Merge: {
         return (

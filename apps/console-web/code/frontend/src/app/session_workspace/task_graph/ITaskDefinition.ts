@@ -1,5 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import {
+  PbBlankTaskDefinition,
+  PbBlankTaskDefinitionSchema,
   PbFeatureTaskDefinition,
   PbFeatureTaskDefinitionSchema,
   PbMergeTaskDefinition,
@@ -7,6 +9,7 @@ import {
 } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 
 export const TaskDefinitionKinds = {
+  Blank: 'blank',
   Feature: 'feature',
   Merge: 'merge',
 } as const;
@@ -26,13 +29,25 @@ export interface IMergeTaskDefinition extends ITaskDefinition {
   readonly kind: typeof TaskDefinitionKinds.Merge;
 }
 
+export interface IBlankTaskDefinition extends ITaskDefinition {
+  readonly kind: typeof TaskDefinitionKinds.Blank;
+}
+
+export const BlankTaskDefinition: IBlankTaskDefinition = {
+  kind: TaskDefinitionKinds.Blank,
+};
+
 export const MergeTaskDefinition: IMergeTaskDefinition = {
   kind: TaskDefinitionKinds.Merge,
 };
 
-export type UTaskDefinition = IFeatureTaskDefinition | IMergeTaskDefinition;
+export type UTaskDefinition = IBlankTaskDefinition | IFeatureTaskDefinition | IMergeTaskDefinition;
 
 export type PbTaskDefinition =
+  | {
+      value: PbBlankTaskDefinition;
+      case: 'blankTask';
+    }
   | {
       value: PbFeatureTaskDefinition;
       case: 'featureTask';
@@ -46,6 +61,10 @@ export type PbTaskDefinition =
 export const TaskDefinitionUtils = {
   load(pbTaskDefinition: PbTaskDefinition): UTaskDefinition {
     switch (pbTaskDefinition.case) {
+      case 'blankTask': {
+        return BlankTaskDefinition;
+      }
+
       case 'featureTask': {
         const featureTaskDefinition: IFeatureTaskDefinition = {
           kind: TaskDefinitionKinds.Feature,
@@ -68,6 +87,13 @@ export const TaskDefinitionUtils = {
 
   dump(taskDefinition: UTaskDefinition): PbTaskDefinition {
     switch (taskDefinition.kind) {
+      case TaskDefinitionKinds.Blank: {
+        return {
+          case: 'blankTask',
+          value: create(PbBlankTaskDefinitionSchema, {}),
+        };
+      }
+
       case TaskDefinitionKinds.Feature: {
         return {
           case: 'featureTask',

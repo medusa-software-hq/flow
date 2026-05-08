@@ -121,6 +121,7 @@ message PbTask {
   oneof definition {
     PbFeatureTaskDefinition feature_task = 2;
     PbMergeTaskDefinition merge_task = 3;
+    PbBlankTaskDefinition blank_task = 8;
   }
 }
 
@@ -130,3 +131,5 @@ message PbFeatureTaskDefinition {
 }
 
 message PbMergeTaskDefinition {}
+
+message PbBlankTaskDefinition {}

@@ -4,6 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
 import org.slf4j.LoggerFactory
+import software.medusa.flow.core_service.flows.BlankTaskResult
 import software.medusa.flow.core_service.flows.FeatureTaskResult
 import software.medusa.flow.core_service.flows.MergeTaskResult
 import software.medusa.flow.core_service.flows.Task
@@ -45,6 +46,23 @@ class ProperFlowExecutor(
 
       override val rootCommitHash = rootCommitHash
     }
+  }
+
+  context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
+  override suspend fun executeBlankTask(
+      taskId: TaskId,
+      inputCommitHash: GitCommitHash?,
+  ): BlankTaskResult {
+    val baseCommitHash = inputCommitHash ?: baselineContext.rootCommitHash
+
+    environmentContext.taskProgressSaver.updateTaskProgress(
+        taskId = taskId,
+        progress = 1.0,
+    )
+
+    return BlankTaskResult(
+        baseCommitHash = baseCommitHash,
+    )
   }
 
   context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
