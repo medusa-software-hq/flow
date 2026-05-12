@@ -9,10 +9,12 @@ kotlin-serialization = "1.11.0"
 kotlinx-io = "0.9.0"
 ktfmt = "0.26.0"
 logback = "1.5.32"
+openai-kotlin = "4.1.0"
 protobuf = "4.34.1"
 protobuf-plugin = "0.10.0"
 sqldelight = "2.3.2"
 versionCatalogUpdate = "1.1.0"
+kotlinx-schema = "0.5.0"
 
 [libraries]
 armeria-bom = { module = "com.linecorp.armeria:armeria-bom", version.ref = "armeria" }
@@ -31,12 +33,16 @@ kotlinx-io-bytestring = { module = "org.jetbrains.kotlinx:kotlinx-io-bytestring"
 kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlin-serialization" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+openai-kotlin = { module = "com.aallam.openai:openai-client-jvm", version.ref = "openai-kotlin" }
+ktor-client-okhttp = "io.ktor:ktor-client-okhttp-jvm:3.3.1"
 protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
 protobuf-protocGen-grpc-java = { module = "io.grpc:protoc-gen-grpc-java", version.ref = "grpc" }
 protobuf-protocGen-grpc-kotlin = "io.grpc:protoc-gen-grpc-kotlin:1.5.0"
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
+kotlinx-schema-annotations = { module = "org.jetbrains.kotlinx:kotlinx-schema-annotations", version.ref = "kotlinx-schema" }
+kotlinx-schema-generator-json = { module = "org.jetbrains.kotlinx:kotlinx-schema-generator-json", version.ref = "kotlinx-schema" }
 
 [plugins]
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
