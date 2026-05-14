@@ -55,7 +55,7 @@ class OpenAiClientIntegrationTests {
                                     ),
                                 ),
                         ),
-                    model = OpenAiModel.Gpt5_4,
+                    model = OpenAiModel.GptMidi,
                 ),
         )
 
@@ -83,7 +83,7 @@ class OpenAiClientIntegrationTests {
                                     ),
                                 ),
                         ),
-                    model = OpenAiModel.Gpt5_4,
+                    model = OpenAiModel.GptMidi,
                 ),
             responseSerializer = CountryInfo.serializer(),
         )

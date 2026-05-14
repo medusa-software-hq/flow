@@ -6,6 +6,7 @@ import kotlinx.schema.json.JsonSchema
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 interface OpenAiClient : AutoCloseable {
   data class Config(
@@ -55,9 +56,17 @@ interface OpenAiClient : AutoCloseable {
   ): RawStructuredCompletionResponse
 }
 
+// https://developers.openai.com/api/docs/guides/structured-outputs#refusals
+private const val refusalFieldName = "refusal"
+
 suspend fun <ResponseT : Any> OpenAiClient.createStructuredCompletion(
+    /** Completion request. */
     request: OpenAiClient.CompletionRequest,
+    /** Schema name (used for debugging). */
     responseSchemaName: String = "response_schema",
+    /**
+     * Response type serializer. Should not include a root field named `refusal`, as it's reserved.
+     */
     responseSerializer: KSerializer<ResponseT>,
 ): OpenAiClient.StructuredCompletionResponse<ResponseT> {
   val generator = SerializationClassJsonSchemaGenerator.Default
@@ -70,10 +79,20 @@ suspend fun <ResponseT : Any> OpenAiClient.createStructuredCompletion(
           responseSchema = responseSchema,
       )
 
+  val responseJsonElement = rawResponse.responseJsonElement
+
+  val refusalElement = (responseJsonElement as JsonObject?)?.get(refusalFieldName)
+
+  if (refusalElement != null) {
+    throw IllegalStateException(
+        "OpenAI refused to complete the request. Refusal reason: $refusalElement",
+    )
+  }
+
   val responseObject =
       Json.decodeFromJsonElement(
           deserializer = responseSerializer,
-          element = rawResponse.responseJsonElement,
+          element = responseJsonElement,
       )
 
   return OpenAiClient.StructuredCompletionResponse(
