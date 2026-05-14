@@ -3,6 +3,8 @@ package software.medusa.git.tree
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+import kotlinx.io.bytestring.ByteString
+import kotlinx.io.bytestring.encodeToByteString
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.FileMode
 import org.eclipse.jgit.lib.ObjectId
@@ -114,7 +116,13 @@ abstract class GitTreeGroup : GitTreeNode {
   data class ChildEntry(
       val name: String,
       val child: GitTreeNode,
-  )
+  ) {
+    internal val gitSortingName: ByteString =
+        when (child) {
+          is GitTreeGroup -> "$name/".encodeToByteString()
+          else -> name.encodeToByteString()
+        }
+  }
 
   val childByName: Map<String, GitTreeNode>
     get() = childEntries.associate { it.name to it.child }
@@ -137,7 +145,9 @@ private fun GitTreeGroup.storeGroup(
 ): ObjectId {
   val treeFormatter = TreeFormatter()
 
-  childEntries.forEach { childEntry ->
+  val sortedChildEntries = childEntries.toList().sortedBy { it.gitSortingName }
+
+  sortedChildEntries.forEach { childEntry ->
     val childObjectId = childEntry.child.store(jObjectInserter)
 
     val fileMode =

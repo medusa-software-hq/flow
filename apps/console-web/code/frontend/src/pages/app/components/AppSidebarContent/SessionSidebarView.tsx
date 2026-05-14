@@ -1,59 +1,31 @@
-import { Center, Image, Loader, Stack, Text } from '@mantine/core';
+import { Center, Stack, Text } from '@mantine/core';
 import { useSnapshot } from 'valtio';
-import crashImageUrl from '@/../assets/crash.png';
 import { ISessionWorkspace } from '@/app/session_workspace/ISessionWorkspace';
-import { SessionWorkspaceStateKinds } from '@/app/session_workspace/SessionWorkspaceStateKinds';
 import { TTaskId } from '@/app/session_workspace/task_graph/edited/CEditedTask';
-import { EditedTaskView } from '../FocusedTaskView/EditedTaskView';
+import { UTask } from '@/app/session_workspace/task_graph/ITask';
+import { UAnyTaskGraph } from '@/app/session_workspace/task_graph/ITaskGraph';
+import { FocusedTaskView } from '@/pages/app/components/FocusedTaskView/FocusedTaskView';
+import { CrashIcon } from './CrashIcon';
 
-export interface AppSidebarContentProps {
+export function SessionSidebarView(props: {
   readonly sessionWorkspaceLive: ISessionWorkspace;
   readonly focusedTaskId: TTaskId | null;
-}
+}) {
+  const { sessionWorkspaceLive, focusedTaskId } = props;
 
-export function SessionSidebarView({
-  sessionWorkspaceLive,
-  focusedTaskId,
-}: AppSidebarContentProps) {
-  const sessionWorkspaceSnap: ISessionWorkspace = useSnapshot(sessionWorkspaceLive);
-
-  void sessionWorkspaceSnap.currentState;
-
-  const currentSessionWorkspaceStateLive = sessionWorkspaceLive.currentState;
-
-  switch (currentSessionWorkspaceStateLive.kind) {
-    case SessionWorkspaceStateKinds.Editing: {
-      if (focusedTaskId === null) {
-        return <EmptyTaskSelectionView />;
-      }
-
-      const editedSessionLive = currentSessionWorkspaceStateLive.editedTaskGraph;
-      const focusedEditedTaskLive = editedSessionLive.getTaskById(focusedTaskId);
-
-      if (focusedEditedTaskLive === null) {
-        console.warn(`Focused task with id ${focusedTaskId} not found in edited session`);
-
-        return <CrashIcon />;
-      } else {
-        return <EditedTaskView editedTaskLive={focusedEditedTaskLive} />;
-      }
-    }
-    case SessionWorkspaceStateKinds.Running: {
-      return (
-        <Center h="100%">
-          <Stack align="center" gap="xs">
-            <Loader />
-            <Text size="sm" c="dimmed">
-              Running...
-            </Text>
-          </Stack>
-        </Center>
-      );
-    }
+  if (focusedTaskId !== null) {
+    return (
+      <SessionSidebarView$1
+        sessionWorkspaceLive={sessionWorkspaceLive}
+        focusedTaskId={focusedTaskId}
+      />
+    );
+  } else {
+    return <SessionSidebarView$Empty />;
   }
 }
 
-function EmptyTaskSelectionView() {
+function SessionSidebarView$Empty() {
   return (
     <Center h="100%">
       <Stack align="center" gap="xs">
@@ -66,10 +38,29 @@ function EmptyTaskSelectionView() {
   );
 }
 
-function CrashIcon() {
-  return (
-    <Center h="100%">
-      <Image src={crashImageUrl} alt="Missing focused task" maw={144} />
-    </Center>
-  );
+export function SessionSidebarView$1(props: {
+  readonly sessionWorkspaceLive: ISessionWorkspace;
+  readonly focusedTaskId: TTaskId;
+}) {
+  const { sessionWorkspaceLive, focusedTaskId } = props;
+
+  const sessionWorkspaceSnap: ISessionWorkspace = useSnapshot(sessionWorkspaceLive);
+
+  void sessionWorkspaceSnap.currentState;
+  const currentSessionWorkspaceStateLive = sessionWorkspaceLive.currentState;
+
+  const currentSessionWorkspaceStateSnap = useSnapshot(currentSessionWorkspaceStateLive);
+
+  void currentSessionWorkspaceStateSnap.exposedAnyTaskGraph;
+  const exposedTaskGraphLive: UAnyTaskGraph = currentSessionWorkspaceStateLive.exposedAnyTaskGraph;
+
+  const focusedTaskLive: UTask | null = exposedTaskGraphLive.getTaskById(focusedTaskId);
+
+  if (focusedTaskLive === null) {
+    console.warn(`Focused task with id ${focusedTaskId} not found in current session workspace`);
+
+    return <CrashIcon />;
+  }
+
+  return <FocusedTaskView focusedTaskLive={focusedTaskLive} />;
 }

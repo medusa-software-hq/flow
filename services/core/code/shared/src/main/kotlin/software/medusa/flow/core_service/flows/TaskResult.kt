@@ -13,6 +13,13 @@ data class FeatureTaskResult(
     get() = featureCommitHash
 }
 
+data class BlankTaskResult(
+    val baseCommitHash: GitCommitHash,
+) : TaskResult {
+  override val outputCommitHash: GitCommitHash
+    get() = baseCommitHash
+}
+
 data class MergeTaskResult(
     val mergeCommitHash: GitCommitHash,
 ) : TaskResult {

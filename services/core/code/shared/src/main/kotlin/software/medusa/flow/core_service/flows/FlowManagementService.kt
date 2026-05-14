@@ -13,7 +13,7 @@ class FlowManagementService(
     private val logger = LoggerFactory.getLogger(FlowManagementService::class.java)
   }
 
-  fun createSession(
+  fun createFlow(
       flowBlueprint: FlowBlueprint,
   ): FlowId {
     logger.info("Creating draft flowBlueprint title='{}'", flowBlueprint.title)
@@ -35,7 +35,7 @@ class FlowManagementService(
   fun getFlowById(id: FlowId): FlowDump? =
       database.sessionQueries.selectSessionById(id.raw).executeAsOneOrNull()?.toDump()
 
-  fun updateSession(
+  fun updateFlow(
       id: FlowId,
       flowBlueprint: FlowBlueprint,
   ) {
@@ -89,7 +89,7 @@ class FlowManagementService(
     )
   }
 
-  fun getAllSessions(): List<FlowDump> {
+  fun getAllFlows(): List<FlowDump> {
     return database.sessionQueries.selectAllSessions().executeAsList().map { it.toDump() }
   }
 }

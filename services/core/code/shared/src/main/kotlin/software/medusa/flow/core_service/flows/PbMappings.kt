@@ -1,38 +1,41 @@
 package software.medusa.flow.core_service.flows
 
 import software.medusa.flow.core_service.flows.FlowBlueprint.TaskGraph
-import software.medusa.grpc.flow.control_service.v1.PbRunningSessionProgress
-import software.medusa.grpc.flow.control_service.v1.PbSessionDetails
-import software.medusa.grpc.flow.control_service.v1.PbSessionDraftState
-import software.medusa.grpc.flow.control_service.v1.PbSessionDump
-import software.medusa.grpc.flow.control_service.v1.PbSessionRunningState
-import software.medusa.grpc.flow.control_service.v1.PbSessionState
+import software.medusa.grpc.flow.control_service.v1.PbBlankTaskDefinition
+import software.medusa.grpc.flow.control_service.v1.PbFeatureTaskDefinition
+import software.medusa.grpc.flow.control_service.v1.PbFlowDetails
+import software.medusa.grpc.flow.control_service.v1.PbFlowDraftState
+import software.medusa.grpc.flow.control_service.v1.PbFlowDump
+import software.medusa.grpc.flow.control_service.v1.PbFlowRunningState
+import software.medusa.grpc.flow.control_service.v1.PbFlowState
+import software.medusa.grpc.flow.control_service.v1.PbMergeTaskDefinition
+import software.medusa.grpc.flow.control_service.v1.PbRunningFlowProgress
 import software.medusa.grpc.flow.control_service.v1.PbTask
 import software.medusa.grpc.flow.control_service.v1.PbTaskExecutionProgress
 import software.medusa.grpc.flow.control_service.v1.PbTaskGraph
 
-fun FlowBlueprint.toPbSessionDetails(): PbSessionDetails =
-    PbSessionDetails.newBuilder().setTitle(title).setTaskGraph(taskGraph.toPbTaskGraph()).build()
+fun FlowBlueprint.toPbFlowDetails(): PbFlowDetails =
+    PbFlowDetails.newBuilder().setTitle(title).setTaskGraph(taskGraph.toPbTaskGraph()).build()
 
-fun FlowDump.toPbSessionDump(): PbSessionDump =
-    PbSessionDump.newBuilder()
+fun FlowDump.toPbFlowDump(): PbFlowDump =
+    PbFlowDump.newBuilder()
         .setId(id.raw.toString())
-        .setState(state.toPbSessionState())
-        .setDetails(blueprint.toPbSessionDetails())
+        .setState(state.toPbFlowState())
+        .setDetails(blueprint.toPbFlowDetails())
         .build()
 
-fun FlowState.toPbSessionState(): PbSessionState =
-    PbSessionState.newBuilder()
+fun FlowState.toPbFlowState(): PbFlowState =
+    PbFlowState.newBuilder()
         .apply {
-          when (this@toPbSessionState) {
-            FlowState.DRAFT -> draft = PbSessionDraftState.getDefaultInstance()
-            FlowState.RUNNING -> running = PbSessionRunningState.getDefaultInstance()
+          when (this@toPbFlowState) {
+            FlowState.DRAFT -> draft = PbFlowDraftState.getDefaultInstance()
+            FlowState.RUNNING -> running = PbFlowRunningState.getDefaultInstance()
           }
         }
         .build()
 
-fun RunningFlowProgress.toPbRunningSessionProgress(): PbRunningSessionProgress =
-    PbRunningSessionProgress.newBuilder()
+fun RunningFlowProgress.toPbRunningFlowProgress(): PbRunningFlowProgress =
+    PbRunningFlowProgress.newBuilder()
         .addAllTaskExecutionProgresses(
             taskExecutionProgresses.map { it.toPbTaskExecutionProgress() }
         )
@@ -49,14 +52,20 @@ fun Task.toPbTask(): PbTask =
         .setId(id.raw)
         .apply {
           when (val currentDefinition = definition) {
+            Task.BlankDefinition -> {
+              blankTask = PbBlankTaskDefinition.getDefaultInstance()
+            }
+
             is Task.FeatureDefinition -> {
-              label = currentDefinition.label
-              description = currentDefinition.description
+              featureTask =
+                  PbFeatureTaskDefinition.newBuilder()
+                      .setLabel(currentDefinition.label)
+                      .setDescription(currentDefinition.description)
+                      .build()
             }
 
             Task.MergeDefinition -> {
-              label = ""
-              description = ""
+              mergeTask = PbMergeTaskDefinition.getDefaultInstance()
             }
           }
         }
@@ -65,24 +74,24 @@ fun Task.toPbTask(): PbTask =
         .setY(y)
         .build()
 
-fun PbSessionDetails.toModel(): FlowBlueprint =
+fun PbFlowDetails.toModel(): FlowBlueprint =
     FlowBlueprint(
         title = title,
         taskGraph = taskGraph.toModel(),
     )
 
-fun PbSessionDump.toModel(): FlowDump =
+fun PbFlowDump.toModel(): FlowDump =
     FlowDump(
         id = FlowId(raw = id.toLong()),
         state = state.toModel(),
         blueprint = details.toModel(),
     )
 
-fun PbSessionState.toModel(): FlowState =
+fun PbFlowState.toModel(): FlowState =
     when (stateCase) {
-      PbSessionState.StateCase.DRAFT -> FlowState.DRAFT
-      PbSessionState.StateCase.RUNNING -> FlowState.RUNNING
-      PbSessionState.StateCase.STATE_NOT_SET -> error("FlowBlueprint state is required")
+      PbFlowState.StateCase.DRAFT -> FlowState.DRAFT
+      PbFlowState.StateCase.RUNNING -> FlowState.RUNNING
+      PbFlowState.StateCase.STATE_NOT_SET -> error("FlowBlueprint state is required")
     }
 
 fun PbTaskGraph.toModel(): TaskGraph =
@@ -94,13 +103,17 @@ fun PbTask.toModel(): Task =
     Task(
         id = TaskId(raw = id),
         definition =
-            if (sourceTaskIdsCount > 1) {
-              Task.MergeDefinition
-            } else {
-              Task.FeatureDefinition(
-                  label = label,
-                  description = description,
-              )
+            when (definitionCase) {
+              PbTask.DefinitionCase.BLANK_TASK -> Task.BlankDefinition
+
+              PbTask.DefinitionCase.FEATURE_TASK ->
+                  Task.FeatureDefinition(
+                      label = featureTask.label,
+                      description = featureTask.description,
+                  )
+
+              PbTask.DefinitionCase.MERGE_TASK -> Task.MergeDefinition
+              PbTask.DefinitionCase.DEFINITION_NOT_SET -> error("Task kind is required")
             },
         inputTaskIds = sourceTaskIdsList.map(::TaskId),
         x = x,

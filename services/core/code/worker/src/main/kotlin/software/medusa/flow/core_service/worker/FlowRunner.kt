@@ -54,6 +54,8 @@ class FlowRunner(
                             override val flowExecutor: FlowExecutor = this@FlowRunner.flowExecutor
                           },
                       ) {
+                        logger.debug("Starting execution of flow DAG {}", flowId.raw)
+
                         executableDag.execute()
                       }
                     }

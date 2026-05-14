@@ -1,6 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { proxyMap } from 'valtio/utils';
-import { GrpcControlServiceListSessionsRequestSchema } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
+import { GrpcControlServiceListFlowsRequestSchema } from '@/gen/medusa/flow/control_service/v1/grpc_control_service_pb';
 import { CoreServiceClient } from '@/rpc/myGrpcTypes';
 import { associate } from '@/utils/mapUtils';
 import { IApp, IAppLoadArgs, TSessionWorkspaceId } from './IApp';
@@ -9,19 +9,19 @@ import { ISessionWorkspaceTrampoline } from './session_workspace_trampoline/ISes
 
 export class CApp implements IApp {
   static async load({ coreServiceClient }: IAppLoadArgs): Promise<IApp> {
-    const listSessionsResponse = await coreServiceClient.listSessions(
-      create(GrpcControlServiceListSessionsRequestSchema)
+    const listFlowsResponse = await coreServiceClient.listFlows(
+      create(GrpcControlServiceListFlowsRequestSchema)
     );
 
     const restoredSessionWorkspaceTrampolineById = associate(
-      listSessionsResponse.sessions,
-      (sessionDump) => {
+      listFlowsResponse.flows,
+      (flowDump) => {
         const restoredSessionWorkspaceTrampoline = CSessionWorkspaceTrampoline.restore({
           coreServiceClient,
-          receivedSessionDump: sessionDump,
+          receivedSessionDump: flowDump,
         });
 
-        return [sessionDump.id, restoredSessionWorkspaceTrampoline];
+        return [flowDump.id, restoredSessionWorkspaceTrampoline];
       }
     );
 

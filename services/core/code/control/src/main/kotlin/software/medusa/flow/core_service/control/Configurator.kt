@@ -24,5 +24,5 @@ class Configurator(
 
   fun getFlowDatabase(): FlowDatabase = flowDatabase
 
-  fun getSessionExecutionJobQueueFront(): FlowJobQueueFront = flowJobQueueFront
+  fun getFlowExecutionJobQueueFront(): FlowJobQueueFront = flowJobQueueFront
 }

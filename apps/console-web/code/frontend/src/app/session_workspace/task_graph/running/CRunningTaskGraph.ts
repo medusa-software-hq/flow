@@ -6,7 +6,7 @@ import { PbTask, PbTaskGraph } from '@/gen/medusa/flow/control_service/v1/grpc_c
 import { associate } from '@/utils/mapUtils';
 import { TTaskId } from '../edited/CEditedTask';
 import { CBaseTaskGraph } from './CBaseTaskGraph';
-import { CRunningTask } from './CEditedTask';
+import { CRunningTask } from './CRunningTask';
 import { IRunningTaskGraph } from './IRunningTaskGraph';
 
 export class CRunningTaskGraph

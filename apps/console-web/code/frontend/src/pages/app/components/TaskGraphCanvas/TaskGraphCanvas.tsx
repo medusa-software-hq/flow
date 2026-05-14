@@ -31,7 +31,7 @@ import {
   useMyFlowGraph,
 } from './myFlowGraph';
 import { type TaskNode, taskNodeTag } from './TaskNode';
-import classes from './SessionCanvas.module.css';
+import classes from './TaskGraphCanvas.module.css';
 
 const nodeOrigin: NodeOrigin = [0.5, 0];
 

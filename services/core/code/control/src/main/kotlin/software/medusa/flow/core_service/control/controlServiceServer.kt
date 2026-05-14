@@ -57,16 +57,16 @@ suspend fun runControlService(
   val flowDatabase = configurator.getFlowDatabase()
   logger.debug("Control service obtained FlowDatabase instance {}", flowDatabase)
 
-  val sessionExecutionJobQueueFront = configurator.getSessionExecutionJobQueueFront()
+  val flowExecutionJobQueueFront = configurator.getFlowExecutionJobQueueFront()
   logger.debug(
       "Control service obtained FlowJobQueueFront {}",
-      sessionExecutionJobQueueFront,
+      flowExecutionJobQueueFront,
   )
 
   val flowManagementService =
       FlowManagementService(
           database = flowDatabase,
-          flowJobQueueFront = sessionExecutionJobQueueFront,
+          flowJobQueueFront = flowExecutionJobQueueFront,
       )
 
   val flowStore = FlowStore(flowDatabase = flowDatabase)
@@ -77,7 +77,7 @@ suspend fun runControlService(
             addService(
                 CoreServiceGrpcImpl(
                     coroutineDispatcher = coroutineDispatcher,
-                    sessionControlService = flowManagementService,
+                    flowManagementService = flowManagementService,
                     runningFlowProgressProvider = flowStore,
                 ),
             )

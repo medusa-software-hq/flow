@@ -4,6 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
 import org.slf4j.LoggerFactory
+import software.medusa.flow.core_service.flows.BlankTaskResult
 import software.medusa.flow.core_service.flows.FeatureTaskResult
 import software.medusa.flow.core_service.flows.MergeTaskResult
 import software.medusa.flow.core_service.flows.Task
@@ -48,11 +49,42 @@ class ProperFlowExecutor(
   }
 
   context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
+  override suspend fun executeBlankTask(
+      taskId: TaskId,
+      inputCommitHash: GitCommitHash?,
+  ): BlankTaskResult {
+    val baseCommitHash = inputCommitHash ?: baselineContext.rootCommitHash
+
+    environmentContext.taskProgressSaver.updateTaskProgress(
+        taskId = taskId,
+        progress = 1.0,
+    )
+
+    return BlankTaskResult(
+        baseCommitHash = baseCommitHash,
+    )
+  }
+
+  context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
   override suspend fun executeFeatureTask(
       taskId: TaskId,
       taskDefinition: Task.FeatureDefinition,
       inputCommitHash: GitCommitHash?,
   ): FeatureTaskResult {
+    val taskProgressSaver = environmentContext.taskProgressSaver
+
+    logger.info(
+        "Starting feature task label='{}' description='{}' inputCommitHash='{}'",
+        taskDefinition.label,
+        taskDefinition.description,
+        inputCommitHash?.raw ?: "null",
+    )
+
+    taskProgressSaver.updateTaskProgress(
+        taskId = taskId,
+        progress = 0.1,
+    )
+
     // A feature task without input nodes implicitly depends on the root
     val baseCommitHash = inputCommitHash ?: baselineContext.rootCommitHash
 
@@ -97,6 +129,11 @@ class ProperFlowExecutor(
           )
         }
 
+    taskProgressSaver.updateTaskProgress(
+        taskId = taskId,
+        progress = 0.8,
+    )
+
     val taskRef = gitRepository.process {
       val flowUuidPrefix = baselineContext.flowUuid.toString().take(6)
 
@@ -106,7 +143,7 @@ class ProperFlowExecutor(
       )
     }
 
-    environmentContext.taskProgressSaver.updateTaskProgress(
+    taskProgressSaver.updateTaskProgress(
         taskId = taskId,
         progress = 1.0,
     )

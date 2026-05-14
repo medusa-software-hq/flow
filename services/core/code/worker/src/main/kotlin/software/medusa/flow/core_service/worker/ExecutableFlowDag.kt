@@ -25,6 +25,13 @@ private fun FlowBlueprint.TaskGraph.compile(): ExecutableFlowDag {
     val taskId = this.id
 
     return when (val definition = this.definition) {
+      Task.BlankDefinition -> {
+        Task.BlankDefinition.compileBlankTask(
+            taskId = taskId,
+            inputTaskNodes = inputTaskNodes,
+        )
+      }
+
       is Task.FeatureDefinition -> {
         definition.compileFeatureTask(
             taskId = taskId,
@@ -63,6 +70,35 @@ private fun FlowBlueprint.TaskGraph.compile(): ExecutableFlowDag {
       nodes = tasks.map { task -> task.ensureIsCompiled() }.toSet(),
   )
 }
+
+@Suppress("UnusedReceiverParameter")
+private fun Task.BlankDefinition.compileBlankTask(
+    taskId: TaskId,
+    inputTaskNodes: Set<ExecutableFlowNode>,
+): ExecutableFlowNode =
+    object : ExecutableFlowNode() {
+      override val dependencyNodes = inputTaskNodes
+
+      context(executionContext: FlowExecutionContext)
+      override suspend fun execute(
+          outputByDependencyNode: Map<ExecutableFlowNode, TaskResult>,
+      ): TaskResult {
+        val inputNodeOutputs = outputByDependencyNode.values
+
+        if (inputNodeOutputs.size > 1) {
+          throw IllegalStateException(
+              "Invalid task graph: blank task #${taskId.raw} has more than one input node",
+          )
+        }
+
+        val inputCommitHash = inputNodeOutputs.singleOrNull()?.outputCommitHash
+
+        return executionContext.flowExecutor.executeBlankTask(
+            taskId = taskId,
+            inputCommitHash = inputCommitHash,
+        )
+      }
+    }
 
 private fun Task.FeatureDefinition.compileFeatureTask(
     taskId: TaskId,

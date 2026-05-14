@@ -1,6 +1,7 @@
 package software.medusa.flow.core_service.worker
 
 import java.util.UUID
+import software.medusa.flow.core_service.flows.BlankTaskResult
 import software.medusa.flow.core_service.flows.FeatureTaskResult
 import software.medusa.flow.core_service.flows.FlowId
 import software.medusa.flow.core_service.flows.MergeTaskResult
@@ -26,6 +27,12 @@ interface FlowExecutor {
 
   context(environmentContext: EnvironmentContext)
   suspend fun initializeFlow(): BaselineContext
+
+  context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
+  suspend fun executeBlankTask(
+      taskId: TaskId,
+      inputCommitHash: GitCommitHash?,
+  ): BlankTaskResult
 
   context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
   suspend fun executeFeatureTask(

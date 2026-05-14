@@ -1,6 +1,7 @@
 package software.medusa.flow.core_service.worker
 
 import org.slf4j.LoggerFactory
+import software.medusa.flow.core_service.flows.BlankTaskResult
 import software.medusa.flow.core_service.flows.FeatureTaskResult
 import software.medusa.flow.core_service.flows.MergeTaskResult
 import software.medusa.flow.core_service.flows.Task
@@ -18,6 +19,23 @@ class IdempotentFlowExecutor(
 
   context(environmentContext: EnvironmentContext)
   override suspend fun initializeFlow(): BaselineContext = properTaskExecutor.initializeFlow()
+
+  context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
+  override suspend fun executeBlankTask(
+      taskId: TaskId,
+      inputCommitHash: GitCommitHash?,
+  ): BlankTaskResult {
+    val restoredResult =
+        environmentContext.taskResultRestorer.restoreTaskResult(
+            taskId = taskId,
+        ) as? BlankTaskResult
+
+    return restoredResult
+        ?: properTaskExecutor.executeBlankTask(
+            taskId = taskId,
+            inputCommitHash = inputCommitHash,
+        )
+  }
 
   context(environmentContext: EnvironmentContext, baselineContext: BaselineContext)
   override suspend fun executeFeatureTask(

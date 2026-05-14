@@ -8,6 +8,7 @@ import kotlinx.io.bytestring.ByteString
 import kotlinx.io.bytestring.encodeToByteString
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.FileMode
+import org.eclipse.jgit.lib.ObjectChecker
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.treewalk.TreeWalk
@@ -98,6 +99,8 @@ class GitTreeStoreTests {
           repository.newObjectInserter().use { objectInserter ->
             testTreeGroup.store(objectInserter)
           }
+
+      ObjectChecker().checkTree(repository.open(treeId).cachedBytes)
 
       repository.walk(treeId).toSet()
     }

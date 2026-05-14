@@ -6,7 +6,7 @@ import kotlinx.coroutines.test.runTest
 
 class ExecutableDagTests {
   @Test
-  fun testExecute() = runTest {
+  fun testExecuteJoined() = runTest {
     val executionOrder = mutableListOf<String>()
 
     val depNodeA =
@@ -49,9 +49,89 @@ class ExecutableDagTests {
           }
         }
 
-    val outputByNode = with(Unit) { ExecutableDag(nodes = setOf(targetNode)).execute() }
+    val nodes = setOf(depNodeA, depNodeB, targetNode)
+
+    val outputByNode = with(Unit) { ExecutableDag(nodes = nodes).execute() }
 
     assertEquals(listOf("A", "B", "C"), executionOrder)
-    assertEquals("c", outputByNode[targetNode])
+
+    assertEquals(
+        mapOf(
+            depNodeA to "a",
+            depNodeB to "b",
+            targetNode to "c",
+        ),
+        outputByNode,
+    )
+  }
+
+  @Test
+  fun testExecuteSplit() = runTest {
+    val executionOrder = mutableListOf<String>()
+
+    val sourceNode: ExecutableDag.Node<Unit, String> =
+        object : ExecutableDag.Node<Unit, String>() {
+          override val dependencyNodes = emptySet<ExecutableDag.Node<Unit, String>>()
+
+          context(executionContext: Unit)
+          override suspend fun execute(
+              outputByDependencyNode: Map<ExecutableDag.Node<Unit, String>, String>,
+          ): String {
+            executionOrder += "A"
+
+            return "a"
+          }
+        }
+
+    val sinkNode1: ExecutableDag.Node<Unit, String> =
+        object : ExecutableDag.Node<Unit, String>() {
+          override val dependencyNodes = setOf(sourceNode)
+
+          context(executionContext: Unit)
+          override suspend fun execute(
+              outputByDependencyNode: Map<ExecutableDag.Node<Unit, String>, String>,
+          ): String {
+            executionOrder += "B"
+
+            assertEquals(mapOf(sourceNode to "a"), outputByDependencyNode)
+
+            return "b"
+          }
+        }
+
+    val sinkNode2: ExecutableDag.Node<Unit, String> =
+        object : ExecutableDag.Node<Unit, String>() {
+          override val dependencyNodes = setOf(sourceNode)
+
+          context(executionContext: Unit)
+          override suspend fun execute(
+              outputByDependencyNode: Map<ExecutableDag.Node<Unit, String>, String>,
+          ): String {
+            executionOrder += "C"
+
+            assertEquals(mapOf(sourceNode to "a"), outputByDependencyNode)
+
+            return "c"
+          }
+        }
+
+    val nodes = setOf(sourceNode, sinkNode1, sinkNode2)
+
+    val outputByNode = with(Unit) { ExecutableDag(nodes = nodes).execute() }
+
+    assertEquals("A", executionOrder[0])
+
+    val tailExecutionOrder = executionOrder.drop(1).toSet()
+
+    assertEquals(setOf("B", "C"), tailExecutionOrder)
+
+    assertEquals(
+        mapOf(
+            sourceNode to "a",
+            sinkNode1 to "b",
+            sinkNode2 to "c",
+        ),
+        outputByNode,
+    )
   }
 }

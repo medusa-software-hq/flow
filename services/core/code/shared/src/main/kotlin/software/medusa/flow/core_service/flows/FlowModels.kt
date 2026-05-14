@@ -69,5 +69,7 @@ data class Task(
       val description: String,
   ) : Definition
 
+  data object BlankDefinition : Definition
+
   data object MergeDefinition : Definition
 }
