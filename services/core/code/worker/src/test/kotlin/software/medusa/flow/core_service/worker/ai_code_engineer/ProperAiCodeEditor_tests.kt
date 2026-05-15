@@ -7,6 +7,9 @@ import kotlinx.schema.json.JsonSchema
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import software.medusa.commons.paths.LiteralRelativeUnixPath
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionInstructions
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionScope
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.LineIndex
@@ -15,7 +18,6 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Ma
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Patch
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.PatchSet
 import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
-import software.medusa.git.UnixPath
 import software.medusa.openai_client.OpenAiClient
 import software.medusa.openai_client.OpenAiClient.RawStructuredCompletionResponse
 import software.medusa.openai_client.OpenAiClient.UnstructuredCompletionResponse
@@ -81,7 +83,12 @@ class ProperAiCodeEditor_tests {
             openAiClient = mockOpenAiClient,
         )
 
-    val bazFilePath = UnixPath.Relative.of("foo", "bar", "baz.hello")
+    val bazFilePath: LiteralRelativeUnixPath =
+        RelativeUnixPath.of(
+            UnixPath.Name.Literal("foo"),
+            UnixPath.Name.Literal("bar"),
+            UnixPath.Name.Literal("baz.hello"),
+        )
 
     val generatedPatchSet =
         aiCodeEditor.generateEditionPatchSet(

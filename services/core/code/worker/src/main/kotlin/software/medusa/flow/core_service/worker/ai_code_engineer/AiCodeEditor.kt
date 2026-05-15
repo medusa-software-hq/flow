@@ -5,7 +5,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Ed
 import software.medusa.flow.core_service.worker.code_project.CodeProject
 import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
 import software.medusa.flow.core_service.worker.utils.isSortedBy
-import software.medusa.git.UnixPath
+import software.medusa.commons.paths.LiteralRelativeUnixPath
 
 /**
  * Generates a set of patches to be applied to one or more code files in accordance with the
@@ -188,7 +188,7 @@ interface AiCodeEditor {
 
   /** Represents a set of patches to be applied to multiple code files. */
   data class PatchSet(
-      val patchByFilePath: Map<UnixPath.Relative, Patch>,
+      val patchByFilePath: Map<LiteralRelativeUnixPath, Patch>,
   ) {
     suspend fun applyTo(
         codeProject: CodeProject,
@@ -244,7 +244,7 @@ interface AiCodeEditor {
 
     suspend fun applyTo(
         codeProject: CodeProject,
-        filePath: UnixPath.Relative,
+        filePath: LiteralRelativeUnixPath,
     ) {
       val oldContent = codeProject.readFile(filePath = filePath)
 
@@ -267,7 +267,7 @@ interface AiCodeEditor {
   }
 
   data class EditionScope(
-      val maskedCodeFileContentByPath: Map<UnixPath.Relative, MaskedCodeFileContent>,
+      val maskedCodeFileContentByPath: Map<LiteralRelativeUnixPath, MaskedCodeFileContent>,
   )
 
   suspend fun generateEditionPatchSet(

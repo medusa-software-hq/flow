@@ -3,12 +3,12 @@ package software.medusa.flow.core_service.worker.code_project
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.LineIndex
 import software.medusa.flow.core_service.worker.code_project.CodeProject.BulkCodeFileContent
-import software.medusa.git.UnixPath
+import software.medusa.commons.paths.LiteralRelativeUnixPath
 
 interface CodeProject {
   @JvmInline
   value class ModuleLocator(
-      val modulePath: UnixPath.Relative,
+      val modulePath: LiteralRelativeUnixPath,
   )
 
   /** A multi-line block of a code. An empty code block (containing no lines) is possible. */
@@ -223,7 +223,7 @@ interface CodeProject {
 
   @JvmInline
   value class BulkCodeFileContent(
-      val codeFileContentByPath: Map<UnixPath.Relative, CodeFileContent>,
+      val codeFileContentByPath: Map<LiteralRelativeUnixPath, CodeFileContent>,
   )
 
   sealed class FormattingResult {
@@ -251,11 +251,11 @@ interface CodeProject {
   }
 
   suspend fun readFile(
-      filePath: UnixPath.Relative,
+      filePath: LiteralRelativeUnixPath,
   ): CodeFileContent
 
   suspend fun writeFile(
-      filePath: UnixPath.Relative,
+      filePath: LiteralRelativeUnixPath,
       newFileContent: CodeFileContent,
   )
 
@@ -267,7 +267,7 @@ interface CodeProject {
 }
 
 suspend fun CodeProject.readFilesBulk(
-    filePaths: Set<UnixPath.Relative>,
+    filePaths: Set<LiteralRelativeUnixPath>,
 ): BulkCodeFileContent {
   TODO()
 }
