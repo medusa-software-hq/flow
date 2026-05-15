@@ -1,11 +1,13 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
+import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionInstructions
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionScope
 import software.medusa.flow.core_service.worker.code_project.CodeProject
 import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
+import software.medusa.flow.core_service.worker.code_project.readFile
+import software.medusa.flow.core_service.worker.code_project.updateFile
 import software.medusa.flow.core_service.worker.utils.isSortedBy
-import software.medusa.commons.paths.LiteralRelativeUnixPath
 
 /**
  * Generates a set of patches to be applied to one or more code files in accordance with the
@@ -250,7 +252,7 @@ interface AiCodeEditor {
 
       val patchedContent = oldContent.applyPatch(patch = this)
 
-      codeProject.writeFile(
+      codeProject.updateFile(
           filePath = filePath,
           newFileContent = patchedContent,
       )

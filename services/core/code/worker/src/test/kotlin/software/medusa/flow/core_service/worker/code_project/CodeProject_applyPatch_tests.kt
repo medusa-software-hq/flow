@@ -10,14 +10,11 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_empty() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              world {
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  world {",
+            "  }",
+            "}",
         )
 
     val patchedContent = inputContent.applyPatch(AiCodeEditor.Patch.Empty)
@@ -31,25 +28,19 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_replacement_singleLine() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              world {
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  world {",
+            "  }",
+            "}",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              universe {
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  universe {",
+            "  }",
+            "}",
         )
 
     val patchedContent =
@@ -80,37 +71,28 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_replacement_singleLine_expanding() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              world {
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  world {",
+            "  }",
+            "}",
         )
 
     val patchBlock =
-        CodeBlock.parse(
-            """
-            universe {
-              and all the other places too (
-              )
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "  universe {",
+            "    and all the other places too (",
+            "    )",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              universe {
-                and all the other places too (
-                )
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  universe {",
+            "    and all the other places too (",
+            "    )",
+            "  }",
+            "}",
         )
 
     val patchedContent =
@@ -135,38 +117,29 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_replacement_multipleLines() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              universe {
-                and all the other places too (
-                )
-              }
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "foo {{",
+            "  bar {",
+            "    baz (",
+            "    )",
+            "  }",
+            "}}",
         )
 
     val patchBlock =
-        CodeBlock.parse(
-            """
-            did you know that the universe covers everything [
-              thank you woman and get on my horse
-            ]
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "  xyz [",
+            "    asdf",
+            "  ]",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              did you know that the universe covers everything [
-                thank you woman and get on my horse
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "foo {{",
+            "  xyz [",
+            "    asdf",
+            "  ]",
+            "}}",
         )
 
     val patchedContent =
@@ -192,23 +165,17 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_front() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "  ]",
+            "}}",
         )
 
     val patchedContent =
@@ -233,23 +200,17 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_middle() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "}}",
         )
 
     val patchedContent =
@@ -274,22 +235,16 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_rear() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
         )
 
     val patchedContent =
@@ -314,14 +269,11 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_whole() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val patchedContent =
@@ -346,38 +298,29 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_append_front() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val patchBlock =
-        CodeBlock(
-            lines =
-                listOf(
-                    CodeBlock.Line(content = "#!/bin/hello"),
-                    CodeBlock.Line(content = "%include hello.lib"),
-                    CodeBlock.Line.Empty,
-                ),
+        CodeBlock.of(
+            "#!/bin/hello",
+            "%include hello.lib",
+            "",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            #!/bin/hello
-            %include hello.lib
-
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "#!/bin/hello",
+            "%include hello.lib",
+            "",
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val patchedContent =
@@ -401,36 +344,27 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_append_middle() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val patchBlock =
-        CodeBlock.parse(
-            """
-            // and all the other places
-            // too
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "// and all the other places",
+            "// too",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-            // and all the other places
-            // too
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "// and all the other places",
+            "// too",
+            "  ]",
+            "}}",
         )
 
     val patchedContent =
@@ -454,36 +388,27 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_append_rear() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
         )
 
     val patchBlock =
-        CodeBlock.parse(
-            """
-            ~ end of file
-            ~ end of transmission
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "~ end of file",
+            "~ end of transmission",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world [
-              ]
-            }}
-            ~ end of file
-            ~ end of transmission
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world [",
+            "  ]",
+            "}}",
+            "~ end of file",
+            "~ end of transmission",
         )
 
     val patchedContent =
@@ -507,46 +432,34 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_oneToOne() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              world {
-                and all the other places too (
-                )
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  world {",
+            "    and all the other places too (",
+            "    )",
+            "  }",
+            "}",
         )
 
     val patchBlock1 =
-        CodeBlock.parse(
-            """
-            hi {
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "hi {",
         )
 
     val patchBlock2 =
-        CodeBlock.parse(
-            """
-            and universe [
-            ]
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "    and universe [",
+            "    ]",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hi {
-              world {
-                and universe [
-                ]
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hi {",
+            "  world {",
+            "    and universe [",
+            "    ]",
+            "  }",
+            "}",
         )
 
     val patchedContent =
@@ -579,49 +492,37 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_collapsingOverall() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              world {
-                and all the other places too (
-                  with greetings [
-                  ]
-                )
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  world {",
+            "    and all the other places too (",
+            "      with greetings [",
+            "      ]",
+            "    )",
+            "  }",
+            "}",
         )
 
     val patchBlock1 =
-        CodeBlock.parse(
-            """
-            hi {{
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "hi {{",
         )
 
     val patchBlock2 =
-        CodeBlock.parse(
-            """
-            with hugs [{
-            }]
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "      with hugs [{",
+            "      }]",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hi {{
-                and all the other places too (
-                  with hugs [{
-                  }]
-                )
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hi {{",
+            "    and all the other places too (",
+            "      with hugs [{",
+            "      }]",
+            "    )",
+            "  }",
+            "}",
         )
 
     val patchedContent =
@@ -657,53 +558,41 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_expandingOverall() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              world {
-                and all the other places too (
-                )
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  world {",
+            "    and all the other places too (",
+            "    )",
+            "  }",
+            "}",
         )
 
     val patchBlock1 =
-        CodeBlock.parse(
-            """
-            hello {{
-              world {
-                and all the known places too (
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "hello {{",
+            "  world {",
+            "    and all the known places too (",
         )
 
     val patchBlock2 =
-        CodeBlock.parse(
-            """
-            with greetings [
-              and salutations
-            ]
-            )
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "    with greetings [",
+            "      and salutations",
+            "    ]",
+            "    )",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hello {{
-              world {
-                and all the known places too (
-                with greetings [
-                  and salutations
-                ]
-                )
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {{",
+            "  world {",
+            "    and all the known places too (",
+            "    with greetings [",
+            "      and salutations",
+            "    ]",
+            "    )",
+            "  }",
+            "}",
         )
 
     val patchedContent =
@@ -732,46 +621,34 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_appliedInLineOrder_notMapInsertionOrder() {
     val inputContent =
-        CodeFileContent.parse(
-            """
-            hello {
-              world {
-                and all the other places too (
-                )
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hello {",
+            "  world {",
+            "    and all the other places too (",
+            "    )",
+            "  }",
+            "}",
         )
 
     val patchBlock1 =
-        CodeBlock.parse(
-            """
-            hi {
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "hi {",
         )
 
     val patchBlock2 =
-        CodeBlock.parse(
-            """
-            and universe [
-            ]
-            """
-                .trimIndent(),
+        CodeBlock.of(
+            "    and universe [",
+            "    ]",
         )
 
     val expectedContent =
-        CodeFileContent.parse(
-            """
-            hi {
-              world {
-                and universe [
-                ]
-              }
-            }
-            """
-                .trimIndent(),
+        CodeFileContent.of(
+            "hi {",
+            "  world {",
+            "    and universe [",
+            "    ]",
+            "  }",
+            "}",
         )
 
     val patchedContent =

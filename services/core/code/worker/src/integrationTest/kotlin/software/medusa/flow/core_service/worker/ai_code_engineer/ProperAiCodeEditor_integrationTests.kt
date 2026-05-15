@@ -12,6 +12,8 @@ import org.luaj.vm2.lib.MathLib
 import org.luaj.vm2.lib.PackageLib
 import org.luaj.vm2.lib.StringLib
 import org.luaj.vm2.lib.TableLib
+import software.medusa.commons.paths.LiteralRelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionInstructions
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionScope
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.LineIndex
@@ -22,7 +24,6 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Pa
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.PatchSet
 import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
 import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeFileContent
-import software.medusa.git.UnixPath
 import software.medusa.openai_client.OpenAiClient
 
 class ProperAiCodeEditor_integrationTests {
@@ -64,7 +65,12 @@ class ProperAiCodeEditor_integrationTests {
             openAiClient = openAiClient,
         )
 
-    val bazFilePath = UnixPath.Relative.of("foo", "bar", "baz.hello")
+    val bazFilePath =
+        LiteralRelativeUnixPath.of(
+            UnixPath.Name.Literal("foo"),
+            UnixPath.Name.Literal("bar"),
+            UnixPath.Name.Literal("baz.hello"),
+        )
 
     val generatedPatchSet =
         aiCodeEditor.generateEditionPatchSet(
@@ -164,7 +170,10 @@ class ProperAiCodeEditor_integrationTests {
             openAiClient = openAiClient,
         )
 
-    val fibLuaFilePath = UnixPath.Relative.of("fib.lua")
+    val fibLuaFilePath =
+        LiteralRelativeUnixPath.of(
+            UnixPath.Name.Literal("fib.lua"),
+        )
 
     val generatedPatchSet =
         aiCodeEditor.generateEditionPatchSet(

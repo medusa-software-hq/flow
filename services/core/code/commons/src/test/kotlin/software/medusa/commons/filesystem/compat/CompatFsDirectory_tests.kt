@@ -34,7 +34,7 @@ class CompatFsDirectory_tests {
     )
 
     val extractedEntity =
-        rootDirectory.extract(
+        rootDirectory.extractDeepReadonly(
             RelativeUnixPath.of(
                 UnixPath.Name.Literal("dist"),
                 UnixPath.Name.Literal("bundle.js"),
@@ -59,7 +59,7 @@ class CompatFsDirectory_tests {
     )
 
     val extractedEntity =
-        rootDirectory.extract(
+        rootDirectory.extractDeepReadonly(
             RelativeUnixPath.of(
                 UnixPath.Name.Literal("dist"),
                 UnixPath.Name.Literal("bundle.js"),
@@ -109,7 +109,7 @@ class CompatFsDirectory_tests {
 
     val copiedNestedFile =
         assertIs<MemoryCompatFsFile>(
-            targetDirectory.extract(
+            targetDirectory.extractDeepReadonly(
                 RelativeUnixPath.of(
                     UnixPath.Name.Literal("nested"),
                     UnixPath.Name.Literal("copied.txt"),

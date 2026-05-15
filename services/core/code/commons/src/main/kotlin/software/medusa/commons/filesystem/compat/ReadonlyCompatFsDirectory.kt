@@ -31,7 +31,7 @@ interface ReadonlyCompatFsDirectory : ReadonlyCompatFsEntity {
  * Returns `null` when any path component does not exist or when traversal would need to descend
  * through a file.
  */
-suspend fun ReadonlyCompatFsEntity.extract(
+suspend fun ReadonlyCompatFsEntity.extractDeepReadonly(
     relativePath: LiteralRelativeUnixPath,
 ): ReadonlyCompatFsEntity? {
   var currentEntity: ReadonlyCompatFsEntity = this

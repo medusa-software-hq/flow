@@ -1,9 +1,16 @@
 package software.medusa.flow.core_service.worker.code_project
 
+import kotlinx.io.bytestring.decodeToString
+import kotlinx.io.bytestring.encodeToByteString
+import software.medusa.commons.filesystem.compat.MutableCompatFsDirectory
+import software.medusa.commons.filesystem.compat.MutableCompatFsFile
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
+import software.medusa.commons.filesystem.compat.extractDeepMutable
+import software.medusa.commons.filesystem.compat.extractDeepReadonly
+import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.LineIndex
-import software.medusa.flow.core_service.worker.code_project.CodeProject.BulkCodeFileContent
-import software.medusa.commons.paths.LiteralRelativeUnixPath
+import software.medusa.flow.core_service.worker.utils.withNextOrNull
 
 interface CodeProject {
   @JvmInline
@@ -136,6 +143,17 @@ interface CodeProject {
       /** A code file with no content (i.e. an empty file). */
       val Empty = CodeFileContent(code = CodeBlock.Empty)
 
+      fun of(
+          vararg lines: String,
+      ): CodeFileContent = of(lines = lines.toList())
+
+      fun of(
+          lines: List<String>,
+      ): CodeFileContent =
+          CodeFileContent(
+              code = CodeBlock.of(lines = lines),
+          )
+
       fun parse(
           rawContent: String,
       ): CodeFileContent =
@@ -152,67 +170,36 @@ interface CodeProject {
     ): CodeFileContent {
       val oldLines = code.lines
 
-      val patchesInOrder =
+      val patchEntries: List<Map.Entry<AiCodeEditor.LineIndexRange, CodeBlock>> =
           patch.newCodeBlockByOldLineIndexRange.entries.sortedBy { (lineIndexRange, _) ->
-            lineIndexRange.startIndex.indexZeroBased
+            lineIndexRange.startIndex
           }
+
+      val (firstPatchIndexRange, _) = patchEntries.firstOrNull() ?: return this
 
       val newLines = buildList {
-        var nextOldLineIndex = 0
+        val firstPatchStartIndex = firstPatchIndexRange.startIndex.indexZeroBased
 
-        for ((oldLineIndexRange, newCodeBlock) in patchesInOrder) {
-          val startIndex = oldLineIndexRange.startIndex.indexZeroBased
-          val endIndexExclusive = oldLineIndexRange.endIndexExclusive.indexZeroBased
+        // Add the initial unchanged lines before the first patch
+        addAll(
+            oldLines.subList(0, firstPatchStartIndex),
+        )
 
-          require(startIndex <= oldLines.size) {
-            "Patch start index $startIndex is out of bounds for file with ${oldLines.size} lines"
-          }
+        for ((patchEntry, nextPatchEntry) in patchEntries.withNextOrNull()) {
+          val (patchIndexRange, patchCodeBlock) = patchEntry
 
-          require(endIndexExclusive <= oldLines.size) {
-            "Patch end index $endIndexExclusive is out of bounds for file with ${oldLines.size} lines"
-          }
+          // Add the new lines from the patch
+          addAll(patchCodeBlock.lines)
 
-          addAll(oldLines.subList(nextOldLineIndex, startIndex))
+          val followupStartIndex = patchIndexRange.endIndexExclusive.indexZeroBased
+          val nextPatchStartIndex = nextPatchEntry?.key?.startIndex?.indexZeroBased
+          val followupEndIndexExclusive = nextPatchStartIndex ?: code.lineCount
 
-          val adjustedNewCodeBlockLines =
-              when {
-                startIndex < endIndexExclusive -> {
-                  val anchorIndent =
-                      oldLines[startIndex].content.takeWhile { it == ' ' || it == '\t' }
-                  val patchBaselineIndent =
-                      newCodeBlock.lines
-                          .firstOrNull { it.content.isNotEmpty() }
-                          ?.content
-                          ?.takeWhile { it == ' ' || it == '\t' } ?: ""
-
-                  newCodeBlock.lines.map { line ->
-                    when (line.content) {
-                      "" -> line
-                      else -> {
-                        val contentWithoutBaselineIndent =
-                            when {
-                              line.content.startsWith(patchBaselineIndent) -> {
-                                line.content.removePrefix(patchBaselineIndent)
-                              }
-
-                              else -> line.content
-                            }
-
-                        CodeBlock.Line(content = anchorIndent + contentWithoutBaselineIndent)
-                      }
-                    }
-                  }
-                }
-
-                else -> newCodeBlock.lines
-              }
-
-          addAll(adjustedNewCodeBlockLines)
-
-          nextOldLineIndex = endIndexExclusive
+          // Add the unchanged following lines
+          addAll(
+              oldLines.subList(followupStartIndex, followupEndIndexExclusive),
+          )
         }
-
-        addAll(oldLines.subList(nextOldLineIndex, oldLines.size))
       }
 
       return CodeFileContent(
@@ -250,14 +237,7 @@ interface CodeProject {
     data object AllPassed : TestingResult()
   }
 
-  suspend fun readFile(
-      filePath: LiteralRelativeUnixPath,
-  ): CodeFileContent
-
-  suspend fun writeFile(
-      filePath: LiteralRelativeUnixPath,
-      newFileContent: CodeFileContent,
-  )
+  val workingDirectory: MutableCompatFsDirectory
 
   suspend fun format(): FormattingResult
 
@@ -266,14 +246,43 @@ interface CodeProject {
   suspend fun test(): TestingResult
 }
 
-suspend fun CodeProject.readFilesBulk(
-    filePaths: Set<LiteralRelativeUnixPath>,
-): BulkCodeFileContent {
-  TODO()
+suspend fun CodeProject.readFile(
+    filePath: LiteralRelativeUnixPath,
+): CodeProject.CodeFileContent {
+  val fileEntity =
+      workingDirectory.extractDeepReadonly(filePath) as? ReadonlyCompatFsFile
+          ?: throw IllegalStateException(
+              "Expected file at path ${filePath.toUnixRelativePathString()}"
+          )
+
+  return CodeProject.CodeFileContent.parse(
+      rawContent = fileEntity.read().decodeToString(),
+  )
 }
 
-suspend fun CodeProject.writeFilesBulk(
-    newBulkCodeFileContent: BulkCodeFileContent,
+suspend fun CodeProject.updateFile(
+    filePath: LiteralRelativeUnixPath,
+    newFileContent: CodeProject.CodeFileContent,
 ) {
-  TODO()
+  val targetEntity =
+      workingDirectory.extractDeepMutable(
+          relativePath = filePath,
+      )
+          ?: throw IllegalStateException(
+              "Expected existing file at path ${filePath.toUnixRelativePathString()} to update"
+          )
+
+  when (targetEntity) {
+    is MutableCompatFsFile -> {
+      targetEntity.write(
+          newContent = newFileContent.dump().encodeToByteString(),
+      )
+    }
+
+    is MutableCompatFsDirectory -> {
+      throw IllegalStateException(
+          "Expected file at path ${filePath.toUnixRelativePathString()} to update, but found a directory"
+      )
+    }
+  }
 }

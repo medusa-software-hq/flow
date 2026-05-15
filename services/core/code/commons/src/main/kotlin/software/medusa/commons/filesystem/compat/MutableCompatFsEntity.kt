@@ -1,5 +1,7 @@
 package software.medusa.commons.filesystem.compat
 
+import software.medusa.commons.paths.LiteralRelativeUnixPath
+
 /**
  * A mutable filesystem entity exposed through the compatibility API.
  *
@@ -25,4 +27,28 @@ suspend fun MutableCompatFsEntity.deleteRecursively() {
       delete()
     }
   }
+}
+
+/**
+ * Traverses [relativePath] starting from this entity.
+ *
+ * Returns `null` when any path component does not exist or when traversal would need to descend
+ * through a file.
+ */
+suspend fun MutableCompatFsEntity.extractDeepMutable(
+    relativePath: LiteralRelativeUnixPath,
+): MutableCompatFsEntity? {
+  var currentEntity: MutableCompatFsEntity = this
+
+  for (name in relativePath.names) {
+    if (currentEntity !is MutableCompatFsDirectory) {
+      return null
+    }
+
+    val nextEntity = currentEntity.extract(name) ?: return null
+
+    currentEntity = nextEntity
+  }
+
+  return currentEntity
 }
