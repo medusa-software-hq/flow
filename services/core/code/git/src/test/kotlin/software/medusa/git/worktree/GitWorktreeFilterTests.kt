@@ -23,7 +23,7 @@ class GitWorktreeFilterTests {
         actual =
             filter.classify(
                 path = RelativeUnixPath.of(UnixPath.Name.Literal("ignored.txt")),
-                nodeKind = GitWorktreeNode.Kind.File,
+                nodeKind = GitFsNodeKind.File,
             ),
     )
 
@@ -32,7 +32,7 @@ class GitWorktreeFilterTests {
         actual =
             filter.classify(
                 path = RelativeUnixPath.of(UnixPath.Name.Literal("kept.txt")),
-                nodeKind = GitWorktreeNode.Kind.File,
+                nodeKind = GitFsNodeKind.File,
             ),
     )
   }
@@ -55,7 +55,7 @@ class GitWorktreeFilterTests {
         actual =
             chainedFilter.classify(
                 path = RelativeUnixPath.of(UnixPath.Name.Literal("keep.log")),
-                nodeKind = GitWorktreeNode.Kind.File,
+                nodeKind = GitFsNodeKind.File,
             ),
     )
 
@@ -64,7 +64,7 @@ class GitWorktreeFilterTests {
         actual =
             chainedFilter.classify(
                 path = RelativeUnixPath.of(UnixPath.Name.Literal("drop.log")),
-                nodeKind = GitWorktreeNode.Kind.File,
+                nodeKind = GitFsNodeKind.File,
             ),
     )
   }
@@ -80,7 +80,7 @@ class GitWorktreeFilterTests {
         actual =
             nestedFilter.classify(
                 path = RelativeUnixPath.of(UnixPath.Name.Literal("ignored.txt")),
-                nodeKind = GitWorktreeNode.Kind.File,
+                nodeKind = GitFsNodeKind.File,
             ),
     )
   }

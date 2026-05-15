@@ -10,7 +10,7 @@ interface GitWorktreeFilter {
   data object Passive : GitWorktreeFilter {
     override fun classify(
         path: LiteralRelativeUnixPath,
-        nodeKind: GitWorktreeNode.Kind,
+        nodeKind: GitFsNodeKind,
     ): Classification? = null
   }
 
@@ -24,12 +24,12 @@ interface GitWorktreeFilter {
       return object : GitWorktreeFilter {
         override fun classify(
             path: LiteralRelativeUnixPath,
-            nodeKind: GitWorktreeNode.Kind,
+            nodeKind: GitFsNodeKind,
         ): Classification? {
           val matchResult =
               ignoreNode.isIgnored(
                   path.toUnixRelativePathString(),
-                  nodeKind == GitWorktreeNode.Kind.Directory,
+                  nodeKind == GitFsNodeKind.Directory,
               )
 
           return when (matchResult) {
@@ -50,13 +50,13 @@ interface GitWorktreeFilter {
 
   fun classify(
       path: LiteralRelativeUnixPath,
-      nodeKind: GitWorktreeNode.Kind,
+      nodeKind: GitFsNodeKind,
   ): Classification?
 }
 
 fun GitWorktreeFilter.classifyEffectively(
     path: LiteralRelativeUnixPath,
-    nodeKind: GitWorktreeNode.Kind,
+    nodeKind: GitFsNodeKind,
 ): GitWorktreeFilter.Classification =
     classify(
         path = path,
@@ -71,7 +71,7 @@ fun GitWorktreeFilter.nest(
   return object : GitWorktreeFilter {
     override fun classify(
         path: LiteralRelativeUnixPath,
-        nodeKind: GitWorktreeNode.Kind,
+        nodeKind: GitFsNodeKind,
     ): GitWorktreeFilter.Classification? =
         baseFilter.classify(
             path =
@@ -91,7 +91,7 @@ fun GitWorktreeFilter.chain(
   return object : GitWorktreeFilter {
     override fun classify(
         path: LiteralRelativeUnixPath,
-        nodeKind: GitWorktreeNode.Kind,
+        nodeKind: GitFsNodeKind,
     ): GitWorktreeFilter.Classification? =
         innerFilter.classify(path, nodeKind) ?: baseFilter.classify(path, nodeKind)
   }

@@ -11,4 +11,7 @@ import kotlinx.io.bytestring.ByteString
 interface MutableCompatFsFile : MutableCompatFsEntity, ReadonlyCompatFsFile {
   /** Replaces the full file contents with [newContent]. */
   suspend fun write(newContent: ByteString)
+
+  /** Marks the file as executable. */
+  suspend fun makeExecutable()
 }

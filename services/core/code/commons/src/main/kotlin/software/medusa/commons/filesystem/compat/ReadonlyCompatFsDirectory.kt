@@ -9,7 +9,7 @@ import software.medusa.commons.paths.UnixPath
  * This abstraction is intended both for directories backed by a real filesystem and for generated
  * directory views assembled in memory or derived from some other source.
  */
-interface ReadonlyCompatFsDirectory {
+interface ReadonlyCompatFsDirectory : ReadonlyCompatFsEntity {
   /** A named direct child of a directory. */
   data class Entry<out EntityT : ReadonlyCompatFsEntity>(
       val name: UnixPath.Name.Literal,
@@ -57,7 +57,9 @@ suspend fun ReadonlyCompatFsEntity.extract(
  */
 suspend fun ReadonlyCompatFsDirectory.copyRecursivelyTo(
     targetDirectory: MutableCompatFsDirectory,
-): Unit = copyRecursivelyToImpl(targetDirectory)
+) {
+  copyRecursivelyToImpl(targetDirectory)
+}
 
 private suspend fun ReadonlyCompatFsDirectory.copyRecursivelyToImpl(
     targetDirectory: MutableCompatFsDirectory,
@@ -105,6 +107,42 @@ private suspend fun ReadonlyCompatFsDirectory.copyRecursivelyToImpl(
             }
 
         sourceEntity.copyRecursivelyToImpl(targetSubdirectory)
+      }
+    }
+  }
+}
+
+/**
+ * Recursively copies all direct and nested entries from this directory into [targetDirectory],
+ * assumed to be initially empty.
+ */
+suspend fun ReadonlyCompatFsDirectory.materializeIn(
+    targetDirectory: MutableCompatFsDirectory,
+) {
+  listEntries().forEach { entry -> entry.materializeIn(targetDirectory = targetDirectory) }
+}
+
+private suspend fun ReadonlyCompatFsDirectory.Entry<*>.materializeIn(
+    targetDirectory: MutableCompatFsDirectory,
+) {
+  when (val sourceEntity = entity) {
+    is ReadonlyCompatFsFile -> {
+      val targetFile =
+          targetDirectory.createFile(
+              name = name,
+              initialContent = sourceEntity.read(),
+          )
+
+      if (sourceEntity.isExecutable()) {
+        targetFile.makeExecutable()
+      }
+    }
+
+    is ReadonlyCompatFsDirectory -> {
+      val targetSubdirectory = targetDirectory.createDirectory(name)
+
+      sourceEntity.listEntries().forEach { childEntry ->
+        childEntry.materializeIn(targetSubdirectory)
       }
     }
   }

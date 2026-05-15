@@ -1,222 +1,137 @@
 package software.medusa.git.worktree
 
-import java.io.InputStream
-import java.nio.file.Files
-import java.nio.file.Path
-import kotlin.io.path.createDirectory
-import kotlin.io.path.createSymbolicLinkPointingTo
-import kotlin.io.path.isDirectory
-import software.medusa.commons.paths.AbsoluteUnixPath
+import java.io.ByteArrayInputStream
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory.Entry
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsEntity
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 
-@JvmInline
-value class GitWorktree(
-    val rootDirectory: GitWorktreeDirectory,
-) {
-  companion object {
-    val Empty =
-        GitWorktree(
-            rootDirectory = GitWorktreeDirectory.Empty,
-        )
+enum class GitFsNodeKind {
+  Directory,
+  File,
+}
 
-    fun read(
-        worktreePath: Path,
-    ): GitWorktree =
-        GitWorktree(
-            rootDirectory =
-                GitIoWorktreeDirectory(
-                    directoryPath = worktreePath,
-                ),
-        )
+data object GitEmptyFsDirectory : ReadonlyCompatFsDirectory {
+  override suspend fun listEntries(): List<Entry<*>> = emptyList()
+
+  override suspend fun extract(
+      name: UnixPath.Name.Literal,
+  ): ReadonlyCompatFsEntity? = null
+}
+
+suspend fun ReadonlyCompatFsDirectory.filtered(
+    baseFilter: GitWorktreeFilter,
+): ReadonlyCompatFsDirectory =
+    GitFilteredFsDirectory.construct(
+        sourceDirectory = this,
+        baseFilter = baseFilter,
+    )
+
+private class GitFilteredFsDirectory
+private constructor(
+    private val sourceDirectory: ReadonlyCompatFsDirectory,
+    private val effectiveFilter: GitWorktreeFilter,
+) : ReadonlyCompatFsDirectory {
+  companion object {
+    private val GitignoreFileName = UnixPath.Name.Literal(".gitignore")
+
+    suspend fun construct(
+        sourceDirectory: ReadonlyCompatFsDirectory,
+        baseFilter: GitWorktreeFilter,
+    ): GitFilteredFsDirectory {
+      val gitignoreFile =
+          sourceDirectory.extract(
+              name = GitignoreFileName,
+          )
+
+      val effectiveFilter =
+          when (gitignoreFile) {
+            is ReadonlyCompatFsFile -> {
+              val localFilter =
+                  GitWorktreeFilter.parse(
+                      gitignoreInputStream =
+                          ByteArrayInputStream(gitignoreFile.read().toByteArray()),
+                  )
+
+              localFilter.chain(baseFilter = baseFilter)
+            }
+
+            null -> baseFilter
+
+            else ->
+                throw IllegalStateException(
+                    "Expected $GitignoreFileName to be a file, got ${gitignoreFile::class.simpleName}",
+                )
+          }
+
+      return GitFilteredFsDirectory(
+          sourceDirectory = sourceDirectory,
+          effectiveFilter = effectiveFilter,
+      )
+    }
   }
 
-  fun write(
-      worktreePath: Path,
-  ) {
-    require(worktreePath.isDirectory()) {
-      "Expected directory path to write GitWorktree to, got: $worktreePath"
-    }
+  override suspend fun listEntries(): List<Entry<*>> =
+      sourceDirectory.listEntries().mapNotNull { originalEntry ->
+        val filteredEntity =
+            originalEntry.entity.filtered(
+                name = originalEntry.name,
+                effectiveFilter = effectiveFilter,
+            ) ?: return@mapNotNull null
 
-    rootDirectory.writeDirectory(
-        directoryPath = worktreePath,
+        Entry(
+            name = originalEntry.name,
+            entity = filteredEntity,
+        )
+      }
+
+  override suspend fun extract(
+      name: UnixPath.Name.Literal,
+  ): ReadonlyCompatFsEntity? {
+    val originalEntity = sourceDirectory.extract(name) ?: return null
+
+    return originalEntity.filtered(
+        name = name,
+        effectiveFilter = effectiveFilter,
     )
   }
+}
 
-  fun filtered(
-      globalFilter: GitWorktreeFilter,
-  ): GitWorktree =
-      GitWorktree(
-          rootDirectory = rootDirectory.filtered(baseFilter = globalFilter),
+private suspend fun ReadonlyCompatFsEntity.filtered(
+    name: UnixPath.Name.Literal,
+    effectiveFilter: GitWorktreeFilter,
+): ReadonlyCompatFsEntity? {
+  val filterClassification =
+      effectiveFilter.classifyEffectively(
+          path = RelativeUnixPath.of(name),
+          nodeKind = fsNodeKind,
       )
-}
 
-sealed class GitWorktreeNode {
-  enum class Kind {
-    Directory,
-    File,
-  }
+  return when (filterClassification) {
+    GitWorktreeFilter.Classification.Ignore -> null
 
-  abstract val kind: Kind
-
-  internal fun filter(
-      name: String,
-      effectiveFilter: GitWorktreeFilter,
-  ): GitWorktreeNode? {
-    val filterClassification =
-        effectiveFilter.classifyEffectively(
-            path =
-                RelativeUnixPath.of(
-                    UnixPath.Name.Literal(name),
-                ),
-            nodeKind = kind,
-        )
-
-    return when (filterClassification) {
-      GitWorktreeFilter.Classification.Ignore -> null
-
-      GitWorktreeFilter.Classification.Include -> {
-        when (this) {
-          is GitWorktreeDirectory ->
-              filtered(
-                  baseFilter =
-                      effectiveFilter.nest(
-                          directoryName = name,
-                      ),
-              )
-
-          else -> this
-        }
-      }
-    }
-  }
-}
-
-abstract class GitWorktreeDirectory : GitWorktreeNode() {
-  companion object {
-    const val GitignoreFileName = ".gitignore"
-  }
-
-  data object Empty : GitWorktreeDirectory() {
-    override fun read(name: String): GitWorktreeNode? = null
-
-    override val entries: Sequence<Entry> = emptySequence()
-  }
-
-  data class Entry(
-      val name: String,
-      val node: GitWorktreeNode,
-  )
-
-  final override val kind: Kind
-    get() = Kind.Directory
-
-  fun filtered(
-      baseFilter: GitWorktreeFilter,
-  ): GitWorktreeDirectory {
-    val effectiveFilter: GitWorktreeFilter =
-        when (val gitignoreFile = read(name = GitignoreFileName)) {
-          is GitWorktreeFile -> {
-            val localFilter = GitWorktreeFilter.parse(gitignoreFile.read())
-            localFilter.chain(baseFilter = baseFilter)
-          }
-
-          else -> baseFilter
+    GitWorktreeFilter.Classification.Include -> {
+      when (this) {
+        is ReadonlyCompatFsDirectory -> {
+          filtered(
+              baseFilter =
+                  effectiveFilter.nest(
+                      directoryName = name.name,
+                  ),
+          )
         }
 
-    return object : GitWorktreeDirectory() {
-      override fun read(name: String): GitWorktreeNode? {
-        val originalNode = this@GitWorktreeDirectory.read(name) ?: return null
-
-        return originalNode.filter(
-            name = name,
-            effectiveFilter = effectiveFilter,
-        )
-      }
-
-      override val entries: Sequence<Entry> =
-          this@GitWorktreeDirectory.entries.mapNotNull { originalEntry ->
-            val childNode = originalEntry.node
-
-            val filteredNode =
-                childNode.filter(
-                    name = originalEntry.name,
-                    effectiveFilter = effectiveFilter,
-                ) ?: return@mapNotNull null
-
-            originalEntry.copy(
-                node = filteredNode,
-            )
-          }
-    }
-  }
-
-  fun isEmpty(): Boolean = entries.none()
-
-  abstract fun read(name: String): GitWorktreeNode?
-
-  abstract val entries: Sequence<Entry>
-}
-
-private fun GitWorktreeDirectory.writeDirectory(
-    directoryPath: Path,
-) {
-  entries.forEach { childEntry ->
-    val childName = childEntry.name
-    val childNode = childEntry.node
-
-    val childPath = directoryPath.resolve(childName)
-
-    when (childNode) {
-      is GitWorktreeDirectory -> {
-        childPath.createDirectory()
-        childNode.writeDirectory(directoryPath = childPath)
-      }
-
-      is GitWorktreeFile -> {
-        childNode.writeFile(filePath = childPath)
-      }
-
-      is GitWorktreeSymlink -> {
-        childNode.writeSymlink(symlinkPath = childPath)
+        else -> this
       }
     }
   }
 }
 
-abstract class GitWorktreeFile : GitWorktreeNode() {
-  final override val kind: Kind
-    get() = Kind.File
-
-  abstract fun read(): InputStream
-
-  abstract fun isExecutable(): Boolean
-}
-
-private fun GitWorktreeFile.writeFile(
-    filePath: Path,
-) {
-  read().use { contentStream -> Files.copy(contentStream, filePath) }
-
-  if (isExecutable()) {
-    filePath.toFile().setExecutable(true)
-  }
-}
-
-data class GitWorktreeSymlink(
-    val targetPath: UnixPath<*>,
-) : GitWorktreeNode() {
-  override val kind: Kind
-    get() = Kind.File // For classification purposes, symlinks are considered files
-}
-
-private fun GitWorktreeSymlink.writeSymlink(symlinkPath: Path) {
-  val nioTargetPath =
-      when (targetPath) {
-        is RelativeUnixPath<*> -> Path.of(".", *targetPath.names.map { it.name }.toTypedArray())
-        is AbsoluteUnixPath<*> ->
-            Path.of("/", *targetPath.innerPath.names.map { it.name }.toTypedArray())
+private val ReadonlyCompatFsEntity.fsNodeKind: GitFsNodeKind
+  get() =
+      when (this) {
+        is ReadonlyCompatFsDirectory -> GitFsNodeKind.Directory
+        is ReadonlyCompatFsFile -> GitFsNodeKind.File
       }
-
-  symlinkPath.createSymbolicLinkPointingTo(target = nioTargetPath)
-}

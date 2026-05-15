@@ -1,5 +1,10 @@
 package software.medusa.commons.filesystem.compat
 
+import kotlin.io.path.exists
+import kotlin.io.path.isDirectory
+import kotlin.io.path.isExecutable
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -8,6 +13,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.io.bytestring.encodeToByteString
 import software.medusa.commons.filesystem.compat.impl.memory.MemoryCompatFsDirectory
 import software.medusa.commons.filesystem.compat.impl.memory.MemoryCompatFsFile
+import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsDirectory
+import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsEntity_testUtils.withTempDir
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 
@@ -206,5 +213,76 @@ class CompatFsDirectory_tests {
         expected = "replacement directory".encodeToByteString(),
         actual = copiedFile.read(),
     )
+  }
+
+  @Test
+  fun test_materializeIn_materializesNestedFilesToFilesystem() = runTest {
+    withTempDir { outputDirectory ->
+      val sourceDirectory = MemoryCompatFsDirectory()
+
+      sourceDirectory
+          .createDirectory(
+              UnixPath.Name.Literal("nested"),
+          )
+          .createFile(
+              name = UnixPath.Name.Literal("hello.txt"),
+              initialContent = "hello".encodeToByteString(),
+          )
+
+      val scriptFile =
+          sourceDirectory.createFile(
+              name = UnixPath.Name.Literal("tool.sh"),
+              initialContent = "echo hi".encodeToByteString(),
+          )
+
+      scriptFile.makeExecutable()
+
+      sourceDirectory.materializeIn(
+          targetDirectory = NioCompatFsDirectory(directoryPath = outputDirectory),
+      )
+
+      val nestedDirectory = outputDirectory.resolve("nested")
+      val helloFile = nestedDirectory.resolve("hello.txt")
+      val toolFile = outputDirectory.resolve("tool.sh")
+
+      assertEquals(true, nestedDirectory.isDirectory())
+      assertEquals(true, helloFile.isRegularFile())
+      assertEquals("hello", helloFile.readText())
+
+      assertEquals(true, toolFile.exists())
+      assertEquals("echo hi", toolFile.readText())
+      assertEquals(true, toolFile.isExecutable())
+    }
+  }
+
+  @Test
+  fun test_materializeIn_materializesInMemoryTreeToFilesystem() = runTest {
+    withTempDir { outputDirectory ->
+      val sourceDirectory =
+          MemoryCompatFsDirectory().apply {
+            createDirectory(
+                    UnixPath.Name.Literal("dir"),
+                )
+                .createFile(
+                    name = UnixPath.Name.Literal("file.txt"),
+                    initialContent = "content".encodeToByteString(),
+                )
+
+            createFile(
+                    name = UnixPath.Name.Literal("script.sh"),
+                    initialContent = "echo hi".encodeToByteString(),
+                )
+                .makeExecutable()
+          }
+
+      sourceDirectory.materializeIn(
+          targetDirectory = NioCompatFsDirectory(directoryPath = outputDirectory),
+      )
+
+      assertEquals(true, outputDirectory.resolve("dir").isDirectory())
+      assertEquals("content", outputDirectory.resolve("dir/file.txt").readText())
+      assertEquals("echo hi", outputDirectory.resolve("script.sh").readText())
+      assertEquals(true, outputDirectory.resolve("script.sh").isExecutable())
+    }
   }
 }
