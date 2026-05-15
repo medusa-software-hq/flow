@@ -4,4 +4,10 @@ plugins {
   `java-library`
 }
 
-dependencies { testImplementation(libs.kotlin.test) }
+dependencies {
+  api(libs.kotlinx.coroutines.core)
+  api(libs.kotlinx.io.bytestring)
+
+  testImplementation(libs.kotlin.test)
+  testImplementation(libs.kotlinx.coroutines.test)
+}

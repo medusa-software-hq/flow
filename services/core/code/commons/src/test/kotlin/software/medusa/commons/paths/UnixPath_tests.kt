@@ -129,7 +129,6 @@ class UnixPath_tests {
 
   @Test
   fun test_RelativeUnixPath_toUnixRelativePathString_empty() {
-    // TODO: Figure out if this makes sense. This is asymmetric.
     assertEquals(
         expected = "",
         actual = RelativeUnixPath.Empty.toUnixRelativePathString(),
