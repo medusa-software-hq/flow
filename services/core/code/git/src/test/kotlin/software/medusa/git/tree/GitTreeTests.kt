@@ -3,8 +3,9 @@ package software.medusa.git.tree
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitFileMode
-import software.medusa.git.UnixPath
 import software.medusa.git.worktree.TestGitTreeFile
 import software.medusa.git.worktree.TestGitTreeGroup
 
@@ -38,7 +39,13 @@ class GitTreeTests {
                         ),
                         GitTreeGroup.ChildEntry(
                             name = "tool-link",
-                            child = GitTreeSymlink(targetPath = UnixPath.Relative.of("tool.sh")),
+                            child =
+                                GitTreeSymlink(
+                                    targetPath =
+                                        RelativeUnixPath.of(
+                                            UnixPath.Name.Literal("tool.sh"),
+                                        ),
+                                ),
                         ),
                     ),
                 ),
@@ -59,6 +66,11 @@ class GitTreeTests {
     assertEquals("hello", helloFile.read().bufferedReader().readText())
     assertEquals("echo hi", toolFile.read().bufferedReader().readText())
     assertEquals(true, toolFile.isExecutable())
-    assertEquals(UnixPath.Relative.of("tool.sh"), toolLink.targetPath)
+    assertEquals(
+        RelativeUnixPath.of(
+            UnixPath.Name.Literal("tool.sh"),
+        ),
+        toolLink.targetPath,
+    )
   }
 }

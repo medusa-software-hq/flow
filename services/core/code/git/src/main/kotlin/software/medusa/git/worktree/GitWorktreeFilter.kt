@@ -2,12 +2,14 @@ package software.medusa.git.worktree
 
 import java.io.InputStream
 import org.eclipse.jgit.ignore.IgnoreNode
-import software.medusa.git.UnixPath
+import software.medusa.commons.paths.LiteralRelativeUnixPath
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 
 interface GitWorktreeFilter {
   data object Passive : GitWorktreeFilter {
     override fun classify(
-        path: UnixPath.Relative,
+        path: LiteralRelativeUnixPath,
         nodeKind: GitWorktreeNode.Kind,
     ): Classification? = null
   }
@@ -21,12 +23,12 @@ interface GitWorktreeFilter {
 
       return object : GitWorktreeFilter {
         override fun classify(
-            path: UnixPath.Relative,
+            path: LiteralRelativeUnixPath,
             nodeKind: GitWorktreeNode.Kind,
         ): Classification? {
           val matchResult =
               ignoreNode.isIgnored(
-                  path.toUnixPathString(),
+                  path.toUnixRelativePathString(),
                   nodeKind == GitWorktreeNode.Kind.Directory,
               )
 
@@ -47,13 +49,13 @@ interface GitWorktreeFilter {
   }
 
   fun classify(
-      path: UnixPath.Relative,
+      path: LiteralRelativeUnixPath,
       nodeKind: GitWorktreeNode.Kind,
   ): Classification?
 }
 
 fun GitWorktreeFilter.classifyEffectively(
-    path: UnixPath.Relative,
+    path: LiteralRelativeUnixPath,
     nodeKind: GitWorktreeNode.Kind,
 ): GitWorktreeFilter.Classification =
     classify(
@@ -68,11 +70,14 @@ fun GitWorktreeFilter.nest(
 
   return object : GitWorktreeFilter {
     override fun classify(
-        path: UnixPath.Relative,
+        path: LiteralRelativeUnixPath,
         nodeKind: GitWorktreeNode.Kind,
     ): GitWorktreeFilter.Classification? =
         baseFilter.classify(
-            path = path.prepend(directoryName),
+            path =
+                RelativeUnixPath.of(
+                    listOf(UnixPath.Name.Literal(directoryName)) + path.names,
+                ),
             nodeKind = nodeKind,
         )
   }
@@ -85,7 +90,7 @@ fun GitWorktreeFilter.chain(
 
   return object : GitWorktreeFilter {
     override fun classify(
-        path: UnixPath.Relative,
+        path: LiteralRelativeUnixPath,
         nodeKind: GitWorktreeNode.Kind,
     ): GitWorktreeFilter.Classification? =
         innerFilter.classify(path, nodeKind) ?: baseFilter.classify(path, nodeKind)

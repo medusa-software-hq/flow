@@ -11,8 +11,9 @@ import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitFileMode
-import software.medusa.git.UnixPath
 import software.medusa.git.tree.GitProperTree
 
 class GitWorktreeWriteTests {
@@ -48,7 +49,10 @@ class GitWorktreeWriteTests {
                                 name = "tool-link",
                                 child =
                                     software.medusa.git.tree.GitTreeSymlink(
-                                        targetPath = UnixPath.Relative.of("tool.sh"),
+                                        targetPath =
+                                            RelativeUnixPath.of(
+                                                UnixPath.Name.Literal("tool.sh"),
+                                            ),
                                     ),
                             ),
                         ),
@@ -72,7 +76,7 @@ class GitWorktreeWriteTests {
     assertTrue(toolFile.isExecutable())
 
     assertTrue(toolLink.isSymbolicLink())
-    assertEquals(UnixPath.Relative.of("tool.sh").toPath(), toolLink.readSymbolicLink())
+    assertEquals(outputDirectory.fileSystem.getPath(".", "tool.sh"), toolLink.readSymbolicLink())
   }
 
   @Test

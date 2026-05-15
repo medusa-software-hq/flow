@@ -10,12 +10,13 @@ import org.eclipse.jgit.lib.FileMode
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.ObjectInserter
 import org.eclipse.jgit.lib.TreeFormatter
+import software.medusa.commons.paths.AbsoluteUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitCommitDetails
 import software.medusa.git.GitFileMode
 import software.medusa.git.GitPersonalDetails
 import software.medusa.git.GitRepository
 import software.medusa.git.GitRepository.Companion.readCommit
-import software.medusa.git.UnixPath
 
 class GitObjectTreeTests {
   @Test
@@ -100,7 +101,11 @@ class GitObjectTreeTests {
         val absoluteSymlink = assertIs<GitTreeSymlink>(symlinkNode)
 
         assertEquals(
-            expected = UnixPath.Absolute.of("tmp", "target"),
+            expected =
+                AbsoluteUnixPath.of(
+                    UnixPath.Name.Literal("tmp"),
+                    UnixPath.Name.Literal("target"),
+                ),
             actual = absoluteSymlink.targetPath,
         )
       }

@@ -11,9 +11,11 @@ import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.ObjectInserter
 import org.eclipse.jgit.lib.ObjectReader
 import org.eclipse.jgit.lib.TreeFormatter
+import software.medusa.commons.paths.AbsoluteUnixPath
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitCommitHash
 import software.medusa.git.GitFileMode
-import software.medusa.git.UnixPath
 import software.medusa.git.utils.contentEquals
 import software.medusa.git.worktree.GitRealizedWorktreeDirectory
 import software.medusa.git.worktree.GitRealizedWorktreeFile
@@ -226,7 +228,7 @@ fun GitTreeFile.realizeFile(): GitWorktreeFile =
  * is broken based on the information available in the Git tree alone.
  */
 data class GitTreeSymlink(
-    val targetPath: UnixPath,
+    val targetPath: UnixPath<*>,
 ) : GitTreeNode
 
 private fun GitTreeSymlink.storeSymlink(
@@ -235,7 +237,11 @@ private fun GitTreeSymlink.storeSymlink(
   // We might deny storing out-of-repo symlinks, absolute symlinks and we might normalize symlink
   // paths
 
-  val targetPathText = targetPath.toUnixPathString()
+  val targetPathText =
+      when (targetPath) {
+        is RelativeUnixPath -> targetPath.toUnixRelativePathString()
+        is AbsoluteUnixPath -> targetPath.toUnixAbsolutePathString()
+      }
 
   return objectInserter.insert(
       Constants.OBJ_BLOB,

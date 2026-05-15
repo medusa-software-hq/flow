@@ -6,7 +6,9 @@ import java.nio.file.Path
 import kotlin.io.path.createDirectory
 import kotlin.io.path.createSymbolicLinkPointingTo
 import kotlin.io.path.isDirectory
-import software.medusa.git.UnixPath
+import software.medusa.commons.paths.AbsoluteUnixPath
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 
 @JvmInline
 value class GitWorktree(
@@ -63,7 +65,10 @@ sealed class GitWorktreeNode {
   ): GitWorktreeNode? {
     val filterClassification =
         effectiveFilter.classifyEffectively(
-            path = UnixPath.Relative.of(name),
+            path =
+                RelativeUnixPath.of(
+                    UnixPath.Name.Literal(name),
+                ),
             nodeKind = kind,
         )
 
@@ -199,12 +204,19 @@ private fun GitWorktreeFile.writeFile(
 }
 
 data class GitWorktreeSymlink(
-    val targetPath: UnixPath,
+    val targetPath: UnixPath<*>,
 ) : GitWorktreeNode() {
   override val kind: Kind
     get() = Kind.File // For classification purposes, symlinks are considered files
 }
 
 private fun GitWorktreeSymlink.writeSymlink(symlinkPath: Path) {
-  symlinkPath.createSymbolicLinkPointingTo(target = targetPath.toPath())
+  val nioTargetPath =
+      when (targetPath) {
+        is RelativeUnixPath<*> -> Path.of(".", *targetPath.names.map { it.name }.toTypedArray())
+        is AbsoluteUnixPath<*> ->
+            Path.of("/", *targetPath.innerPath.names.map { it.name }.toTypedArray())
+      }
+
+  symlinkPath.createSymbolicLinkPointingTo(target = nioTargetPath)
 }
