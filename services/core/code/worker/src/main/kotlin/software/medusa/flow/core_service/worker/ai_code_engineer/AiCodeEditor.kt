@@ -144,20 +144,30 @@ interface AiCodeEditor {
        * index range starting at the line index equal to the old file's line count to a non-empty
        * code block.
        */
-      val newCodeBlockByOldLineIndexRange: Map<LineIndexRange, CodeBlock>,
+      val fragmentByOldLineIndexRange: Map<LineIndexRange, Fragment>,
   ) {
+    data class Fragment(
+        val newCodeBlock: CodeBlock,
+    ) {
+      companion object {
+        val Empty = Fragment(
+            newCodeBlock = CodeBlock.Empty,
+        )
+      }
+    }
+
     companion object {
       /** An empty patch that doesn't change any lines in the input code file. */
       val Empty =
           Patch(
-              newCodeBlockByOldLineIndexRange = emptyMap(),
+              fragmentByOldLineIndexRange = emptyMap(),
           )
     }
 
     init {
       require(
-          newCodeBlockByOldLineIndexRange.all { (firstRange, _) ->
-            newCodeBlockByOldLineIndexRange.none { (secondRange, _) ->
+          fragmentByOldLineIndexRange.all { (firstRange, _) ->
+            fragmentByOldLineIndexRange.none { (secondRange, _) ->
               firstRange != secondRange && firstRange.overlaps(secondRange)
             }
           },

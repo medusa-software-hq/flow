@@ -2,11 +2,11 @@ package software.medusa.flow.core_service.worker.code_project
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Patch
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.CodeFileContent
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor
 
 class CodeProject_applyPatch_tests {
   @Test
@@ -19,7 +19,7 @@ class CodeProject_applyPatch_tests {
             "}",
         )
 
-    val patchedContent = inputContent.applyPatch(AiCodeEditor.Patch.Empty)
+    val patchedContent = inputContent.applyPatch(Patch.Empty)
 
     assertEquals(
         expected = inputContent,
@@ -47,18 +47,20 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 1), // "  world {"
                             endIndexExclusive = LineIndex(indexZeroBased = 2), // "  }"
                         ) to
-                            CodeBlock(
-                                lines =
-                                    listOf(
-                                        CodeBlock.Line(content = "  universe {"),
-                                    ),
+                            Patch.Fragment(
+                                CodeBlock(
+                                    lines =
+                                        listOf(
+                                            CodeBlock.Line(content = "  universe {"),
+                                        ),
+                                ),
                             ),
                     ),
             ),
@@ -99,13 +101,15 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 1), // "  world {"
                             endIndexExclusive = LineIndex(indexZeroBased = 2), // "  }"
-                        ) to patchBlock,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock,
+                        ),
                     ),
             ),
         )
@@ -146,14 +150,16 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex =
                                 LineIndex(indexZeroBased = 1), // "  universe {"
                             endIndexExclusive = LineIndex(indexZeroBased = 5), // "}}"
-                        ) to patchBlock,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock,
+                        ),
                     ),
             ),
         )
@@ -182,13 +188,13 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 0), // "hello {{"
                             endIndexExclusive = LineIndex(indexZeroBased = 2), // "  ]"
-                        ) to CodeBlock.Empty,
+                        ) to Patch.Fragment.Empty,
                     ),
             ),
         )
@@ -217,13 +223,13 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 1), // "world ["
                             endIndexExclusive = LineIndex(indexZeroBased = 3), // "}}"
-                        ) to CodeBlock.Empty,
+                        ) to Patch.Fragment.Empty,
                     ),
             ),
         )
@@ -251,13 +257,13 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 1), // "world ["
                             endIndexExclusive = LineIndex(indexZeroBased = 4), // EOF
-                        ) to CodeBlock.Empty,
+                        ) to Patch.Fragment.Empty,
                     ),
             ),
         )
@@ -280,13 +286,13 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 0), // "hello {{"
                             endIndexExclusive = LineIndex(indexZeroBased = 4), // EOF
-                        ) to CodeBlock.Empty,
+                        ) to Patch.Fragment.Empty,
                     ),
             ),
         )
@@ -327,12 +333,14 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange.empty(
                             startIndex = LineIndex(indexZeroBased = 0), // "hello {{"
-                        ) to patchBlock,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock,
+                        ),
                     ),
             ),
         )
@@ -371,12 +379,14 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange.empty(
                             startIndex = LineIndex(indexZeroBased = 2), // "  ]"
-                        ) to patchBlock,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock,
+                        ),
                     ),
             ),
         )
@@ -415,12 +425,14 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange.empty(
                             startIndex = LineIndex(indexZeroBased = 4), // EOF
-                        ) to patchBlock,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock,
+                        ),
                     ),
             ),
         )
@@ -466,21 +478,25 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 0), // "hello {"
                             endIndexExclusive =
                                 LineIndex(indexZeroBased = 1), // "  world {"
-                        ) to patchBlock1,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock1,
+                        ),
                         LineIndexRange(
                             startIndex =
                                 LineIndex(
                                     indexZeroBased = 2
                                 ), // "    and all the other places too ("
                             endIndexExclusive = LineIndex(indexZeroBased = 4), // "  }"
-                        ) to patchBlock2,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock2,
+                        ),
                     ),
             ),
         )
@@ -529,8 +545,8 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 0), // "hello {"
@@ -538,7 +554,9 @@ class CodeProject_applyPatch_tests {
                                 LineIndex(
                                     indexZeroBased = 2
                                 ), // "    and all the other places too ("
-                        ) to patchBlock1,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock1,
+                        ),
                         LineIndexRange(
                             startIndex =
                                 LineIndex(
@@ -546,7 +564,9 @@ class CodeProject_applyPatch_tests {
                                 ), // "      with greetings ["
                             endIndexExclusive =
                                 LineIndex(indexZeroBased = 5), // "    )"
-                        ) to patchBlock2,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock2,
+                        ),
                     ),
             ),
         )
@@ -599,17 +619,21 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     mapOf(
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 0), // "hello {"
                             endIndexExclusive = LineIndex(indexZeroBased = 3), // "  )"
-                        ) to patchBlock1,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock1,
+                        ),
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 3), // "  )"
                             endIndexExclusive = LineIndex(indexZeroBased = 4), // "}"
-                        ) to patchBlock2,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock2,
+                        ),
                     ),
             ),
         )
@@ -655,8 +679,8 @@ class CodeProject_applyPatch_tests {
 
     val patchedContent =
         inputContent.applyPatch(
-            AiCodeEditor.Patch(
-                newCodeBlockByOldLineIndexRange =
+            Patch(
+                fragmentByOldLineIndexRange =
                     linkedMapOf(
                         LineIndexRange(
                             startIndex =
@@ -664,12 +688,16 @@ class CodeProject_applyPatch_tests {
                                     indexZeroBased = 2
                                 ), // "    and all the other places too ("
                             endIndexExclusive = LineIndex(indexZeroBased = 4), // "  }"
-                        ) to patchBlock2,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock2,
+                        ),
                         LineIndexRange(
                             startIndex = LineIndex(indexZeroBased = 0), // "hello {"
                             endIndexExclusive =
                                 LineIndex(indexZeroBased = 1), // "  world {"
-                        ) to patchBlock1,
+                        ) to Patch.Fragment(
+                            newCodeBlock = patchBlock1,
+                        ),
                     ),
             ),
         )

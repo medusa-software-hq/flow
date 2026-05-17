@@ -128,14 +128,16 @@ class ProperAiCodeEditor_integrationTests {
                     mapOf(
                         bazFilePath to
                             Patch(
-                                newCodeBlockByOldLineIndexRange =
+                                fragmentByOldLineIndexRange =
                                     mapOf(
                                         LineIndexRange(
                                             startIndex = LineIndex.ofOneBased(3),
                                             endIndexExclusive = LineIndex.ofOneBased(4),
                                         ) to
-                                            CodeBlock.of(
-                                                "%def say_hello [] => %say 'HELLO!!!'",
+                                            Patch.Fragment(
+                                                CodeBlock.of(
+                                                    "%def say_hello [] => %say 'HELLO!!!'",
+                                                ),
                                             ),
                                     ),
                             ),

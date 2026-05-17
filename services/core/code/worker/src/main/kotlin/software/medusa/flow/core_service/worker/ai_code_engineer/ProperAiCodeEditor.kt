@@ -118,7 +118,7 @@ class ProperAiCodeEditor(
 
     private fun StructuredPatch.toPatch(): Patch =
         Patch(
-            newCodeBlockByOldLineIndexRange =
+            fragmentByOldLineIndexRange =
                 fragments.associate { patch ->
                   LineIndexRange(
                       startIndex =
@@ -126,12 +126,14 @@ class ProperAiCodeEditor(
                               indexOneBased = patch.start,
                           ),
                       endIndexExclusive =
-                          LineIndex.ofOneBased(
-                              indexOneBased = patch.endExclusive,
-                          ),
+                           LineIndex.ofOneBased(
+                               indexOneBased = patch.endExclusive,
+                           ),
                   ) to
-                      CodeBlock.parse(
-                          rawContent = patch.content,
+                      Patch.Fragment(
+                          CodeBlock.parse(
+                              rawContent = patch.content,
+                          ),
                       )
                 },
         )

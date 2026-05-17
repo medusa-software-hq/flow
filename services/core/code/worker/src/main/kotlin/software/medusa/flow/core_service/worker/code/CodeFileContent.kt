@@ -41,8 +41,8 @@ value class CodeFileContent(
   ): CodeFileContent {
     val oldLines = code.lines
 
-    val patchEntries: List<Map.Entry<LineIndexRange, CodeBlock>> =
-        patch.newCodeBlockByOldLineIndexRange.entries.sortedBy { (lineIndexRange, _) ->
+    val patchEntries: List<Map.Entry<LineIndexRange, Patch.Fragment>> =
+        patch.fragmentByOldLineIndexRange.entries.sortedBy { (lineIndexRange, _) ->
           lineIndexRange.startIndex
         }
 
@@ -56,7 +56,8 @@ value class CodeFileContent(
       )
 
       for ((patchEntry, nextPatchEntry) in patchEntries.withNextOrNull()) {
-        val (patchIndexRange, patchCodeBlock) = patchEntry
+        val (patchIndexRange, patchFragment) = patchEntry
+        val patchCodeBlock = patchFragment.newCodeBlock
 
         addAll(patchCodeBlock.lines)
 
