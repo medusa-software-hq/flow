@@ -2,12 +2,13 @@ package software.medusa.flow.core_service.worker.ai_code_engineer
 
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionInstructions
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionScope
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.LineIndex
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEngineer.ProblemScope
+import software.medusa.flow.core_service.worker.code.CodeBlock
+import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
+import software.medusa.flow.core_service.worker.code.CodeFileContent
 import software.medusa.flow.core_service.worker.code_project.CodeProject
 import software.medusa.flow.core_service.worker.code_project.CodeProject.AnalysisResult
-import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
 import software.medusa.flow.core_service.worker.code_project.CodeProject.FormattingResult
 import software.medusa.flow.core_service.worker.code_project.CodeProject.TestingResult
 import software.medusa.flow.core_service.worker.code_project.readFile
@@ -221,7 +222,7 @@ private fun CodeProject.BulkCodeFileContent.toEditionScope(): EditionScope =
             },
     )
 
-private fun CodeProject.CodeFileContent.toMaskedCodeFileContent(): MaskedCodeFileContent =
+private fun CodeFileContent.toMaskedCodeFileContent(): MaskedCodeFileContent =
     MaskedCodeFileContent(
         blocks =
             listOf(

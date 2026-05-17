@@ -7,13 +7,13 @@ import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.toLiteral
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionScope
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.LineIndex
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.LineIndexRange
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Patch
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.PatchSet
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEditor.StructuredResponse.StructuredPatch
-import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
+import software.medusa.flow.core_service.worker.code.CodeBlock
+import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
+import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.openai_client.OpenAiClient
 import software.medusa.openai_client.OpenAiChat
 import software.medusa.openai_client.OpenAiMessage

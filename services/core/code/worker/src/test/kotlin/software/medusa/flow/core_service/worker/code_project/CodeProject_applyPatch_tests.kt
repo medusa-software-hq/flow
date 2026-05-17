@@ -2,9 +2,11 @@ package software.medusa.flow.core_service.worker.code_project
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import software.medusa.flow.core_service.worker.code.CodeBlock
+import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
+import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.flow.core_service.worker.code.CodeFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor
-import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
-import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeFileContent
 
 class CodeProject_applyPatch_tests {
   @Test
@@ -48,9 +50,9 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 1), // "  world {"
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 2), // "  }"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 1), // "  world {"
+                            endIndexExclusive = LineIndex(indexZeroBased = 2), // "  }"
                         ) to
                             CodeBlock(
                                 lines =
@@ -100,9 +102,9 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 1), // "  world {"
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 2), // "  }"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 1), // "  world {"
+                            endIndexExclusive = LineIndex(indexZeroBased = 2), // "  }"
                         ) to patchBlock,
                     ),
             ),
@@ -147,10 +149,10 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
+                        LineIndexRange(
                             startIndex =
-                                AiCodeEditor.LineIndex(indexZeroBased = 1), // "  universe {"
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 5), // "}}"
+                                LineIndex(indexZeroBased = 1), // "  universe {"
+                            endIndexExclusive = LineIndex(indexZeroBased = 5), // "}}"
                         ) to patchBlock,
                     ),
             ),
@@ -183,9 +185,9 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 0), // "hello {{"
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 2), // "  ]"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 0), // "hello {{"
+                            endIndexExclusive = LineIndex(indexZeroBased = 2), // "  ]"
                         ) to CodeBlock.Empty,
                     ),
             ),
@@ -218,9 +220,9 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 1), // "world ["
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 3), // "}}"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 1), // "world ["
+                            endIndexExclusive = LineIndex(indexZeroBased = 3), // "}}"
                         ) to CodeBlock.Empty,
                     ),
             ),
@@ -252,9 +254,9 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 1), // "world ["
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 4), // EOF
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 1), // "world ["
+                            endIndexExclusive = LineIndex(indexZeroBased = 4), // EOF
                         ) to CodeBlock.Empty,
                     ),
             ),
@@ -281,9 +283,9 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 0), // "hello {{"
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 4), // EOF
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 0), // "hello {{"
+                            endIndexExclusive = LineIndex(indexZeroBased = 4), // EOF
                         ) to CodeBlock.Empty,
                     ),
             ),
@@ -328,8 +330,8 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange.empty(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 0), // "hello {{"
+                        LineIndexRange.empty(
+                            startIndex = LineIndex(indexZeroBased = 0), // "hello {{"
                         ) to patchBlock,
                     ),
             ),
@@ -372,8 +374,8 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange.empty(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 2), // "  ]"
+                        LineIndexRange.empty(
+                            startIndex = LineIndex(indexZeroBased = 2), // "  ]"
                         ) to patchBlock,
                     ),
             ),
@@ -416,8 +418,8 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange.empty(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 4), // EOF
+                        LineIndexRange.empty(
+                            startIndex = LineIndex(indexZeroBased = 4), // EOF
                         ) to patchBlock,
                     ),
             ),
@@ -467,17 +469,17 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 0), // "hello {"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 0), // "hello {"
                             endIndexExclusive =
-                                AiCodeEditor.LineIndex(indexZeroBased = 1), // "  world {"
+                                LineIndex(indexZeroBased = 1), // "  world {"
                         ) to patchBlock1,
-                        AiCodeEditor.LineIndexRange(
+                        LineIndexRange(
                             startIndex =
-                                AiCodeEditor.LineIndex(
+                                LineIndex(
                                     indexZeroBased = 2
                                 ), // "    and all the other places too ("
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 4), // "  }"
+                            endIndexExclusive = LineIndex(indexZeroBased = 4), // "  }"
                         ) to patchBlock2,
                     ),
             ),
@@ -530,20 +532,20 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 0), // "hello {"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 0), // "hello {"
                             endIndexExclusive =
-                                AiCodeEditor.LineIndex(
+                                LineIndex(
                                     indexZeroBased = 2
                                 ), // "    and all the other places too ("
                         ) to patchBlock1,
-                        AiCodeEditor.LineIndexRange(
+                        LineIndexRange(
                             startIndex =
-                                AiCodeEditor.LineIndex(
+                                LineIndex(
                                     indexZeroBased = 3
                                 ), // "      with greetings ["
                             endIndexExclusive =
-                                AiCodeEditor.LineIndex(indexZeroBased = 5), // "    )"
+                                LineIndex(indexZeroBased = 5), // "    )"
                         ) to patchBlock2,
                     ),
             ),
@@ -600,13 +602,13 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     mapOf(
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 0), // "hello {"
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 3), // "  )"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 0), // "hello {"
+                            endIndexExclusive = LineIndex(indexZeroBased = 3), // "  )"
                         ) to patchBlock1,
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 3), // "  )"
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 4), // "}"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 3), // "  )"
+                            endIndexExclusive = LineIndex(indexZeroBased = 4), // "}"
                         ) to patchBlock2,
                     ),
             ),
@@ -656,17 +658,17 @@ class CodeProject_applyPatch_tests {
             AiCodeEditor.Patch(
                 newCodeBlockByOldLineIndexRange =
                     linkedMapOf(
-                        AiCodeEditor.LineIndexRange(
+                        LineIndexRange(
                             startIndex =
-                                AiCodeEditor.LineIndex(
+                                LineIndex(
                                     indexZeroBased = 2
                                 ), // "    and all the other places too ("
-                            endIndexExclusive = AiCodeEditor.LineIndex(indexZeroBased = 4), // "  }"
+                            endIndexExclusive = LineIndex(indexZeroBased = 4), // "  }"
                         ) to patchBlock2,
-                        AiCodeEditor.LineIndexRange(
-                            startIndex = AiCodeEditor.LineIndex(indexZeroBased = 0), // "hello {"
+                        LineIndexRange(
+                            startIndex = LineIndex(indexZeroBased = 0), // "hello {"
                             endIndexExclusive =
-                                AiCodeEditor.LineIndex(indexZeroBased = 1), // "  world {"
+                                LineIndex(indexZeroBased = 1), // "  world {"
                         ) to patchBlock1,
                     ),
             ),
