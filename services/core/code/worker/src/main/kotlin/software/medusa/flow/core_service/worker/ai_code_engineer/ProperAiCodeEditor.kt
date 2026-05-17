@@ -15,7 +15,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Pa
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEditor.StructuredResponse.StructuredPatch
 import software.medusa.flow.core_service.worker.code_project.CodeProject.CodeBlock
 import software.medusa.openai_client.OpenAiClient
-import software.medusa.openai_client.OpenAiCompletionInput
+import software.medusa.openai_client.OpenAiChat
 import software.medusa.openai_client.OpenAiMessage
 import software.medusa.openai_client.OpenAiModel
 import software.medusa.openai_client.OpenAiRole
@@ -159,7 +159,7 @@ class ProperAiCodeEditor(
     val userPrompt = userPromptBlock.dump()
 
     val completionInput =
-        OpenAiCompletionInput(
+        OpenAiChat(
             messages =
                 listOf(
                     OpenAiMessage(

@@ -16,7 +16,7 @@ interface OpenAiClient : AutoCloseable {
   )
 
   data class CompletionRequest(
-      val input: OpenAiCompletionInput,
+      val input: OpenAiChat,
       val model: OpenAiModel,
       val maxOutputTokenCount: Int? = null,
       val temperature: Double? = null,

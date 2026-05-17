@@ -21,7 +21,7 @@ data class OpenAiMessage(
       }
 }
 
-data class OpenAiCompletionInput(
+data class OpenAiChat(
     val messages: List<OpenAiMessage>,
 ) {
   init {

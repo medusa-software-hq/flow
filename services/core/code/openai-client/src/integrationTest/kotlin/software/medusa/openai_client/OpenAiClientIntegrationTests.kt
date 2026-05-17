@@ -42,7 +42,7 @@ class OpenAiClientIntegrationTests {
             request =
                 OpenAiClient.CompletionRequest(
                     input =
-                        OpenAiCompletionInput(
+                        OpenAiChat(
                             messages =
                                 listOf(
                                     OpenAiMessage(
@@ -74,7 +74,7 @@ class OpenAiClientIntegrationTests {
             request =
                 OpenAiClient.CompletionRequest(
                     input =
-                        OpenAiCompletionInput(
+                        OpenAiChat(
                             messages =
                                 listOf(
                                     OpenAiMessage(
