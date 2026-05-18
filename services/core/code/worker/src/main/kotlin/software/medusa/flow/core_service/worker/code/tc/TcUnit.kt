@@ -8,8 +8,9 @@ data class TcUnit(
   companion object {
     fun of(
         block: CodeBlock,
-    ): TcUnit = TcUnit(
-        block = block,
-    )
+    ): TcUnit =
+        TcUnit(
+            block = block,
+        )
   }
 }

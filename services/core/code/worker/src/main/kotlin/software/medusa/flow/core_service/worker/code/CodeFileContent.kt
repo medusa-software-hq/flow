@@ -1,6 +1,6 @@
 package software.medusa.flow.core_service.worker.code
 
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Patch
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.Patch
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.utils.withNextOrNull
 
@@ -32,6 +32,9 @@ value class CodeFileContent(
             code = CodeBlock.parse(rawContent = rawContent),
         )
   }
+
+  val indexedLines: Sequence<CodeBlock.IndexedLine>
+    get() = code.buildIndexedLines(baseIndex = CodeBlock.LineIndex.First)
 
   /** Dumps the content of the code file as a string with LF-terminated lines. */
   fun dump(): String = code.dump()

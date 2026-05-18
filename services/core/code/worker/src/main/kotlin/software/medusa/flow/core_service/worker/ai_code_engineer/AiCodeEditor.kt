@@ -1,225 +1,206 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
+import kotlinx.io.bytestring.encodeToByteString
+import software.medusa.commons.filesystem.compat.MutableCompatFsDirectory
+import software.medusa.commons.filesystem.compat.MutableCompatFsFile
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
+import software.medusa.commons.filesystem.compat.extractDeepMutable
+import software.medusa.commons.filesystem.compat.extractDeepReadonly
+import software.medusa.commons.filesystem.compat.readText
 import software.medusa.commons.paths.LiteralRelativeUnixPath
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionInstructions
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.EditionScope
-import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.CodeCatalog
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.FileEditor
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.PatchApplier
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchGenerator
 import software.medusa.flow.core_service.worker.code.CodeFileContent
-import software.medusa.flow.core_service.worker.code_project.CodeProject
-import software.medusa.flow.core_service.worker.code_project.readFile
-import software.medusa.flow.core_service.worker.code_project.updateFile
-import software.medusa.flow.core_service.worker.utils.isSortedBy
+import software.medusa.flow.core_service.worker.code_project.CodeTool
 
-/**
- * Generates a set of patches to be applied to one or more code files in accordance with the
- * provided edition instructions.
- */
 interface AiCodeEditor {
-  /** Content of a code file with certain blocks of lines masked from the AI code engineer. */
-  data class MaskedCodeFileContent(
-      /**
-       * A list of content and mask blocks that together represent the content of the code file.
-       * Typically, the content blocks are interleaved with the mask blocks, but it's not strictly
-       * required. The content blocks must be sorted by their start line indices and must not
-       * overlap.
-       */
-      val blocks: List<Block>,
-  ) {
-    sealed interface Block
-
-    /**
-     * A block of content in the code file associated with a known line range that should be visible
-     * to the AI code engineer and can be edited by it.
-     */
-    data class ContentBlock(
-        val startIndex: LineIndex,
-        val content: CodeBlock,
-    ) : Block {
-      val lineIndexRange: LineIndexRange
-        get() =
-            LineIndexRange.of(
-                startIndex = startIndex,
-                length = content.lineCount,
-            )
-
-      val indexedLines: Sequence<CodeBlock.IndexedLine>
-        get() =
-            content.buildIndexedLines(
-                baseIndex = startIndex,
-            )
-    }
-
-    /**
-     * A block of content in the code file that should be masked from the AI code engineer and
-     * cannot be edited by it. Not explicitly associated with any line range in the code file.
-     */
-    data class MaskBlock(
-        /**
-         * A summary of the masked content that should be visible to the AI code engineer (which is
-         * code block itself).
-         */
-        val summary: CodeBlock,
-    ) : Block
-
+  interface FileSelector {
     companion object {
-      /**
-       * Creates a masked code file content with a single content block containing the given
-       * [fileContent] without any actual masking.
-       */
-      fun of(
-          fileContent: CodeFileContent,
-      ): MaskedCodeFileContent =
-          MaskedCodeFileContent(
-              blocks =
-                  listOf(
-                      ContentBlock(
-                          startIndex = LineIndex.First,
-                          content = fileContent.code,
-                      ),
-                  ),
-          )
+      fun static(
+          filePaths: Set<LiteralRelativeUnixPath>,
+      ): FileSelector =
+          object : FileSelector {
+            override suspend fun pickFiles(
+                sourceDirectory: ReadonlyCompatFsDirectory,
+            ): CodeCatalog =
+                CodeCatalog(
+                    codeFileContentByPath =
+                        filePaths.associateWith { filePath ->
+                          val fileEntity =
+                              sourceDirectory.extractDeepReadonly(filePath)
+                                  ?: throw IllegalStateException(
+                                      "Expected file at path ${filePath.toUnixRelativePathString()}",
+                                  )
 
-      fun of(
-          vararg blocks: Block,
-      ): MaskedCodeFileContent =
-          MaskedCodeFileContent(
-              blocks = blocks.toList(),
-          )
+                          val file =
+                              fileEntity as? ReadonlyCompatFsFile
+                                  ?: throw IllegalStateException(
+                                      "Expected file at path ${filePath.toUnixRelativePathString()}, but found a directory",
+                                  )
+
+                          CodeFileContent.parse(
+                              rawContent = file.readText(),
+                          )
+                        },
+                )
+          }
     }
 
-    init {
-      val contentBlocks = blocks.mapNotNull { it as? ContentBlock }
-
-      require(contentBlocks.isSortedBy { it.startIndex }) {
-        "Content blocks must be sorted by start index"
-      }
-
-      val contentBlockRanges = contentBlocks.map { it.lineIndexRange }
-
-      require(
-          contentBlockRanges.withIndex().all { (firstIndex, firstRange) ->
-            contentBlockRanges.withIndex().none { (secondIndex, secondRange) ->
-              firstIndex != secondIndex && firstRange.overlaps(secondRange)
-            }
-          },
-      ) {
-        "Content blocks must not overlap"
-      }
-    }
+    suspend fun pickFiles(
+        sourceDirectory: ReadonlyCompatFsDirectory,
+    ): CodeCatalog
   }
 
-  /** Represents a set of patches to be applied to multiple code files. */
-  data class PatchSet(
-      val patchByFilePath: Map<LiteralRelativeUnixPath, Patch>,
+  data class CodeCatalog(
+      val codeFileContentByPath: Map<LiteralRelativeUnixPath, CodeFileContent>,
   ) {
-    suspend fun applyTo(
-        codeProject: CodeProject,
+    suspend fun writeBack(
+        targetDirectory: MutableCompatFsDirectory,
     ) {
-      patchByFilePath.forEach { (filePath, patch) ->
-        patch.applyTo(
-            codeProject = codeProject,
+      codeFileContentByPath.forEach { (filePath, fileContent) ->
+        targetDirectory.writeCodeFile(
             filePath = filePath,
-        )
-      }
-    }
-  }
-
-  /** Represents a patch to be applied to a code file. */
-  data class Patch(
-      /**
-       * Mapping from line index ranges in the old code file to new code blocks that should replace
-       * the lines in those ranges. The line index ranges in the map must not overlap, but they can
-       * be adjacent or have gaps between them.
-       *
-       * If there are gaps between the line index ranges, it means that the lines in those gaps
-       * should remain unchanged.
-       *
-       * Removing lines can be represented by mapping a line index range to an empty code block,
-       * while adding new lines can be represented by mapping an empty line index range to a
-       * non-empty code block.
-       *
-       * Appending new lines at the end of the file can be represented by mapping an empty line
-       * index range starting at the line index equal to the old file's line count to a non-empty
-       * code block.
-       */
-      val fragmentByOldLineIndexRange: Map<LineIndexRange, Fragment>,
-  ) {
-    data class Fragment(
-        val newCodeBlock: CodeBlock,
-    ) {
-      companion object {
-        val Empty = Fragment(
-            newCodeBlock = CodeBlock.Empty,
+            fileContent = fileContent,
         )
       }
     }
 
-    companion object {
-      /** An empty patch that doesn't change any lines in the input code file. */
-      val Empty =
-          Patch(
-              fragmentByOldLineIndexRange = emptyMap(),
-          )
-    }
+    fun applyPatchSet(
+        patchSet: AiCodePatcher.PatchSet,
+    ): CodeCatalog =
+        CodeCatalog(
+            codeFileContentByPath =
+                codeFileContentByPath.mapValues { (filePath, fileContent) ->
+                  val patch = patchSet.patchByFilePath[filePath] ?: return@mapValues fileContent
 
-    init {
-      require(
-          fragmentByOldLineIndexRange.all { (firstRange, _) ->
-            fragmentByOldLineIndexRange.none { (secondRange, _) ->
-              firstRange != secondRange && firstRange.overlaps(secondRange)
-            }
-          },
-      ) {
-        "Line index ranges in the patch set must not overlap"
-      }
-    }
-
-    suspend fun applyTo(
-        codeProject: CodeProject,
-        filePath: LiteralRelativeUnixPath,
-    ) {
-      val oldContent = codeProject.readFile(filePath = filePath)
-
-      val patchedContent = oldContent.applyPatch(patch = this)
-
-      codeProject.updateFile(
-          filePath = filePath,
-          newFileContent = patchedContent,
-      )
-    }
+                  fileContent.applyPatch(patch = patch)
+                },
+        )
   }
 
-  @JvmInline
-  value class EditionInstructions(
-      val instructions: CodeBlock,
-  ) {
-    fun toMarkdownBlock(): CodeBlock {
-      return CodeBlock.concat()
-    }
+  interface PatchApplier {
+    suspend fun applyPatches(
+        inputCodeCatalog: CodeCatalog,
+    ): CodeCatalog
   }
 
-  data class EditionScope(
-      val maskedCodeFileContentByPath: Map<LiteralRelativeUnixPath, MaskedCodeFileContent>,
-  )
+  interface FileEditor {
+    suspend fun editWithin(
+        workingDirectory: MutableCompatFsDirectory,
+    )
+  }
 
-  suspend fun generateEditionPatchSet(
-      editionInstructions: EditionInstructions,
-      editionScope: EditionScope,
-  ): PatchSet
+  suspend fun attemptToCompleteTask(
+      relevantFilePaths: Set<LiteralRelativeUnixPath>,
+      taskDescription: String,
+  ): FileEditor
+
+  suspend fun attemptToFixIssues(
+      originalRelevantFilePaths: Set<LiteralRelativeUnixPath>,
+      originalTaskDescription: String,
+      moduleDiagnosis: CodeTool.CodeModuleDiagnosis.Incorrect,
+  ): FileEditor
 }
 
-suspend fun AiCodeEditor.editCode(
-    codeProject: CodeProject,
-    editionInstructions: EditionInstructions,
-    editionScope: EditionScope,
+private suspend fun MutableCompatFsDirectory.writeCodeFile(
+    filePath: LiteralRelativeUnixPath,
+    fileContent: CodeFileContent,
 ) {
-  val patchSet =
-      generateEditionPatchSet(
-          editionInstructions = editionInstructions,
-          editionScope = editionScope,
-      )
+  val existingEntity = extractDeepMutable(filePath)
+  val fileName =
+      filePath.names.lastOrNull()
+          ?: throw IllegalArgumentException("Cannot write a file at the empty path")
+  val parentPath = LiteralRelativeUnixPath(names = filePath.names.dropLast(1))
 
-  patchSet.applyTo(codeProject = codeProject)
+  when (existingEntity) {
+    is MutableCompatFsFile -> {
+      existingEntity.write(fileContent.dump().encodeToByteString())
+      return
+    }
+
+    is MutableCompatFsDirectory -> {
+      throw IllegalStateException(
+          "Expected file at path ${filePath.toUnixRelativePathString()} to write, but found a directory",
+      )
+    }
+
+    null -> {
+      val parentDirectory = ensureDirectory(relativePath = parentPath)
+
+      parentDirectory.createFile(
+          name = fileName,
+          initialContent = fileContent.dump().encodeToByteString(),
+      )
+    }
+  }
 }
+
+private suspend fun MutableCompatFsDirectory.ensureDirectory(
+    relativePath: LiteralRelativeUnixPath,
+): MutableCompatFsDirectory {
+  var currentDirectory: MutableCompatFsDirectory = this
+
+  for (name in relativePath.names) {
+    currentDirectory =
+        when (val existingEntity = currentDirectory.extract(name)) {
+          null -> currentDirectory.createDirectory(name)
+          is MutableCompatFsDirectory -> existingEntity
+          is MutableCompatFsFile -> {
+            throw IllegalStateException(
+                "Expected directory at path ${relativePath.toUnixRelativePathString()}, but found a file at ${name.name}",
+            )
+          }
+        }
+  }
+
+  return currentDirectory
+}
+
+fun PatchGenerator.masking(
+    masker: AiCodePatcher.CodeMasker,
+): PatchApplier =
+    object : PatchApplier {
+      override suspend fun applyPatches(
+          inputCodeCatalog: CodeCatalog,
+      ): CodeCatalog {
+        val maskedCodeCatalog =
+            inputCodeCatalog.applyMasks(
+                masker = masker,
+            )
+
+        val patchSet =
+            this@masking.generatePatches(
+                maskedCodeCatalog = maskedCodeCatalog,
+            )
+
+        return inputCodeCatalog.applyPatchSet(
+            patchSet = patchSet,
+        )
+      }
+    }
+
+fun PatchApplier.selecting(
+    selector: AiCodeEditor.FileSelector,
+): FileEditor =
+    object : FileEditor {
+      override suspend fun editWithin(
+          workingDirectory: MutableCompatFsDirectory,
+      ) {
+        val pickedCodeCatalog =
+            selector.pickFiles(
+                sourceDirectory = workingDirectory,
+            )
+
+        val overlayCatalog =
+            this@selecting.applyPatches(
+                inputCodeCatalog = pickedCodeCatalog,
+            )
+
+        overlayCatalog.writeBack(
+            targetDirectory = workingDirectory,
+        )
+      }
+    }

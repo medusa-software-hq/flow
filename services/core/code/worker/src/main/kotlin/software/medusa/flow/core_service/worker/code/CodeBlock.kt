@@ -28,6 +28,9 @@ data class CodeBlock(
     override fun compareTo(other: LineIndex): Int =
         compareValuesBy(this, other) { it.indexZeroBased }
 
+    val next: LineIndex
+      get() = LineIndex(indexZeroBased = indexZeroBased + 1)
+
     val indexOneBased: Int
       get() = indexZeroBased + 1
   }
@@ -156,8 +159,8 @@ data class CodeBlock(
 
     /**
      * Parses the raw content of a code block into a [CodeBlock] by splitting it into lines.
-     * [rawContent] is expected to consist of LF-terminated lines. If [rawContent] lacks a
-     * trailing LF character, it will be parsed as a one-line file.
+     * [rawContent] is expected to consist of LF-terminated lines. If [rawContent] lacks a trailing
+     * LF character, it will be parsed as a one-line file.
      */
     fun parse(
         rawContent: String,

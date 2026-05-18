@@ -36,12 +36,41 @@ object ControlChar {
 
   const val DEL: Char = '\u007F'
 
-  val All: List<Char> = listOf(
-      NUL, SOH, STX, ETX, EOT, ENQ, ACK, BEL,
-      BS, HT, LF, VT, FF, CR, SO, SI,
-      DLE, DC1, DC2, DC3, DC4, NAK, SYN, ETB,
-      CAN, EM, SUB, ESC, FS, GS, RS, US,
-  )
+  val All: List<Char> =
+      listOf(
+          NUL,
+          SOH,
+          STX,
+          ETX,
+          EOT,
+          ENQ,
+          ACK,
+          BEL,
+          BS,
+          HT,
+          LF,
+          VT,
+          FF,
+          CR,
+          SO,
+          SI,
+          DLE,
+          DC1,
+          DC2,
+          DC3,
+          DC4,
+          NAK,
+          SYN,
+          ETB,
+          CAN,
+          EM,
+          SUB,
+          ESC,
+          FS,
+          GS,
+          RS,
+          US,
+      )
 
   fun isControlC0(char: Char): Boolean = char.code in 0x00..0x1F
 
