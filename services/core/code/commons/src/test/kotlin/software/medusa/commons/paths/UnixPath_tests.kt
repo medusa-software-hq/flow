@@ -788,4 +788,72 @@ class UnixPath_tests {
         actual = resolvedPath,
     )
   }
+
+  @Test
+  fun test_LiteralAbsoluteUnixPath_relativizeAgainst_nested() {
+    val relativePath =
+        AbsoluteUnixPath.of(
+                Name.Literal("tmp"),
+                Name.Literal("project"),
+                Name.Literal("src"),
+                Name.Literal("App.kt"),
+            )
+            .relativizeAgainst(
+                basePath =
+                    AbsoluteUnixPath.of(
+                        Name.Literal("tmp"),
+                        Name.Literal("project"),
+                    ),
+            )
+
+    assertEquals(
+        expected =
+            RelativeUnixPath.of(
+                Name.Literal("src"),
+                Name.Literal("App.kt"),
+            ),
+        actual = relativePath,
+    )
+  }
+
+  @Test
+  fun test_LiteralAbsoluteUnixPath_relativizeAgainst_samePath() {
+    val relativePath =
+        AbsoluteUnixPath.of(
+                Name.Literal("tmp"),
+                Name.Literal("project"),
+            )
+            .relativizeAgainst(
+                basePath =
+                    AbsoluteUnixPath.of(
+                        Name.Literal("tmp"),
+                        Name.Literal("project"),
+                    ),
+            )
+
+    assertEquals(
+        expected = RelativeUnixPath.Empty,
+        actual = relativePath,
+    )
+  }
+
+  @Test
+  fun test_LiteralAbsoluteUnixPath_relativizeAgainst_nonPrefix() {
+    val exception = assertFails {
+      AbsoluteUnixPath.of(
+              Name.Literal("tmp"),
+              Name.Literal("other"),
+              Name.Literal("App.kt"),
+          )
+          .relativizeAgainst(
+              basePath =
+                  AbsoluteUnixPath.of(
+                      Name.Literal("tmp"),
+                      Name.Literal("project"),
+                  ),
+          )
+    }
+
+    assertIs<IllegalArgumentException>(exception)
+  }
 }

@@ -9,6 +9,7 @@ import software.medusa.commons.filesystem.compat.extractDeepMutable
 import software.medusa.commons.filesystem.compat.extractDeepReadonly
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 
 interface CodeProject {
   @JvmInline
@@ -44,6 +45,10 @@ interface CodeProject {
 
     data object AllPassed : TestingResult()
   }
+
+  val formattingTool: CodeTool
+
+  val verificationTool: CodeTool
 
   val workingDirectory: MutableCompatFsDirectory
 

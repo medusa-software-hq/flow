@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.luaj.vm2.Globals
 import org.luaj.vm2.LoadState
 import org.luaj.vm2.compiler.LuaC
@@ -17,26 +18,28 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.code.CodeFileContent
-import software.medusa.flow.core_service.worker.code_project.CodeTool
-import software.medusa.flow.core_service.worker.code_project.CodeTool.CodeModuleDiagnosis
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 import software.medusa.openai_client.OpenAiClient
 
 class ProperAiCodePatcher_integrationTests {
   companion object {
     private const val apiKeyEnvVarName = "OPENAI_API_KEY"
 
-    private val apiKey =
-        System.getenv(apiKeyEnvVarName)
-            ?: error("Environment variable $apiKeyEnvVarName is not set")
+    private val apiKey = System.getenv(apiKeyEnvVarName)
 
-    private fun buildClient() =
-        OpenAiClient.build(
-            config =
-                OpenAiClient.Config(
-                    baseUrl = OpenAiClient.openAiBaseUrl,
-                    apiKey = apiKey,
-                ),
-        )
+    private fun buildClient(): OpenAiClient {
+      assumeTrue(apiKey != null, "Environment variable $apiKeyEnvVarName is not set")
+      val actualApiKey = checkNotNull(apiKey)
+
+      return OpenAiClient.build(
+          config =
+              OpenAiClient.Config(
+                  baseUrl = OpenAiClient.openAiBaseUrl,
+                  apiKey = actualApiKey,
+              ),
+      )
+    }
 
     private fun buildLuaGlobals(): Globals =
         Globals().apply {

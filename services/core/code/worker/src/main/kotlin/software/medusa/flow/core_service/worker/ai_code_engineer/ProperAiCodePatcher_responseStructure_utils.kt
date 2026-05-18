@@ -10,7 +10,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.P
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
-import software.medusa.flow.core_service.worker.code_project.CodeTool
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 
 internal data object ProperAiCodePatcher_responseStructure_utils {
   @Serializable

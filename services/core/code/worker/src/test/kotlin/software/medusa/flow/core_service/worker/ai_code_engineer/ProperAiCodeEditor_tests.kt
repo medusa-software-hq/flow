@@ -15,8 +15,8 @@ import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.CodeFileContent
-import software.medusa.flow.core_service.worker.code_project.CodeTool.CodeFileDiagnosis
-import software.medusa.flow.core_service.worker.code_project.CodeTool.CodeModuleDiagnosis
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeFileDiagnosis
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 
 class ProperAiCodeEditor_tests {
   private val exampleTaskDescription = "Make 'hello' louder everywhere"

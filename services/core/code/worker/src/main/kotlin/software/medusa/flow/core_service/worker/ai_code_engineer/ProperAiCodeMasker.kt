@@ -2,7 +2,7 @@ package software.medusa.flow.core_service.worker.ai_code_engineer
 
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.code.CodeFileContent
-import software.medusa.flow.core_service.worker.code_project.CodeTool
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.openai_client.OpenAiClient
 
 class ProperAiCodeMasker(

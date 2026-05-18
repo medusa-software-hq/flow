@@ -1,4 +1,4 @@
-package software.medusa.flow.core_service.worker.code_project
+package software.medusa.flow.core_service.worker.code_project.tools
 
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 
@@ -34,5 +34,9 @@ interface CodeTool {
     }
   }
 
-  fun diagnose(): CodeModuleDiagnosis
+  data object AlwaysCorrect : CodeTool {
+    override suspend fun diagnose(): CodeModuleDiagnosis = CodeModuleDiagnosis.Correct
+  }
+
+  suspend fun diagnose(): CodeModuleDiagnosis
 }

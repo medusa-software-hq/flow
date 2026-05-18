@@ -37,6 +37,8 @@ interface OpenAiClient : AutoCloseable {
   companion object {
     val openAiBaseUrl: URI = URI.create("https://api.openai.com/v1/")
 
+    val openRouterBaseUrl: URI = URI.create("https://openrouter.ai/api/v1/")
+
     fun build(
         config: Config,
     ): OpenAiClient =

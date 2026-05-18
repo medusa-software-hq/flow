@@ -14,7 +14,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Fi
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.PatchApplier
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchGenerator
 import software.medusa.flow.core_service.worker.code.CodeFileContent
-import software.medusa.flow.core_service.worker.code_project.CodeTool
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 
 interface AiCodeEditor {
   interface FileSelector {

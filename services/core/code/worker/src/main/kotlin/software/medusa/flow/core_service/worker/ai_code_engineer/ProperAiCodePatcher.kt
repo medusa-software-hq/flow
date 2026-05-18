@@ -3,7 +3,7 @@ package software.medusa.flow.core_service.worker.ai_code_engineer
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchSet
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodePatcher_inputStructure_utils.encodeToTcMessage
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodePatcher_responseStructure_utils.StructuredResponse
-import software.medusa.flow.core_service.worker.code_project.CodeTool
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.openai_client.OpenAiChat
 import software.medusa.openai_client.OpenAiClient
 import software.medusa.openai_client.OpenAiMessage

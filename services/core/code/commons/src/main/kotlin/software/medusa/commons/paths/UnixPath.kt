@@ -1,5 +1,9 @@
 package software.medusa.commons.paths
 
+import java.io.File
+import java.nio.file.Path
+import java.nio.file.Paths
+
 /**
  * A simplified model of a Unix-style path.
  *
@@ -153,6 +157,8 @@ fun RelativeUnixPath<*>.toLiteral(): LiteralRelativeUnixPath? {
   return LiteralRelativeUnixPath(names = literalNames)
 }
 
+fun RelativeUnixPath<*>.toRelativeNioPath(): Path = Paths.get(toUnixRelativePathString())
+
 /** Absolute Unix-like path. */
 data class AbsoluteUnixPath<out NameT : UnixPath.Name>(
     /** Path relative to the root directory. */
@@ -221,6 +227,26 @@ fun AbsoluteUnixPath<*>.toLiteral(): LiteralAbsoluteUnixPath? {
   val literalInnerPath = innerPath.toLiteral() ?: return null
 
   return LiteralAbsoluteUnixPath(innerPath = literalInnerPath)
+}
+
+fun AbsoluteUnixPath<*>.toAbsoluteNioPath(): Path = Paths.get(toUnixAbsolutePathString())
+
+fun AbsoluteUnixPath<*>.toIoFile(): File = toAbsoluteNioPath().toFile()
+
+fun LiteralAbsoluteUnixPath.relativizeAgainst(
+    basePath: LiteralAbsoluteUnixPath,
+): LiteralRelativeUnixPath {
+  require(innerPath.names.size >= basePath.innerPath.names.size) {
+    "Path $this is not within base path $basePath"
+  }
+
+  require(innerPath.names.take(basePath.innerPath.names.size) == basePath.innerPath.names) {
+    "Path $this is not within base path $basePath"
+  }
+
+  return LiteralRelativeUnixPath(
+      names = innerPath.names.drop(basePath.innerPath.names.size),
+  )
 }
 
 private fun <T : Any> List<T?>.allNonNullOrNull(): List<T>? =

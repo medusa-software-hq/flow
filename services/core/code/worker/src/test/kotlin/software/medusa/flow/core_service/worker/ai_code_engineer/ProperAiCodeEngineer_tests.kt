@@ -8,7 +8,7 @@ import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code_project.CodeTool
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 
 class ProperAiCodeEngineer_tests {
   @Test

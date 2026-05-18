@@ -7,8 +7,8 @@ import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.CodeFileContent
 import software.medusa.flow.core_service.worker.code_project.CodeProject
-import software.medusa.flow.core_service.worker.code_project.CodeTool.CodeModuleDiagnosis
 import software.medusa.flow.core_service.worker.code_project.readFile
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 import software.medusa.flow.core_service.worker.code_project.updateFile
 
 interface AiCodePatcher {
