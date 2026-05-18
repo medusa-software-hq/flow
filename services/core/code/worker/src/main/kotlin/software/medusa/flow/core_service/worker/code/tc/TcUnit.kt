@@ -1,16 +1,14 @@
 package software.medusa.flow.core_service.worker.code.tc
 
-import software.medusa.flow.core_service.worker.code.CodeBlock
-
 data class TcUnit(
-    val block: CodeBlock,
+    val value: TcString,
 ) {
   companion object {
     fun of(
-        block: CodeBlock,
+        value: TcString,
     ): TcUnit =
         TcUnit(
-            block = block,
+            value = value,
         )
   }
 }

@@ -1,20 +1,18 @@
 package software.medusa.flow.core_service.worker.code.tc
 
-import software.medusa.flow.core_service.worker.code.CodeBlock
-
 data class TcRecord(val units: List<TcUnit>) {
   companion object {
     fun of(
-        block: CodeBlock,
+        value: TcString,
     ): TcRecord =
         TcRecord(
             units =
                 listOf(
-                    TcUnit.of(block = block),
+                    TcUnit.of(value = value),
                 ),
         )
   }
 
   fun encodeToString(): String =
-      units.joinToString(separator = ControlChar.US.toString()) { unit -> unit.block.dump() }
+      units.joinToString(separator = ControlChar.US.toString()) { unit -> unit.value.content }
 }

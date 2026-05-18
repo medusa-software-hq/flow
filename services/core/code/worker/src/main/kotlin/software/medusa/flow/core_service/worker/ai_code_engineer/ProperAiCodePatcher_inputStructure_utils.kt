@@ -3,13 +3,13 @@ package software.medusa.flow.core_service.worker.ai_code_engineer
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.tc.ControlChar
 import software.medusa.flow.core_service.worker.code.tc.TcFile
 import software.medusa.flow.core_service.worker.code.tc.TcGroup
 import software.medusa.flow.core_service.worker.code.tc.TcMessage
 import software.medusa.flow.core_service.worker.code.tc.TcRecord
+import software.medusa.flow.core_service.worker.code.tc.TcString
 import software.medusa.flow.core_service.worker.code.tc.TcUnit
 
 internal data object ProperAiCodePatcher_inputStructure_utils {
@@ -28,7 +28,7 @@ internal data object ProperAiCodePatcher_inputStructure_utils {
 
   fun MaskedCodeCatalog.encodeToTcMessage(): TcMessage =
       TcMessage(
-          header = CodeBlock.Empty,
+          header = TcString(""),
           files =
               maskedCodeFileContentByPath.entries
                   .sortedBy { (filePath, _) -> filePath.toUnixRelativePathString() }
@@ -44,7 +44,7 @@ internal data object ProperAiCodePatcher_inputStructure_utils {
           groups =
               listOf(
                   TcGroup.of(
-                      block = CodeBlock.of(filePath.toUnixRelativePathString()),
+                      value = TcString(filePath.toUnixRelativePathString()),
                   ),
                   TcGroup(
                       records = encodeMaskedContentToTcRecords(),
@@ -61,18 +61,16 @@ internal data object ProperAiCodePatcher_inputStructure_utils {
               TcRecord(
                   units =
                       listOf(
-                          TcUnit.of(block = CodeBlock.of("MASKED")),
-                          TcUnit.of(block = CodeBlock.of("Masked line")),
+                          TcUnit.of(value = TcString("MASKED")),
+                          TcUnit.of(value = TcString("Masked line")),
                       ),
               )
             } else {
               TcRecord(
                   units =
                       listOf(
-                          TcUnit.of(
-                              block = CodeBlock.of(indexedLine.index.indexOneBased.toString()),
-                          ),
-                          TcUnit.of(block = CodeBlock.of(indexedLine.line.content)),
+                          TcUnit.of(value = TcString(indexedLine.index.indexOneBased.toString())),
+                          TcUnit.of(value = indexedLine.line.toTcString()),
                       ),
               )
             }

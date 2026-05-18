@@ -1,16 +1,14 @@
 package software.medusa.flow.core_service.worker.code.tc
 
-import software.medusa.flow.core_service.worker.code.CodeBlock
-
 data class TcGroup(val records: List<TcRecord>) {
   companion object {
     fun of(
-        block: CodeBlock,
+        value: TcString,
     ): TcGroup =
         TcGroup(
             records =
                 listOf(
-                    TcRecord.of(block = block),
+                    TcRecord.of(value = value),
                 ),
         )
   }

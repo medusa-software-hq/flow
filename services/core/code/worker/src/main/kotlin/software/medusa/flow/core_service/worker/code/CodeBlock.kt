@@ -1,5 +1,8 @@
 package software.medusa.flow.core_service.worker.code
 
+import software.medusa.flow.core_service.worker.code.tc.ControlChar
+import software.medusa.flow.core_service.worker.code.tc.TcString
+
 /** A multi-line block of a code. An empty code block (containing no lines) is possible. */
 data class CodeBlock(
     val lines: List<Line>,
@@ -102,8 +105,21 @@ data class CodeBlock(
     }
 
     init {
-      require(!content.contains('\n')) { "Line content cannot contain newline characters" }
+      require(content.none { ControlChar.isControl(it) }) {
+        "Line content cannot contain control characters (including newline)"
+      }
     }
+
+    /**
+     * Dumps the content of the line as a [TcString] (without a trailing newline character).
+     *
+     * This operation always succeeds because [Line] content is guaranteed to not contain control
+     * characters, which are the only invalid characters for a [TcString].
+     */
+    fun toTcString(): TcString =
+        TcString(
+            content = content,
+        )
   }
 
   companion object {
