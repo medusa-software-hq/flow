@@ -29,6 +29,12 @@ class FilesystemOpenAiLogger(
         filePath = logEntryDirectoryPath.resolve("response.txt"),
         content = response.responseText,
     )
+    response.usage?.let { usage ->
+      writeUsageFile(
+          logEntryDirectoryPath = logEntryDirectoryPath,
+          usage = usage,
+      )
+    }
   }
 
   override fun logCreateRawStructuredCompletion(
@@ -59,6 +65,12 @@ class FilesystemOpenAiLogger(
         filePath = logEntryDirectoryPath.resolve("response.json"),
         content = json.encodeToString(response.responseJsonElement),
     )
+    response.usage?.let { usage ->
+      writeUsageFile(
+          logEntryDirectoryPath = logEntryDirectoryPath,
+          usage = usage,
+      )
+    }
   }
 
   private fun writeRequestFiles(
@@ -96,6 +108,16 @@ class FilesystemOpenAiLogger(
           content = message.text,
       )
     }
+  }
+
+  private fun writeUsageFile(
+      logEntryDirectoryPath: Path,
+      usage: OpenAiClient.Usage,
+  ) {
+    writeJsonFile(
+        filePath = logEntryDirectoryPath.resolve("usage.json"),
+        content = json.encodeToString(UsageLogEntry.serializer(), UsageLogEntry.from(usage)),
+    )
   }
 
   private fun createLogEntryDirectoryPath(
@@ -141,6 +163,22 @@ class FilesystemOpenAiLogger(
       val role: OpenAiRole,
       val name: String?,
   )
+
+  @Serializable
+  private data class UsageLogEntry(
+      val promptTokenCount: Int,
+      val completionTokenCount: Int,
+      val totalTokenCount: Int,
+  ) {
+    companion object {
+      fun from(usage: OpenAiClient.Usage): UsageLogEntry =
+          UsageLogEntry(
+              promptTokenCount = usage.promptTokenCount,
+              completionTokenCount = usage.completionTokenCount,
+              totalTokenCount = usage.totalTokenCount,
+          )
+    }
+  }
 
   companion object {
     private val json = Json { prettyPrint = true }

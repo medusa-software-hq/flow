@@ -47,6 +47,9 @@ class FilesystemOpenAiLogger_tests {
       val requestJson =
           Json.parseToJsonElement(Files.readString(entryDirectoryPath.resolve("request.json")))
               as JsonObject
+      val usageJson =
+          Json.parseToJsonElement(Files.readString(entryDirectoryPath.resolve("usage.json")))
+              as JsonObject
       val messageDirectoryPath = entryDirectoryPath.resolve("messages").resolve("0")
 
       assertTrue(Files.isDirectory(entryDirectoryPath))
@@ -65,6 +68,10 @@ class FilesystemOpenAiLogger_tests {
       assertEquals(
           expected = "hello",
           actual = Files.readString(messageDirectoryPath.resolve("message-content.txt")),
+      )
+      assertEquals(
+          expected = "0",
+          actual = usageJson.getValue("totalTokenCount").jsonPrimitive.content,
       )
       assertEquals(
           expected = "response text",
@@ -107,6 +114,9 @@ class FilesystemOpenAiLogger_tests {
       val requestJson =
           Json.parseToJsonElement(Files.readString(entryDirectoryPath.resolve("request.json")))
               as JsonObject
+      val usageJson =
+          Json.parseToJsonElement(Files.readString(entryDirectoryPath.resolve("usage.json")))
+              as JsonObject
       val messageDirectoryPath = entryDirectoryPath.resolve("messages").resolve("0")
 
       assertTrue(Files.isDirectory(entryDirectoryPath))
@@ -118,6 +128,10 @@ class FilesystemOpenAiLogger_tests {
       assertEquals(
           expected = "hello",
           actual = Files.readString(messageDirectoryPath.resolve("message-content.txt")),
+      )
+      assertEquals(
+          expected = "0",
+          actual = usageJson.getValue("totalTokenCount").jsonPrimitive.content,
       )
 
       val schemaJson =
