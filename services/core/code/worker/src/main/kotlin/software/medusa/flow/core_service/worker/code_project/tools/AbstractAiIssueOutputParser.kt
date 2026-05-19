@@ -19,7 +19,7 @@ abstract class AbstractAiIssueOutputParser(
 ) {
   companion object {
     const val issuesKeyword = "ISSUES"
-    const val errorKeyword = "ERROR"
+    const val abortKeyword = "ABORT"
   }
 
   protected abstract val systemPrompt: String
@@ -35,38 +35,40 @@ abstract class AbstractAiIssueOutputParser(
   protected open val model: OpenAiModel = OpenAiModel.Gemma4B
 
   protected suspend fun parseIssueLines(output: String): List<ParsedAiIssueLine>? {
+    val input =
+        OpenAiChat(
+            messages =
+                listOf(
+                    OpenAiMessage(
+                        role = OpenAiRole.System,
+                        text = systemPrompt,
+                    ),
+                    OpenAiMessage(
+                        role = OpenAiRole.User,
+                        text = positiveExampleInput,
+                    ),
+                    OpenAiMessage(
+                        role = OpenAiRole.Assistant,
+                        text = positiveExampleOutput,
+                    ),
+                    OpenAiMessage(
+                        role = OpenAiRole.User,
+                        text = negativeExampleInput,
+                    ),
+                    OpenAiMessage(
+                        role = OpenAiRole.Assistant,
+                        text = negativeExampleOutput,
+                    ),
+                    OpenAiMessage(role = OpenAiRole.User, text = output),
+                ),
+        )
+
     val responseText =
         openAiClient
             .createUnstructuredCompletion(
                 request =
                     OpenAiClient.CompletionRequest(
-                        input =
-                            OpenAiChat(
-                                messages =
-                                    listOf(
-                                        OpenAiMessage(
-                                            role = OpenAiRole.System,
-                                            text = systemPrompt,
-                                        ),
-                                        OpenAiMessage(
-                                            role = OpenAiRole.User,
-                                            text = positiveExampleInput,
-                                        ),
-                                        OpenAiMessage(
-                                            role = OpenAiRole.Assistant,
-                                            text = positiveExampleOutput,
-                                        ),
-                                        OpenAiMessage(
-                                            role = OpenAiRole.User,
-                                            text = negativeExampleInput,
-                                        ),
-                                        OpenAiMessage(
-                                            role = OpenAiRole.Assistant,
-                                            text = negativeExampleOutput,
-                                        ),
-                                        OpenAiMessage(role = OpenAiRole.User, text = output),
-                                    ),
-                            ),
+                        input = input,
                         model = model,
                     ),
             )
@@ -78,10 +80,10 @@ abstract class AbstractAiIssueOutputParser(
 
     when (firstLine) {
       issuesKeyword -> Unit
-      errorKeyword -> return null
+      abortKeyword -> return null
       else ->
           throw IllegalStateException(
-              "Unexpected AI response format. First line should be either $issuesKeyword or $errorKeyword. Actual response:\n$responseText",
+              "Unexpected AI response format. First line should be either $issuesKeyword or $abortKeyword. Actual response:\n$responseText",
           )
     }
 

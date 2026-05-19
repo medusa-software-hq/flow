@@ -57,7 +57,7 @@ class ProperAiCodePatcher_integrationTests {
         CodeFileContent.parse(
             """
             local function fib(n)
-                if n < 1 then
+                if n <= 1 then
                     return n
                 end
 

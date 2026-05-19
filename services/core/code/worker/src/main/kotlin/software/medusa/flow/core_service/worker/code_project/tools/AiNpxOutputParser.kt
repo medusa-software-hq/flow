@@ -3,7 +3,7 @@ package software.medusa.flow.core_service.worker.code_project.tools
 import software.medusa.openai_client.OpenAiClient
 
 private const val npxSystemPrompt =
-    """You are a parser for command-line tool output produced by npx-run checks like TypeScript.
+    """You are a parser for command-line tool output produced by npx-run checks like TypeScript. This is an automated workflow.
 
 The user message contains only raw tool output.
 
@@ -17,7 +17,8 @@ Rules:
 - Output only plain text.
 - One issue per line.
 - Include only issues that clearly reference a specific file.
-- If no file-specific issues are present, output exactly: ${AbstractAiIssueOutputParser.errorKeyword}
+
+If no file-specific issues are present, or the task can't be solved for any other reason, say: ${AbstractAiIssueOutputParser.abortKeyword}
 """
 
 private const val exampleNpxOutput1 =
@@ -38,7 +39,7 @@ private const val exampleNpxOutput2 =
     """This is not the tsc command you are looking for
 """
 
-private const val exampleParsedNpxOutput2 = "${AbstractAiIssueOutputParser.errorKeyword}\n"
+private const val exampleParsedNpxOutput2 = "${AbstractAiIssueOutputParser.abortKeyword}\n"
 
 class AiNpxOutputParser(
     openAiClient: OpenAiClient,

@@ -33,7 +33,7 @@ class ProperAiCodeEngineer_tests {
   fun test_solveProblem_invokesSingleTaskAttempt() = runTest {
     val fileName = UnixPath.Name.Literal("example.hello")
     val filePath = RelativeUnixPath.of(fileName)
-    val initialFileContent = "%def greet = say 'hello'"
+    val initialFileContent = "%def greet = /* TODO */"
     val expectedFinalFileContent = "%def greet = say 'hello!'\n"
     val expectedTaskDescription = CodeBlock.of(taskDescriptionText).dump()
 
@@ -69,7 +69,7 @@ class ProperAiCodeEngineer_tests {
                       filePath = filePath,
                   ) {
                     "%def greet = say 'hello'\n" // No exclamation mark (incorrect), no semicolon
-                                                 // (correct)
+                    // (correct)
                   }
                 }
               }
