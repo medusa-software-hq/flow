@@ -6,10 +6,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.M
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.CodeFileContent
-import software.medusa.flow.core_service.worker.code_project.CodeProject
-import software.medusa.flow.core_service.worker.code_project.readFile
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
-import software.medusa.flow.core_service.worker.code_project.updateFile
 
 interface AiCodePatcher {
   data class MaskedCodeCatalog(
@@ -35,18 +32,7 @@ interface AiCodePatcher {
   /** A set of patches to be applied to multiple code files. */
   data class PatchSet(
       val patchByFilePath: Map<LiteralRelativeUnixPath, Patch>,
-  ) {
-    suspend fun applyTo(
-        codeProject: CodeProject,
-    ) {
-      patchByFilePath.forEach { (filePath, patch) ->
-        patch.applyTo(
-            codeProject = codeProject,
-            filePath = filePath,
-        )
-      }
-    }
-  }
+  ) {}
 
   /** A patch to be applied to a code file. */
   data class Patch(
@@ -97,20 +83,6 @@ interface AiCodePatcher {
       ) {
         "Line index ranges in the patch set must not overlap"
       }
-    }
-
-    suspend fun applyTo(
-        codeProject: CodeProject,
-        filePath: LiteralRelativeUnixPath,
-    ) {
-      val oldContent = codeProject.readFile(filePath = filePath)
-
-      val patchedContent = oldContent.applyPatch(patch = this)
-
-      codeProject.updateFile(
-          filePath = filePath,
-          newFileContent = patchedContent,
-      )
     }
   }
 

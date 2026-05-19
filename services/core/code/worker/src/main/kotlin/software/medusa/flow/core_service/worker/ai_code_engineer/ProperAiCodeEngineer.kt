@@ -4,15 +4,15 @@ import software.medusa.commons.filesystem.compat.MutableCompatFsDirectory
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.FileEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEngineer.ProblemScope
 import software.medusa.flow.core_service.worker.code_project.CodeProject
-import software.medusa.flow.core_service.worker.code_project.CodeProject.FormattingResult
+import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 
 class ProperAiCodeEngineer(
     private val aiCodeEditor: AiCodeEditor,
 ) : AiCodeEngineer {
   private class ProblemSolvingContext(
       private val aiCodeEditor: AiCodeEditor,
+      private val codeRootDirectory: MutableCompatFsDirectory,
       private val codeProject: CodeProject,
-      private val workingDirectory: MutableCompatFsDirectory,
       private val problemStatement: AiCodeEngineer.ProblemStatement,
       private val problemScope: ProblemScope,
   ) {
@@ -25,7 +25,7 @@ class ProperAiCodeEngineer(
 
     private suspend fun FileEditor.editWithinWorktree() {
       editWithin(
-          workingDirectory = workingDirectory,
+          workingDirectory = codeRootDirectory,
       )
     }
 
@@ -48,20 +48,38 @@ class ProperAiCodeEngineer(
 
         ++iterationCount
 
-        when (val formattingResult = codeProject.format()) {
-          FormattingResult.Formatted -> {
+        when (val formattingDiagnosis = codeProject.rootModule.formattingTool.diagnose()) {
+          CodeModuleDiagnosis.Correct -> {
             // Great! The code was acceptably formatted. Now it's formatted conventionally.
           }
 
-          is FormattingResult.FoundSyntaxErrors -> {
-            // Oops. Let's try to fix the formatting.
+          is CodeModuleDiagnosis.Incorrect -> {
+            aiCodeEditor
+                .attemptToFixIssues(
+                    originalRelevantFilePaths = problemScope.relevantFilePaths,
+                    originalTaskDescription = taskDescription,
+                    moduleDiagnosis = formattingDiagnosis,
+                )
+                .editWithinWorktree()
 
-            // TODO: Separate loop to ensure that we first fix the diagnosed issues?
-            // TODO: Some kind of log?
+            continue
+          }
+        }
 
-            TODO("Issue-fixing loop is not wired yet")
+        when (val verificationDiagnosis = codeProject.rootModule.verificationTool.diagnose()) {
+          CodeModuleDiagnosis.Correct -> {
+            // Great! The code verifies.
+          }
 
-            // We don't know if the formatting issues are actually fixed. Go back to the start.
+          is CodeModuleDiagnosis.Incorrect -> {
+            aiCodeEditor
+                .attemptToFixIssues(
+                    originalRelevantFilePaths = problemScope.relevantFilePaths,
+                    originalTaskDescription = taskDescription,
+                    moduleDiagnosis = verificationDiagnosis,
+                )
+                .editWithinWorktree()
+
             continue
           }
         }
@@ -74,17 +92,17 @@ class ProperAiCodeEngineer(
 
   override suspend fun solveProblem(
       codeProject: CodeProject,
+      codeRootDirectory: MutableCompatFsDirectory,
       problemStatement: AiCodeEngineer.ProblemStatement,
       problemScope: ProblemScope,
   ) {
-
     val problemSolvingContext =
         ProblemSolvingContext(
             aiCodeEditor = aiCodeEditor,
+            codeRootDirectory = codeRootDirectory,
             codeProject = codeProject,
             problemStatement = problemStatement,
             problemScope = problemScope,
-            workingDirectory = codeProject.workingDirectory,
         )
 
     problemSolvingContext.solveProblemIteratively()
