@@ -21,6 +21,7 @@ armeria-bom = { module = "com.linecorp.armeria:armeria-bom", version.ref = "arme
 armeria-grpc = { module = "com.linecorp.armeria:armeria-grpc", version.ref = "armeria" }
 armeria-grpc-kotlin = { module = "com.linecorp.armeria:armeria-grpc-kotlin", version.ref = "armeria" }
 armeria-kotlin = { module = "com.linecorp.armeria:armeria-kotlin", version.ref = "armeria" }
+clikt = "com.github.ajalt.clikt:clikt-jvm:5.0.3"
 grpc-bom = { module = "io.grpc:grpc-bom", version.ref = "grpc" }
 grpc-kotlin-stub = { module = "io.grpc:grpc-kotlin-stub", version.ref = "grpc-kotlin" }
 grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }

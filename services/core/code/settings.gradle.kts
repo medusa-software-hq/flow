@@ -21,6 +21,7 @@ plugins {
 rootProject.name = "core-service"
 
 include("commons")
+include("cli")
 include("control")
 include("git")
 include("lab")
