@@ -4,6 +4,7 @@ import java.nio.file.Files
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class Main_tests {
   @Test
@@ -19,6 +20,18 @@ class Main_tests {
       )
     } finally {
       Files.deleteIfExists(tempFile)
+    }
+  }
+
+  @Test
+  fun test_createOpenAiLogRootPath_createsTempDirectory() {
+    val logRootPath = createOpenAiLogRootPath()
+
+    try {
+      assertTrue(Files.exists(logRootPath))
+      assertTrue(Files.isDirectory(logRootPath))
+    } finally {
+      logRootPath.toFile().deleteRecursively()
     }
   }
 }

@@ -17,12 +17,15 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import org.yaml.snakeyaml.Yaml
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsEntity
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
+import software.medusa.commons.filesystem.compat.readText
 import software.medusa.commons.paths.LiteralAbsoluteUnixPath
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 import software.medusa.commons.paths.resolve
-import software.medusa.commons.paths.toIoFile
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.flow.core_service.worker.code_project.tools.GradleOutputParser
 import software.medusa.flow.core_service.worker.code_project.tools.GradleTool
@@ -33,22 +36,32 @@ class YamlCodeProjectLoader(
     private val gradleOutputParser: GradleOutputParser,
     private val npxOutputParser: NpxOutputParser?,
 ) : CodeProjectLoader {
-  override fun loadProject(
+  override suspend fun loadProject(
+      projectDirectory: ReadonlyCompatFsDirectory,
       projectPath: LiteralAbsoluteUnixPath,
   ): CodeProject =
       YamlCodeProject(
-          rootModule = loadModule(modulePath = projectPath),
+          rootModule = loadModule(moduleDirectory = projectDirectory, modulePath = projectPath),
       )
 
-  private fun loadModule(
+  private suspend fun loadModule(
+      moduleDirectory: ReadonlyCompatFsDirectory,
       modulePath: LiteralAbsoluteUnixPath,
   ): YamlCodeModule {
-    val config = readModuleConfig(modulePath = modulePath)
+    val config = readModuleConfig(moduleDirectory = moduleDirectory)
 
     val submodulesByName =
         config.submodules.mapValues { (_, relativeModulePathText) ->
           val relativeModulePath = parseLiteralRelativePath(relativeModulePathText)
-          loadModule(modulePath = modulePath.resolve(relativeModulePath))
+          val submoduleDirectory =
+              moduleDirectory.extractDeep(relativePath = relativeModulePath)
+                  as? ReadonlyCompatFsDirectory
+                  ?: error("Expected submodule directory at $relativeModulePathText")
+
+          loadModule(
+              moduleDirectory = submoduleDirectory,
+              modulePath = modulePath.resolve(relativeModulePath),
+          )
         }
 
     val formattingTools = buildList {
@@ -92,11 +105,14 @@ class YamlCodeProjectLoader(
     )
   }
 
-  private fun readModuleConfig(modulePath: LiteralAbsoluteUnixPath): ModuleYamlConfig {
-    val moduleYamlPath = modulePath.resolve(moduleYamlFilePath)
+  private suspend fun readModuleConfig(
+      moduleDirectory: ReadonlyCompatFsDirectory
+  ): ModuleYamlConfig {
+    val moduleYamlFile =
+        moduleDirectory.extract(moduleYamlFilePath.names.single()) as? ReadonlyCompatFsFile
+            ?: error("Expected module.yaml in module directory")
 
-    val parsedYamlObject =
-        moduleYamlPath.toIoFile().inputStream().use { inputStream -> yaml.load<Any?>(inputStream) }
+    val parsedYamlObject = yaml.load<Any?>(moduleYamlFile.readText())
 
     return json.decodeFromJsonElement(
         deserializer = ModuleYamlConfig.serializer(),
@@ -302,3 +318,15 @@ private fun JsonElement.requireJsonString(): String =
 private fun JsonElement.requireJsonStringList(): List<String> =
     (this as? JsonArray)?.map { element -> element.requireJsonString() }
         ?: error("Expected JSON string list, got: $this")
+
+private suspend fun ReadonlyCompatFsDirectory.extractDeep(
+    relativePath: LiteralRelativeUnixPath,
+): ReadonlyCompatFsEntity? {
+  var currentEntity: ReadonlyCompatFsEntity = this
+
+  for (name in relativePath.names) {
+    currentEntity = (currentEntity as? ReadonlyCompatFsDirectory)?.extract(name) ?: return null
+  }
+
+  return currentEntity
+}

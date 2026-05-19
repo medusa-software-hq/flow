@@ -7,8 +7,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsDirectory
 import software.medusa.commons.paths.AbsoluteUnixPath
 import software.medusa.commons.paths.LiteralAbsoluteUnixPath
+import software.medusa.commons.paths.toAbsoluteNioPath
 import software.medusa.commons.paths.toIoFile
 import software.medusa.commons.paths.toLiteral
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
@@ -25,7 +27,11 @@ class YamlCodeProjectLoader_integrationTests {
                   gradleOutputParser = NaiveGradleOutputParser,
                   npxOutputParser = null,
               )
-              .loadProject(projectPath = projectDirPath)
+              .loadProject(
+                  projectDirectory =
+                      NioCompatFsDirectory(directoryPath = projectDirPath.toAbsoluteNioPath()),
+                  projectPath = projectDirPath,
+              )
 
       assertIs<YamlCodeProject>(project)
       assertEquals(
@@ -64,7 +70,11 @@ class YamlCodeProjectLoader_integrationTests {
                   gradleOutputParser = NaiveGradleOutputParser,
                   npxOutputParser = null,
               )
-              .loadProject(projectPath = projectDirPath)
+              .loadProject(
+                  projectDirectory =
+                      NioCompatFsDirectory(directoryPath = projectDirPath.toAbsoluteNioPath()),
+                  projectPath = projectDirPath,
+              )
 
       val rejected =
           assertIs<CodeTool.CodeModuleDiagnosis.Incorrect>(

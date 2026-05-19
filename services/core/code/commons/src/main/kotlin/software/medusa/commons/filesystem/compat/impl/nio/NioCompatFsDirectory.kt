@@ -18,8 +18,12 @@ import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory.Entry
 import software.medusa.commons.paths.UnixPath
 
 class NioCompatFsDirectory(
-    private val directoryPath: Path,
+    val directoryPath: Path,
 ) : MutableCompatFsDirectory {
+  companion object {
+    val Root = NioCompatFsDirectory(directoryPath = Path.of("/"))
+  }
+
   override suspend fun listEntries(): List<Entry<MutableCompatFsEntity>> =
       withContext(Dispatchers.IO) {
         directoryPath.listDirectoryEntries().map { entityPath ->
