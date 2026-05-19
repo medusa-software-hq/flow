@@ -20,6 +20,7 @@ dependencies {
   implementation(project(":shared"))
   implementation(project(":opencode-enclosed"))
   implementation(gradleApi())
+  implementation(libs.snakeyaml)
 
   implementation(libs.logback.classic)
   implementation(libs.kotlinx.schema.annotations)

@@ -3,6 +3,7 @@ package software.medusa.flow.core_service.worker.code_project.tools
 import software.medusa.commons.paths.AbsoluteUnixPath
 import software.medusa.commons.paths.toLiteral
 
+/** Naive implementation of [GradleOutputParser], suitable for testing only. */
 data object NaiveGradleOutputParser : GradleOutputParser {
   override suspend fun parse(
       gradleOutput: String,

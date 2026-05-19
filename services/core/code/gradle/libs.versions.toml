@@ -34,6 +34,7 @@ kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.re
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlin-serialization" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 openai-kotlin = { module = "com.aallam.openai:openai-client-jvm", version.ref = "openai-kotlin" }
+snakeyaml = "org.yaml:snakeyaml:2.4"
 ktor-client-okhttp = "io.ktor:ktor-client-okhttp-jvm:3.3.1"
 protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
