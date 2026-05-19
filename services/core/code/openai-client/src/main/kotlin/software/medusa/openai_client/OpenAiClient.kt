@@ -24,16 +24,26 @@ interface OpenAiClient : AutoCloseable {
       val temperature: Double? = null,
   )
 
+  @Serializable
+  data class Usage(
+      val promptTokenCount: Int,
+      val completionTokenCount: Int,
+      val totalTokenCount: Int,
+  )
+
   data class UnstructuredCompletionResponse(
       val responseText: String,
+      val usage: Usage?,
   )
 
   data class RawStructuredCompletionResponse(
       val responseJsonElement: JsonElement,
+      val usage: Usage?,
   )
 
   data class StructuredCompletionResponse<ResponseT : Any>(
       val responseObject: ResponseT,
+      val usage: Usage?,
   )
 
   companion object {
@@ -101,5 +111,6 @@ suspend fun <ResponseT : Any> OpenAiClient.createStructuredCompletion(
 
   return OpenAiClient.StructuredCompletionResponse(
       responseObject = responseObject,
+      usage = rawResponse.usage,
   )
 }

@@ -30,7 +30,16 @@ class FilesystemOpenAiLogger_tests {
 
       logger.logCreateUnstructuredCompletion(
           request = exampleRequest,
-          response = OpenAiClient.UnstructuredCompletionResponse(responseText = "response text"),
+          response =
+              OpenAiClient.UnstructuredCompletionResponse(
+                  responseText = "response text",
+                  usage =
+                      OpenAiClient.Usage(
+                          promptTokenCount = 0,
+                          completionTokenCount = 0,
+                          totalTokenCount = 0,
+                      ),
+              ),
       )
 
       val entryDirectoryPath =
@@ -84,6 +93,12 @@ class FilesystemOpenAiLogger_tests {
           response =
               OpenAiClient.RawStructuredCompletionResponse(
                   responseJsonElement = buildJsonObject { put("answer", 42) },
+                  usage =
+                      OpenAiClient.Usage(
+                          promptTokenCount = 0,
+                          completionTokenCount = 0,
+                          totalTokenCount = 0,
+                      ),
               ),
       )
 
