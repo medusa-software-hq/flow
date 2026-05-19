@@ -1,11 +1,9 @@
 package software.medusa.flow.core_service.worker.code_project
 
-import java.nio.file.Path
+import software.medusa.commons.paths.LiteralAbsoluteUnixPath
 
-class CodeProjectLoader {
+interface CodeProjectLoader {
   fun loadProject(
-      projectPath: Path,
-  ): CodeProject {
-    TODO()
-  }
+      projectPath: LiteralAbsoluteUnixPath,
+  ): CodeProject
 }

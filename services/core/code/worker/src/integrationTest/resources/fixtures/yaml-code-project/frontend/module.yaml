@@ -1,0 +1,19 @@
+facets:
+  npm:
+    formatting:
+      fix:
+        npx-args:
+          - --yes
+          - --package
+          - typescript@6.0.3
+          - tsc
+          - --noEmit
+    verification:
+      - name: Frontend typecheck
+        run:
+          npx-args:
+            - --yes
+            - --package
+            - typescript@6.0.3
+            - tsc
+            - --noEmit

@@ -1,0 +1,9 @@
+facets:
+  gradle:
+    formatting:
+      fix:
+        gradle-task: compileKotlin
+    verification:
+      - name: Backend compile
+        run:
+          gradle-task: compileKotlin
