@@ -15,6 +15,4 @@ dependencies {
   testImplementation(libs.kotlinx.coroutines.test)
 }
 
-application {
-  mainClass = "software.medusa.flow.cli.MainKt"
-}
+application { mainClass = "software.medusa.flow.cli.MainKt" }

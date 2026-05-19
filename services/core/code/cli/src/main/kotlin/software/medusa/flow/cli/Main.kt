@@ -63,14 +63,16 @@ private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
       val worktreeUnixPath = worktreePath.toLiteralAbsoluteUnixPath()
       val taskDescription = readTaskDescription(taskDescriptionSource)
 
-      val openAiClient = buildRequiredClient(
-          apiKeyEnvVarName = openAiApiKeyEnvVarName,
-          baseUrl = OpenAiClient.openAiBaseUrl,
-      )
-      val openRouterClient = buildRequiredClient(
-          apiKeyEnvVarName = openRouterApiKeyEnvVarName,
-          baseUrl = OpenAiClient.openRouterBaseUrl,
-      )
+      val openAiClient =
+          buildRequiredClient(
+              apiKeyEnvVarName = openAiApiKeyEnvVarName,
+              baseUrl = OpenAiClient.openAiBaseUrl,
+          )
+      val openRouterClient =
+          buildRequiredClient(
+              apiKeyEnvVarName = openRouterApiKeyEnvVarName,
+              baseUrl = OpenAiClient.openRouterBaseUrl,
+          )
 
       openAiClient.use { patchingClient ->
         openRouterClient.use { parsingClient ->
@@ -163,15 +165,14 @@ private suspend fun MutableCompatFsDirectory.collectAllFilePaths(): Set<LiteralR
 private suspend fun collectAllFilePathsRecursively(
     directory: ReadonlyCompatFsDirectory,
     prefix: RelativeUnixPath<software.medusa.commons.paths.UnixPath.Name.Literal>,
-): Set<LiteralRelativeUnixPath> =
-    buildSet {
-      directory.listEntries().forEach { entry ->
-        val childEntity = entry.entity
-        val childPath = LiteralRelativeUnixPath.of(prefix.names + entry.name)
+): Set<LiteralRelativeUnixPath> = buildSet {
+  directory.listEntries().forEach { entry ->
+    val childEntity = entry.entity
+    val childPath = LiteralRelativeUnixPath.of(prefix.names + entry.name)
 
-        when (childEntity) {
-          is ReadonlyCompatFsFile -> add(childPath)
-          is ReadonlyCompatFsDirectory -> addAll(collectAllFilePathsRecursively(childEntity, childPath))
-        }
-      }
+    when (childEntity) {
+      is ReadonlyCompatFsFile -> add(childPath)
+      is ReadonlyCompatFsDirectory -> addAll(collectAllFilePathsRecursively(childEntity, childPath))
     }
+  }
+}

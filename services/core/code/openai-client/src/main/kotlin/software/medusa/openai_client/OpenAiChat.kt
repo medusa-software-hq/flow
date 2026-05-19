@@ -1,13 +1,16 @@
 package software.medusa.openai_client
 
 import com.aallam.openai.api.chat.ChatMessage
+import kotlinx.serialization.Serializable
 
+@Serializable
 enum class OpenAiRole {
   System,
   User,
   Assistant,
 }
 
+@Serializable
 data class OpenAiMessage(
     val role: OpenAiRole,
     val text: String,
@@ -21,6 +24,7 @@ data class OpenAiMessage(
       }
 }
 
+@Serializable
 data class OpenAiChat(
     val messages: List<OpenAiMessage>,
 ) {

@@ -4,6 +4,7 @@ import java.net.URI
 import kotlinx.schema.generator.json.serialization.SerializationClassJsonSchemaGenerator
 import kotlinx.schema.json.JsonSchema
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -15,6 +16,7 @@ interface OpenAiClient : AutoCloseable {
       val organization: String? = null,
   )
 
+  @Serializable
   data class CompletionRequest(
       val input: OpenAiChat,
       val model: OpenAiModel,
