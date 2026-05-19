@@ -35,9 +35,28 @@ class FilesystemOpenAiLogger_tests {
 
       val entryDirectoryPath =
           logDirectoryPath.resolve("20260519-133000-123-createUnstructuredCompletion")
+      val requestJson =
+          Json.parseToJsonElement(Files.readString(entryDirectoryPath.resolve("request.json")))
+              as JsonObject
+      val messageDirectoryPath = entryDirectoryPath.resolve("messages").resolve("0")
 
       assertTrue(Files.isDirectory(entryDirectoryPath))
-      assertTrue(Files.exists(entryDirectoryPath.resolve("request.json")))
+      assertEquals(
+          expected = "gpt-5.4",
+          actual = requestJson.getValue("model").jsonPrimitive.content,
+      )
+      assertTrue(Files.isDirectory(messageDirectoryPath))
+      val messageJson =
+          Json.parseToJsonElement(Files.readString(messageDirectoryPath.resolve("message.json")))
+              as JsonObject
+      assertEquals(
+          expected = "User",
+          actual = messageJson.getValue("role").jsonPrimitive.content,
+      )
+      assertEquals(
+          expected = "hello",
+          actual = Files.readString(messageDirectoryPath.resolve("message-content.txt")),
+      )
       assertEquals(
           expected = "response text",
           actual = Files.readString(entryDirectoryPath.resolve("response.txt")),
@@ -70,9 +89,21 @@ class FilesystemOpenAiLogger_tests {
 
       val entryDirectoryPath =
           logDirectoryPath.resolve("20260519-133000-123-createRawStructuredCompletion")
+      val requestJson =
+          Json.parseToJsonElement(Files.readString(entryDirectoryPath.resolve("request.json")))
+              as JsonObject
+      val messageDirectoryPath = entryDirectoryPath.resolve("messages").resolve("0")
 
       assertTrue(Files.isDirectory(entryDirectoryPath))
-      assertTrue(Files.exists(entryDirectoryPath.resolve("request.json")))
+      assertEquals(
+          expected = "gpt-5.4",
+          actual = requestJson.getValue("model").jsonPrimitive.content,
+      )
+      assertTrue(Files.isDirectory(messageDirectoryPath))
+      assertEquals(
+          expected = "hello",
+          actual = Files.readString(messageDirectoryPath.resolve("message-content.txt")),
+      )
 
       val schemaJson =
           Json.parseToJsonElement(Files.readString(entryDirectoryPath.resolve("schema.json")))

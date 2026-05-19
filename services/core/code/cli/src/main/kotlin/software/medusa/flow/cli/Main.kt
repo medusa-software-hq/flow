@@ -160,7 +160,8 @@ private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
                       ),
                   logger =
                       FilesystemAiCodeEditorLogger(
-                          logDirectory = NioCompatFsDirectory(directoryPath = aiCodeEditorLogsDirectoryPath),
+                          logDirectory =
+                              NioCompatFsDirectory(directoryPath = aiCodeEditorLogsDirectoryPath),
                           clock = Clock.systemUTC(),
                       ),
               )

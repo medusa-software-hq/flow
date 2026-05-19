@@ -7,6 +7,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.schema.json.JsonSchema
 import kotlinx.schema.json.encodeToJsonObject
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class FilesystemOpenAiLogger(
@@ -20,9 +21,9 @@ class FilesystemOpenAiLogger(
     val logEntryDirectoryPath =
         createLogEntryDirectoryPath(operationName = "createUnstructuredCompletion")
 
-    writeJsonFile(
-        filePath = logEntryDirectoryPath.resolve("request.json"),
-        content = json.encodeToString(OpenAiClient.CompletionRequest.serializer(), request),
+    writeRequestFiles(
+        logEntryDirectoryPath = logEntryDirectoryPath,
+        request = request,
     )
     writeTextFile(
         filePath = logEntryDirectoryPath.resolve("response.txt"),
@@ -39,9 +40,9 @@ class FilesystemOpenAiLogger(
     val logEntryDirectoryPath =
         createLogEntryDirectoryPath(operationName = "createRawStructuredCompletion")
 
-    writeJsonFile(
-        filePath = logEntryDirectoryPath.resolve("request.json"),
-        content = json.encodeToString(OpenAiClient.CompletionRequest.serializer(), request),
+    writeRequestFiles(
+        logEntryDirectoryPath = logEntryDirectoryPath,
+        request = request,
     )
     writeJsonFile(
         filePath = logEntryDirectoryPath.resolve("schema.json"),
@@ -58,6 +59,43 @@ class FilesystemOpenAiLogger(
         filePath = logEntryDirectoryPath.resolve("response.json"),
         content = json.encodeToString(response.responseJsonElement),
     )
+  }
+
+  private fun writeRequestFiles(
+      logEntryDirectoryPath: Path,
+      request: OpenAiClient.CompletionRequest,
+  ) {
+    writeJsonFile(
+        filePath = logEntryDirectoryPath.resolve("request.json"),
+        content =
+            json.encodeToString(
+                RequestLogEntry.serializer(),
+                RequestLogEntry(model = request.model.id),
+            ),
+    )
+
+    val messagesDirectoryPath = Files.createDirectories(logEntryDirectoryPath.resolve("messages"))
+
+    request.input.messages.forEachIndexed { index, message ->
+      val messageDirectoryPath =
+          Files.createDirectories(messagesDirectoryPath.resolve(index.toString()))
+
+      writeJsonFile(
+          filePath = messageDirectoryPath.resolve("message.json"),
+          content =
+              json.encodeToString(
+                  MessageLogEntry.serializer(),
+                  MessageLogEntry(
+                      role = message.role,
+                      name = message.name,
+                  ),
+              ),
+      )
+      writeTextFile(
+          filePath = messageDirectoryPath.resolve("message-content.txt"),
+          content = message.text,
+      )
+    }
   }
 
   private fun createLogEntryDirectoryPath(
@@ -87,10 +125,21 @@ class FilesystemOpenAiLogger(
     Files.writeString(filePath, content)
   }
 
-  @kotlinx.serialization.Serializable
+  @Serializable
   private data class SchemaLogEntry(
       val name: String,
       val schema: kotlinx.serialization.json.JsonObject,
+  )
+
+  @Serializable
+  private data class RequestLogEntry(
+      val model: String,
+  )
+
+  @Serializable
+  private data class MessageLogEntry(
+      val role: OpenAiRole,
+      val name: String?,
   )
 
   companion object {
