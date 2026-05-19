@@ -24,6 +24,8 @@ import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.resolve
 import software.medusa.commons.paths.toLiteral
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEngineer
+import software.medusa.flow.core_service.worker.ai_code_engineer.FilesystemAiCodeEditorLogger
+import software.medusa.flow.core_service.worker.ai_code_engineer.LoggingAiCodeEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEngineer
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeMasker
@@ -124,6 +126,12 @@ private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
               )
 
       val openAiLogRootPath = createOpenAiLogRootPath()
+      val logsDirectoryPath = Files.createDirectories(openAiLogRootPath.resolve("logs"))
+      val openAiLogsDirectoryPath = Files.createDirectories(logsDirectoryPath.resolve("openai"))
+      val openRouterLogsDirectoryPath =
+          Files.createDirectories(logsDirectoryPath.resolve("openrouter"))
+      val aiCodeEditorLogsDirectoryPath =
+          Files.createDirectories(logsDirectoryPath.resolve("ai-code-editor"))
 
       println(openAiLogRootPath)
 
@@ -131,25 +139,35 @@ private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
           buildRequiredClient(
               apiKeyEnvVarName = openAiApiKeyEnvVarName,
               baseUrl = OpenAiClient.openAiBaseUrl,
-              logDirectoryPath = openAiLogRootPath.resolve("logs").resolve("openai"),
+              logDirectoryPath = openAiLogsDirectoryPath,
           )
 
       val openRouterClient =
           buildRequiredClient(
               apiKeyEnvVarName = openRouterApiKeyEnvVarName,
               baseUrl = OpenAiClient.openRouterBaseUrl,
-              logDirectoryPath = openAiLogRootPath.resolve("logs").resolve("openrouter"),
+              logDirectoryPath = openRouterLogsDirectoryPath,
           )
 
       openAiClient.use { patchingClient ->
         openRouterClient.use { parsingClient ->
-          val aiCodeEngineer =
-              ProperAiCodeEngineer(
-                  aiCodeEditor =
+          val aiCodeEditor =
+              LoggingAiCodeEditor(
+                  baseAiCodeEditor =
                       ProperAiCodeEditor(
                           aiCodePatcher = ProperAiCodePatcher(openAiClient = patchingClient),
                           aiCodeMasker = ProperAiCodeMasker(openAiClient = patchingClient),
                       ),
+                  logger =
+                      FilesystemAiCodeEditorLogger(
+                          logDirectory = NioCompatFsDirectory(directoryPath = aiCodeEditorLogsDirectoryPath),
+                          clock = Clock.systemUTC(),
+                      ),
+              )
+
+          val aiCodeEngineer =
+              ProperAiCodeEngineer(
+                  aiCodeEditor = aiCodeEditor,
               )
 
           val codeProject =

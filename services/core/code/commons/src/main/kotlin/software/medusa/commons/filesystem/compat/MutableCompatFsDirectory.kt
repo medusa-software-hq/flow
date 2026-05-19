@@ -36,3 +36,21 @@ interface MutableCompatFsDirectory : MutableCompatFsEntity, ReadonlyCompatFsDire
       name: UnixPath.Name.Literal,
   ): MutableCompatFsDirectory
 }
+
+/**
+ * Returns the mutable direct child named [name], creating a new directory if no such child exists.
+ *
+ * @throws IllegalStateException if a file with the same name already exists.
+ */
+suspend fun MutableCompatFsDirectory.extractOrCreateDirectory(
+    name: UnixPath.Name.Literal,
+): MutableCompatFsDirectory =
+    when (val existingEntity = extract(name = name)) {
+      is MutableCompatFsDirectory -> existingEntity
+
+      is MutableCompatFsFile -> {
+        throw IllegalStateException("Expected a directory named `${name.name}`, but found a file")
+      }
+
+      null -> createDirectory(name = name)
+    }
