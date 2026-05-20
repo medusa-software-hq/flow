@@ -22,7 +22,7 @@ import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 import software.medusa.openai_client.OpenAiClient
 
-class ProperAiCodePatcher_integrationTests {
+class JsonAiCodePatcher_integrationTests {
   companion object {
     private const val apiKeyEnvVarName = "OPENAI_API_KEY"
 
@@ -89,7 +89,7 @@ class ProperAiCodePatcher_integrationTests {
 
   @Test
   fun test_patchToCompleteTask() = runTest {
-    val patcher = ProperAiCodePatcher(openAiClient = buildClient())
+    val patcher = JsonAiCodePatcher(openAiClient = buildClient())
 
     val patchSet =
         patcher
@@ -123,7 +123,7 @@ class ProperAiCodePatcher_integrationTests {
 
   @Test
   fun test_patchToFixIssues() = runTest {
-    val patcher = ProperAiCodePatcher(openAiClient = buildClient())
+    val patcher = JsonAiCodePatcher(openAiClient = buildClient())
 
     val patchSet =
         patcher

@@ -29,7 +29,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.LoggingAiCodeEd
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEngineer
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeMasker
-import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodePatcher
+import software.medusa.flow.core_service.worker.ai_code_engineer.RawAiCodePatcher
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code_project.YamlCodeProjectLoader
 import software.medusa.flow.core_service.worker.code_project.tools.AiGradleOutputParser
@@ -155,7 +155,7 @@ private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
               LoggingAiCodeEditor(
                   baseAiCodeEditor =
                       ProperAiCodeEditor(
-                          aiCodePatcher = ProperAiCodePatcher(openAiClient = patchingClient),
+                          aiCodePatcher = RawAiCodePatcher(openAiClient = patchingClient),
                           aiCodeMasker = ProperAiCodeMasker(openAiClient = patchingClient),
                       ),
                   logger =

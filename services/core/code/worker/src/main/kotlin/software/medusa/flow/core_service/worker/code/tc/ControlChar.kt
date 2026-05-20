@@ -36,6 +36,8 @@ object ControlChar {
 
   const val DEL: Char = '\u007F'
 
+  const val ST: Char = '\u009C'
+
   val All: List<Char> =
       listOf(
           NUL,

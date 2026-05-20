@@ -4,9 +4,9 @@ import java.nio.file.Path
 import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsDirectory
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
+import software.medusa.flow.core_service.worker.ai_code_engineer.JsonAiCodePatcher
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeMasker
-import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodePatcher
 import software.medusa.openai_client.OpenAiClient
 
 private const val apiKeyEnvVarName = "OPENAI_API_KEY"
@@ -32,7 +32,7 @@ suspend fun main() {
   val aiCodeEditor =
       ProperAiCodeEditor(
           aiCodePatcher =
-              ProperAiCodePatcher(
+              JsonAiCodePatcher(
                   openAiClient = openAiClient,
               ),
           aiCodeMasker =

@@ -32,7 +32,7 @@ interface AiCodePatcher {
   /** A set of patches to be applied to multiple code files. */
   data class PatchSet(
       val patchByFilePath: Map<LiteralRelativeUnixPath, Patch>,
-  ) {}
+  )
 
   /** A patch to be applied to a code file. */
   data class Patch(

@@ -13,7 +13,7 @@ import software.medusa.openai_client.createStructuredCompletion
 
 private val patchingModel = OpenAiModel.GptMidi
 
-class ProperAiCodePatcher(
+class JsonAiCodePatcher(
     private val openAiClient: OpenAiClient,
 ) : AiCodePatcher {
   override fun patchToCompleteTask(
