@@ -10,6 +10,7 @@ val integrationTestSourceSetName = "integrationTest"
 
 dependencies {
   api(project(":git"))
+  api(project(":markdown"))
   api(project(":openai-client"))
 
   api(libs.kotlinx.coroutines.core)
