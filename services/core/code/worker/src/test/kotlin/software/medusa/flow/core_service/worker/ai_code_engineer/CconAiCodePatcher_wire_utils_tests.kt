@@ -58,7 +58,7 @@ class CconAiCodePatcher_wire_utils_tests {
     assertEquals(
         expected =
             CconRecord(
-                tagName = "patch_set",
+                tagName = "patches",
                 headerValues = emptyList(),
                 childElements =
                     listOf(
@@ -111,12 +111,12 @@ class CconAiCodePatcher_wire_utils_tests {
 
     val responseText =
         CconRecord(
-                tagName = "patch_set",
+                tagName = "patches",
                 headerValues = emptyList(),
                 childElements =
                     listOf(
                         CconRecord(
-                            tagName = "file_patch",
+                            tagName = "patch",
                             headerValues = listOf("module.yaml"),
                             childElements =
                                 listOf(
@@ -182,12 +182,12 @@ class CconAiCodePatcher_wire_utils_tests {
   fun test_parseAst_decodesPatchResponseIntoFlatAst() {
     val responseText =
         CconRecord(
-                tagName = "patch_set",
+                tagName = "patches",
                 headerValues = emptyList(),
                 childElements =
                     listOf(
                         CconRecord(
-                            tagName = "file_patch",
+                            tagName = "patch",
                             headerValues = listOf("module.yaml"),
                             childElements =
                                 listOf(
@@ -260,12 +260,12 @@ class CconAiCodePatcher_wire_utils_tests {
 
     val responseText =
         CconRecord(
-                tagName = "patch_set",
+                tagName = "patches",
                 headerValues = emptyList(),
                 childElements =
                     listOf(
                         CconRecord(
-                            tagName = "file_patch",
+                            tagName = "patch",
                             headerValues = listOf("unknown.txt"),
                             childElements = emptyList(),
                         ),
@@ -305,12 +305,12 @@ class CconAiCodePatcher_wire_utils_tests {
 
     val responseText =
         CconRecord(
-                tagName = "patch_set",
+                tagName = "patches",
                 headerValues = emptyList(),
                 childElements =
                     listOf(
                         CconRecord(
-                            tagName = "file_patch",
+                            tagName = "patch",
                             headerValues = listOf("module.yaml"),
                             childElements =
                                 listOf(
