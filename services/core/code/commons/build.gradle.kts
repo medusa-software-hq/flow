@@ -13,3 +13,5 @@ dependencies {
   testImplementation(libs.kotlin.test)
   testImplementation(libs.kotlinx.coroutines.test)
 }
+
+kotlin { compilerOptions { freeCompilerArgs.set(listOf("-Xcontext-parameters")) } }

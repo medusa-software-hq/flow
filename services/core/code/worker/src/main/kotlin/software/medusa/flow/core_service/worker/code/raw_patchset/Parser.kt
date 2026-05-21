@@ -1,7 +1,6 @@
 package software.medusa.flow.core_service.worker.code.raw_patchset
 
 interface Parser<T : Any> {
-
   context(charStream: CharStream)
   fun parse(): T
 }

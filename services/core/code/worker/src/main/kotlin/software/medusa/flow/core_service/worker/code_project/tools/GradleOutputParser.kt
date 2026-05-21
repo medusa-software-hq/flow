@@ -2,7 +2,7 @@ package software.medusa.flow.core_service.worker.code_project.tools
 
 import software.medusa.commons.paths.LiteralAbsoluteUnixPath
 
-/** Parser for Gradle output that (likely) mentions issues within files. */
+/** CconElementParser for Gradle output that (likely) mentions issues within files. */
 interface GradleOutputParser {
   data class GradleIssue(
       /**
