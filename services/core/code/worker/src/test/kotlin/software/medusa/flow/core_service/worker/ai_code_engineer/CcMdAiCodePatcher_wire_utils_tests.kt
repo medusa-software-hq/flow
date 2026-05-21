@@ -6,11 +6,12 @@ import kotlin.test.assertFailsWith
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 import software.medusa.commons.unicode.ControlChar
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.CcMdAiCodePatcher_wire_utils.encodeToCcMarkdownString
 import software.medusa.flow.core_service.worker.ai_code_engineer.CcMdAiCodePatcher_wire_utils.parseAst
-import software.medusa.flow.core_service.worker.ai_code_engineer.CcMdAiCodePatcher_wire_utils.parsePatchSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.CcMdAiCodePatcher_wire_utils.parseChangeSet
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
@@ -68,7 +69,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
   }
 
   @Test
-  fun test_parsePatchSet_decodesUpdateAndCreateMarkdownResponse() {
+  fun test_parseChangeSet_decodesUpdateAndCreateMarkdownResponse() {
     val moduleFilePath = RelativeUnixPath.of(UnixPath.Name.Literal("module.yaml"))
     val notesFilePath = RelativeUnixPath.of(UnixPath.Name.Literal("notes.md"))
 
@@ -131,26 +132,26 @@ class CcMdAiCodePatcher_wire_utils_tests {
       append(ControlChar.ETX)
     }
 
-    val patchSet =
-        parsePatchSet(
+    val changeSet =
+        parseChangeSet(
             responseText = responseText,
             maskedCodeCatalog = maskedCodeCatalog,
         )
 
     assertEquals(
         expected =
-            AiCodePatcher.PatchSet(
-                patchByFilePath =
+            AiCodePatcher.ChangeSet(
+                changeByFilePath =
                     mapOf(
                         moduleFilePath to
-                            AiCodePatcher.Patch(
+                            Change.Patch(
                                 fragmentByOldLineIndexRange =
                                     mapOf(
                                         LineIndexRange(
                                             startIndex = LineIndex.ofOneBased(2),
                                             endIndexExclusive = LineIndex.ofOneBased(4),
                                         ) to
-                                            AiCodePatcher.Patch.Fragment(
+                                            Change.Patch.Fragment(
                                                 newCodeBlock =
                                                     CodeBlock.of(
                                                         "beta: 20",
@@ -160,31 +161,31 @@ class CcMdAiCodePatcher_wire_utils_tests {
                                         LineIndexRange(
                                             startIndex = LineIndex.ofOneBased(4),
                                             endIndexExclusive = LineIndex.ofOneBased(5),
-                                        ) to AiCodePatcher.Patch.Fragment.Empty,
+                                        ) to Change.Patch.Fragment.Empty,
                                         LineIndexRange.empty(
                                             startIndex = LineIndex.ofOneBased(1),
                                         ) to
-                                            AiCodePatcher.Patch.Fragment(
+                                            Change.Patch.Fragment(
                                                 newCodeBlock = CodeBlock.of("header: true"),
                                             ),
                                     ),
                             ),
                         notesFilePath to
-                            AiCodePatcher.Patch(
+                            Change.Patch(
                                 fragmentByOldLineIndexRange =
                                     mapOf(
                                         LineIndexRange.of(
                                             startIndex = LineIndex.First,
                                             length = 1,
                                         ) to
-                                            AiCodePatcher.Patch.Fragment(
+                                            Change.Patch.Fragment(
                                                 newCodeBlock = CodeBlock.of("# Notes", "Fresh"),
                                             ),
                                     ),
                             ),
                     ),
             ),
-        actual = patchSet,
+        actual = changeSet,
     )
   }
 
@@ -247,7 +248,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
   }
 
   @Test
-  fun test_parsePatchSet_rejectsUnknownFilePath() {
+  fun test_parseChangeSet_rejectsUnknownFilePath() {
     val maskedCodeCatalog =
         MaskedCodeCatalog(
             maskedCodeFileContentByPath =
@@ -270,7 +271,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
 
     val exception =
         assertFailsWith<IllegalArgumentException> {
-          parsePatchSet(
+          parseChangeSet(
               responseText = responseText,
               maskedCodeCatalog = maskedCodeCatalog,
           )
@@ -283,7 +284,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
   }
 
   @Test
-  fun test_parsePatchSet_rejectsReplaceWithoutRawCodeBlock() {
+  fun test_parseChangeSet_rejectsReplaceWithoutRawCodeBlock() {
     val filePath = RelativeUnixPath.of(UnixPath.Name.Literal("module.yaml"))
 
     val maskedCodeCatalog =
@@ -316,7 +317,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
 
     val exception =
         assertFailsWith<IllegalArgumentException> {
-          parsePatchSet(
+          parseChangeSet(
               responseText = responseText,
               maskedCodeCatalog = maskedCodeCatalog,
           )

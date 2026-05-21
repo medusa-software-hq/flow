@@ -1,9 +1,9 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
 import software.medusa.commons.serialization.ccon.CconElement
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.encodeToCconString
-import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parsePatchSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parseChangeSet
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.openai_client.OpenAiChat
 import software.medusa.openai_client.OpenAiClient
@@ -20,10 +20,10 @@ class CconAiCodePatcher(
       taskDescription: String,
   ): AiCodePatcher.PatchGenerator =
       object : AiCodePatcher.PatchGenerator {
-        override suspend fun generatePatches(
+        override suspend fun generateChanges(
             maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-        ): PatchSet =
-            generatePatchesViaAi(
+        ): ChangeSet =
+            generateChangesViaAi(
                 extraContextMessages =
                     listOf(
                         OpenAiMessage(
@@ -44,10 +44,10 @@ class CconAiCodePatcher(
       moduleDiagnosis: CodeTool.CodeModuleDiagnosis.Incorrect,
   ): AiCodePatcher.PatchGenerator =
       object : AiCodePatcher.PatchGenerator {
-        override suspend fun generatePatches(
+        override suspend fun generateChanges(
             maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-        ): PatchSet =
-            generatePatchesViaAi(
+        ): ChangeSet =
+            generateChangesViaAi(
                 extraContextMessages =
                     listOf(
                         OpenAiMessage(
@@ -67,10 +67,10 @@ class CconAiCodePatcher(
             )
       }
 
-  private suspend fun generatePatchesViaAi(
+  private suspend fun generateChangesViaAi(
       extraContextMessages: List<OpenAiMessage>,
       maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-  ): PatchSet {
+  ): ChangeSet {
     val completionInput =
         OpenAiChat(
             messages =
@@ -122,7 +122,7 @@ class CconAiCodePatcher(
             )
             .responseText
 
-    return CconAiCodePatcher_wire_utils.parsePatchSet(
+    return CconAiCodePatcher_wire_utils.parseChangeSet(
         responseText = completionText,
         maskedCodeCatalog = maskedCodeCatalog,
     )

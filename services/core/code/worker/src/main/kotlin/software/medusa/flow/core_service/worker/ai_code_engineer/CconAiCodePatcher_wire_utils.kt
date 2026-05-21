@@ -6,10 +6,10 @@ import software.medusa.commons.paths.toLiteral
 import software.medusa.commons.serialization.ccon.CconElement
 import software.medusa.commons.serialization.ccon.CconRecord
 import software.medusa.commons.serialization.ccon.CconString
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.Patch
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchSet
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
@@ -235,13 +235,13 @@ internal data object CconAiCodePatcher_wire_utils {
           }
           .toList()
 
-  fun parsePatchSet(
+  fun parseChangeSet(
       responseText: String,
       maskedCodeCatalog: MaskedCodeCatalog,
-  ): PatchSet {
+  ): ChangeSet {
     val astNode = parseAst(responseText)
 
-    return astNode.toPatchSet(maskedCodeCatalog = maskedCodeCatalog)
+    return astNode.toChangeSet(maskedCodeCatalog = maskedCodeCatalog)
   }
 
   fun parseAst(
@@ -262,14 +262,14 @@ internal data object CconAiCodePatcher_wire_utils {
     )
   }
 
-  private fun BodyAstNode.toPatchSet(
+  private fun BodyAstNode.toChangeSet(
       maskedCodeCatalog: MaskedCodeCatalog,
-  ): PatchSet {
+  ): ChangeSet {
     val availableRelativePaths = maskedCodeCatalog.maskedCodeFileContentByPath.keys
 
     val patchByFilePath = buildMap {
       for ((patchIndex, filePatchAstNode) in filePatches.withIndex()) {
-        val (filePath, patch) = filePatchAstNode.toPatch()
+        val (filePath, patch) = filePatchAstNode.toChange()
 
         require(filePath in availableRelativePaths) {
           "Patch references file not present in masked code catalog: ${filePath.toUnixRelativePathString()}"
@@ -283,8 +283,8 @@ internal data object CconAiCodePatcher_wire_utils {
       }
     }
 
-    return PatchSet(
-        patchByFilePath = patchByFilePath,
+    return ChangeSet(
+        changeByFilePath = patchByFilePath,
     )
   }
 
@@ -313,29 +313,29 @@ internal data object CconAiCodePatcher_wire_utils {
     )
   }
 
-  private fun FilePatchAstNode.toPatch(): Pair<LiteralRelativeUnixPath, Patch> {
+  private fun FilePatchAstNode.toChange(): Pair<LiteralRelativeUnixPath, Change.Patch> {
     val filePath = filePath.toLiteralRelativeUnixPath()
 
     return filePath to
-        Patch(
+        Change.Patch(
             fragmentByOldLineIndexRange =
                 patchFragments.associate { patchFragmentAstNode ->
-                  patchFragmentAstNode.toPatchFragment()
+                  patchFragmentAstNode.toChangeFragment()
                 },
         )
   }
 
-  private fun PatchFragmentAstNode.toPatchFragment(): Pair<LineIndexRange, Patch.Fragment> =
+  private fun PatchFragmentAstNode.toChangeFragment(): Pair<LineIndexRange, Change.Patch.Fragment> =
       when (this) {
         is PatchFragmentAstNode.InsertBefore ->
             LineIndexRange.empty(startIndex = LineIndex.ofOneBased(laterLineNumber)) to
-                Patch.Fragment(
+                Change.Patch.Fragment(
                     newCodeBlock = CodeBlock.of(lines),
                 )
 
         is PatchFragmentAstNode.InsertAfter ->
             LineIndexRange.empty(startIndex = LineIndex.ofOneBased(earlierLineNumber).next) to
-                Patch.Fragment(
+                Change.Patch.Fragment(
                     newCodeBlock = CodeBlock.of(lines),
                 )
 
@@ -344,7 +344,7 @@ internal data object CconAiCodePatcher_wire_utils {
                 startIndex = LineIndex.ofOneBased(startLineNumber),
                 endIndexExclusive = LineIndex.ofOneBased(endLineNumberInclusive).next,
             ) to
-                Patch.Fragment(
+                Change.Patch.Fragment(
                     newCodeBlock = CodeBlock.of(lines),
                 )
 
@@ -352,7 +352,7 @@ internal data object CconAiCodePatcher_wire_utils {
             LineIndexRange(
                 startIndex = LineIndex.ofOneBased(startLineNumber),
                 endIndexExclusive = LineIndex.ofOneBased(endLineNumberInclusive).next,
-            ) to Patch.Fragment.Empty
+            ) to Change.Patch.Fragment.Empty
       }
 
   private fun parseFragmentAst(

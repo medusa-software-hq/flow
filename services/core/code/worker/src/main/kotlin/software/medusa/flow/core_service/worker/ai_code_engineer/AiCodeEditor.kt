@@ -9,9 +9,9 @@ import software.medusa.commons.filesystem.compat.extractDeepMutable
 import software.medusa.commons.filesystem.compat.extractDeepReadonly
 import software.medusa.commons.filesystem.compat.readText
 import software.medusa.commons.paths.LiteralRelativeUnixPath
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.ChangeApplier
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.CodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.FileEditor
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.PatchApplier
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchGenerator
 import software.medusa.flow.core_service.worker.code.CodeFileContent
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
@@ -68,21 +68,54 @@ interface AiCodeEditor {
       }
     }
 
-    fun applyPatchSet(
-        patchSet: AiCodePatcher.PatchSet,
+    fun applyChangeSet(
+        changeSet: AiCodePatcher.ChangeSet,
     ): CodeCatalog =
         CodeCatalog(
             codeFileContentByPath =
-                codeFileContentByPath.mapValues { (filePath, fileContent) ->
-                  val patch = patchSet.patchByFilePath[filePath] ?: return@mapValues fileContent
+                buildMap {
+                  val handledPaths = mutableSetOf<LiteralRelativeUnixPath>()
 
-                  fileContent.applyPatch(patch = patch)
+                  for ((filePath, fileContent) in codeFileContentByPath) {
+                    handledPaths += filePath
+
+                    val change =
+                        changeSet.changeByFilePath[filePath]
+                            ?: run {
+                              put(filePath, fileContent)
+                              continue
+                            }
+
+                    when (change) {
+                      is AiCodePatcher.ChangeSet.Change.Patch ->
+                          put(filePath, fileContent.applyChange(change))
+                      is AiCodePatcher.ChangeSet.Change.Create ->
+                          put(filePath, CodeFileContent(code = change.content))
+                      AiCodePatcher.ChangeSet.Change.Delete -> Unit
+                    }
+                  }
+
+                  for ((filePath, change) in changeSet.changeByFilePath) {
+                    if (filePath in handledPaths) {
+                      continue
+                    }
+
+                    when (change) {
+                      is AiCodePatcher.ChangeSet.Change.Create ->
+                          put(filePath, CodeFileContent(code = change.content))
+                      is AiCodePatcher.ChangeSet.Change.Patch ->
+                          throw IllegalStateException(
+                              "Cannot patch missing file ${filePath.toUnixRelativePathString()}"
+                          )
+                      AiCodePatcher.ChangeSet.Change.Delete -> Unit
+                    }
+                  }
                 },
         )
   }
 
-  interface PatchApplier {
-    suspend fun applyPatches(
+  interface ChangeApplier {
+    suspend fun applyChanges(
         inputCodeCatalog: CodeCatalog,
     ): CodeCatalog
   }
@@ -161,9 +194,9 @@ private suspend fun MutableCompatFsDirectory.ensureDirectory(
 
 fun PatchGenerator.masking(
     masker: AiCodePatcher.CodeMasker,
-): PatchApplier =
-    object : PatchApplier {
-      override suspend fun applyPatches(
+): ChangeApplier =
+    object : ChangeApplier {
+      override suspend fun applyChanges(
           inputCodeCatalog: CodeCatalog,
       ): CodeCatalog {
         val maskedCodeCatalog =
@@ -171,18 +204,18 @@ fun PatchGenerator.masking(
                 masker = masker,
             )
 
-        val patchSet =
-            this@masking.generatePatches(
+        val changeSet =
+            this@masking.generateChanges(
                 maskedCodeCatalog = maskedCodeCatalog,
             )
 
-        return inputCodeCatalog.applyPatchSet(
-            patchSet = patchSet,
+        return inputCodeCatalog.applyChangeSet(
+            changeSet = changeSet,
         )
       }
     }
 
-fun PatchApplier.selecting(
+fun ChangeApplier.selecting(
     selector: AiCodeEditor.FileSelector,
 ): FileEditor =
     object : FileEditor {
@@ -195,7 +228,7 @@ fun PatchApplier.selecting(
             )
 
         val overlayCatalog =
-            this@selecting.applyPatches(
+            this@selecting.applyChanges(
                 inputCodeCatalog = pickedCodeCatalog,
             )
 

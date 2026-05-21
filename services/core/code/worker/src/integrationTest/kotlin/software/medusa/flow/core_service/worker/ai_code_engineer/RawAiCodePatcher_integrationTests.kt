@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.yaml.snakeyaml.Yaml
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.code.CodeFileContent
@@ -114,16 +115,16 @@ class RawAiCodePatcher_integrationTests {
                     """
                         .trimIndent(),
             )
-            .generatePatches(
+            .generateChanges(
                 maskedCodeCatalog = maskedCodeCatalog,
             )
 
     val moduleYamlPatch =
         assertNotNull(
-            patchSet.patchByFilePath[moduleYamlFilePath],
+            patchSet.changeByFilePath[moduleYamlFilePath] as? Change.Patch,
         )
 
-    val patchedModuleYamlText = moduleYamlContent.applyPatch(moduleYamlPatch).dump()
+    val patchedModuleYamlText = moduleYamlContent.applyChange(moduleYamlPatch).dump()
 
     val parsedYaml =
         checkNotNull(

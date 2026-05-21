@@ -3,8 +3,8 @@ package software.medusa.flow.core_service.worker.ai_code_engineer
 import software.medusa.commons.paths.LiteralAbsoluteUnixPath
 import software.medusa.commons.paths.UnixPath
 import software.medusa.commons.paths.relativizeAgainst
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.Patch
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.RawAiCodePatcher_inputStructure_utils.toRawMaskedCodeCatalog
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
@@ -101,10 +101,10 @@ class RawAiCodePatcher(
       taskDescription: String,
   ): AiCodePatcher.PatchGenerator =
       object : AiCodePatcher.PatchGenerator {
-        override suspend fun generatePatches(
+        override suspend fun generateChanges(
             maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-        ): PatchSet =
-            generatePatchesViaAi(
+        ): ChangeSet =
+            generateChangesViaAi(
                 extraContextMessages =
                     listOf(
                         OpenAiMessage(
@@ -125,10 +125,10 @@ class RawAiCodePatcher(
       moduleDiagnosis: CodeTool.CodeModuleDiagnosis.Incorrect,
   ): AiCodePatcher.PatchGenerator =
       object : AiCodePatcher.PatchGenerator {
-        override suspend fun generatePatches(
+        override suspend fun generateChanges(
             maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-        ): PatchSet =
-            generatePatchesViaAi(
+        ): ChangeSet =
+            generateChangesViaAi(
                 extraContextMessages =
                     listOf(
                         OpenAiMessage(
@@ -148,10 +148,10 @@ class RawAiCodePatcher(
             )
       }
 
-  private suspend fun generatePatchesViaAi(
+  private suspend fun generateChangesViaAi(
       extraContextMessages: List<OpenAiMessage>,
       maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-  ): PatchSet {
+  ): ChangeSet {
     val completionInput =
         OpenAiChat(
             messages =
@@ -199,7 +199,7 @@ class RawAiCodePatcher(
 
     val rawPatchSet = RawPatchSetParser.parse(input = completionText)
 
-    val patchSet = rawPatchSet.toPatchSet(maskedCodeCatalog = maskedCodeCatalog)
+    val patchSet = rawPatchSet.toChangeSet(maskedCodeCatalog = maskedCodeCatalog)
 
     return patchSet
   }
@@ -207,13 +207,13 @@ class RawAiCodePatcher(
 
 private val rawPatchSetRootPath = RawMaskedCodeCatalog.repoPseudoRootPath
 
-private fun RawPatchSet.toPatchSet(
+private fun RawPatchSet.toChangeSet(
     maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-): PatchSet {
+): ChangeSet {
   val availableRelativePaths = maskedCodeCatalog.maskedCodeFileContentByPath.keys
 
-  return PatchSet(
-      patchByFilePath =
+  return ChangeSet(
+      changeByFilePath =
           patches.associate { rawFilePatch ->
             val relativeFilePath =
                 rawFilePatch.filePath.relativizeAgainst(rawPatchSetRootPath).also { relativePath ->
@@ -222,17 +222,17 @@ private fun RawPatchSet.toPatchSet(
                   }
                 }
 
-            relativeFilePath to rawFilePatch.toPatch()
+            relativeFilePath to rawFilePatch.toChange()
           },
   )
 }
 
-private fun RawFilePatch.toPatch(): Patch =
-    Patch(
+private fun RawFilePatch.toChange(): Change.Patch =
+    Change.Patch(
         fragmentByOldLineIndexRange =
             fragments.associate { rawFragment ->
               rawFragment.oldLineIndexRange to
-                  Patch.Fragment(
+                  Change.Patch.Fragment(
                       newCodeBlock = rawFragment.newCodeBlock,
                   )
             },

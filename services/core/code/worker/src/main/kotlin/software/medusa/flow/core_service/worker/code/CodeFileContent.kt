@@ -1,6 +1,6 @@
 package software.medusa.flow.core_service.worker.code
 
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.Patch
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change.Patch
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.utils.withNextOrNull
 
@@ -39,7 +39,7 @@ value class CodeFileContent(
   /** Dumps the content of the code file as a string with LF-terminated lines. */
   fun dump(): String = code.dump()
 
-  fun applyPatch(
+  fun applyChange(
       patch: Patch,
   ): CodeFileContent {
     val oldLines = code.lines

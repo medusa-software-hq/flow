@@ -5,8 +5,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.toLiteral
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.Patch
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
@@ -29,8 +29,8 @@ internal data object ProperAiCodePatcher_responseStructure_utils {
         @Description("List of patch fragments to apply to the file.")
         val fragments: List<StructuredPatchFragment>,
     ) {
-      fun toPatch(): Patch =
-          Patch(
+      fun toChange(): Change.Patch =
+          Change.Patch(
               fragmentByOldLineIndexRange =
                   fragments.associate { patch ->
                     LineIndexRange(
@@ -43,7 +43,7 @@ internal data object ProperAiCodePatcher_responseStructure_utils {
                                 indexOneBased = patch.endExclusive,
                             ),
                     ) to
-                        Patch.Fragment(
+                        Change.Patch.Fragment(
                             CodeBlock.parse(
                                 rawContent = patch.content,
                             ),
@@ -67,9 +67,9 @@ internal data object ProperAiCodePatcher_responseStructure_utils {
         val content: String,
     )
 
-    fun toPatchSet(): PatchSet =
-        PatchSet(
-            patchByFilePath =
+    fun toChangeSet(): ChangeSet =
+        ChangeSet(
+            changeByFilePath =
                 patches.associate { patch ->
                   val filePath =
                       RelativeUnixPath.parse(patch.filePath).toLiteral()
@@ -77,7 +77,7 @@ internal data object ProperAiCodePatcher_responseStructure_utils {
                               "Patch path must consist of literal path segments: ${patch.filePath}",
                           )
 
-                  filePath to patch.toPatch()
+                  filePath to patch.toChange()
                 },
         )
   }

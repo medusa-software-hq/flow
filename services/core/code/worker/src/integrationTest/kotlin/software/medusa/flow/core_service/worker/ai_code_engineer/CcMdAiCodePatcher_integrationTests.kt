@@ -203,16 +203,23 @@ class CcMdAiCodePatcher_integrationTests {
                     """
                         .trimIndent(),
             )
-            .generatePatches(
+            .generateChanges(
                 maskedCodeCatalog = maskedCodeCatalog,
             )
 
-    val moduleYamlPatch =
+    val moduleYamlChange =
         assertNotNull(
-            patchSet.patchByFilePath[moduleYamlFilePath],
+            patchSet.changeByFilePath[moduleYamlFilePath],
         )
 
-    val patchedModuleYamlText = moduleYamlContent.applyPatch(moduleYamlPatch).dump()
+    val moduleYamlPatch =
+        assertEquals(
+                expected = true,
+                actual = moduleYamlChange is AiCodePatcher.ChangeSet.Change.Patch,
+            )
+            .let { moduleYamlChange as AiCodePatcher.ChangeSet.Change.Patch }
+
+    val patchedModuleYamlText = moduleYamlContent.applyChange(moduleYamlPatch).dump()
 
     val parsedYaml =
         checkNotNull(

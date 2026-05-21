@@ -412,10 +412,10 @@ class ProperAiCodeEditor_tests {
       private val original: String,
       private val replacement: String,
   ) {
-    fun patchByReplacing(
+    fun changeByReplacing(
         codeFileContent: CodeFileContent,
-    ): AiCodePatcher.Patch =
-        AiCodePatcher.Patch(
+    ): AiCodePatcher.ChangeSet.Change.Patch =
+        AiCodePatcher.ChangeSet.Change.Patch(
             codeFileContent.indexedLines
                 .mapNotNull { (lineIndex, line) ->
                   when {
@@ -427,7 +427,7 @@ class ProperAiCodeEditor_tests {
                           )
 
                       lineIndexRange to
-                          AiCodePatcher.Patch.Fragment(
+                          AiCodePatcher.ChangeSet.Change.Patch.Fragment(
                               newCodeBlock =
                                   CodeBlock.of(
                                       line.content.replace(original, replacement),
@@ -446,19 +446,19 @@ class ProperAiCodeEditor_tests {
       replacerByFilePath: Map<LiteralRelativeUnixPath, CodeReplacer>,
   ): AiCodePatcher.PatchGenerator =
       object : AiCodePatcher.PatchGenerator {
-        override suspend fun generatePatches(
+        override suspend fun generateChanges(
             maskedCodeCatalog: AiCodePatcher.MaskedCodeCatalog,
-        ): AiCodePatcher.PatchSet =
-            AiCodePatcher.PatchSet(
-                patchByFilePath =
+        ): AiCodePatcher.ChangeSet =
+            AiCodePatcher.ChangeSet(
+                changeByFilePath =
                     maskedCodeCatalog.maskedCodeFileContentByPath
                         .mapNotNull { (filePath, maskedCodeFileContent) ->
                           val dedicatedReplacer =
                               replacerByFilePath[filePath] ?: return@mapNotNull null
 
                           filePath to
-                              dedicatedReplacer.patchByReplacing(
-                                  codeFileContent = maskedCodeFileContent.codeFileContent
+                              dedicatedReplacer.changeByReplacing(
+                                  codeFileContent = maskedCodeFileContent.codeFileContent,
                               )
                         }
                         .toMap(),

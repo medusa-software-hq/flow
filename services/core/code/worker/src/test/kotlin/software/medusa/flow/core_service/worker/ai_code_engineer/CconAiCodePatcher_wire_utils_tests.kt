@@ -8,11 +8,12 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.commons.serialization.ccon.CconElement
 import software.medusa.commons.serialization.ccon.CconRecord
 import software.medusa.commons.serialization.ccon.CconString
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.encodeToCconString
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parseAst
-import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parsePatchSet
+import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parseChangeSet
 import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
@@ -85,7 +86,7 @@ class CconAiCodePatcher_wire_utils_tests {
   }
 
   @Test
-  fun test_parsePatchSet_decodesPatchResponse() {
+  fun test_parseChangeSet_decodesPatchResponse() {
     val filePath =
         RelativeUnixPath.of(
             UnixPath.Name.Literal("module.yaml"),
@@ -140,25 +141,25 @@ class CconAiCodePatcher_wire_utils_tests {
             .encodeToString()
 
     val patchSet =
-        parsePatchSet(
+        parseChangeSet(
             responseText = responseText,
             maskedCodeCatalog = maskedCodeCatalog,
         )
 
     assertEquals(
         expected =
-            AiCodePatcher.PatchSet(
-                patchByFilePath =
+            AiCodePatcher.ChangeSet(
+                changeByFilePath =
                     mapOf(
                         filePath to
-                            AiCodePatcher.Patch(
+                            Change.Patch(
                                 fragmentByOldLineIndexRange =
                                     mapOf(
                                         LineIndexRange(
                                             startIndex = LineIndex.ofOneBased(2),
                                             endIndexExclusive = LineIndex.ofOneBased(4),
                                         ) to
-                                            AiCodePatcher.Patch.Fragment(
+                                            Change.Patch.Fragment(
                                                 newCodeBlock =
                                                     CodeBlock.of(
                                                         "beta: 20",
@@ -168,7 +169,7 @@ class CconAiCodePatcher_wire_utils_tests {
                                         LineIndexRange(
                                             startIndex = LineIndex.ofOneBased(4),
                                             endIndexExclusive = LineIndex.ofOneBased(5),
-                                        ) to AiCodePatcher.Patch.Fragment.Empty,
+                                        ) to Change.Patch.Fragment.Empty,
                                     ),
                             ),
                     ),
@@ -244,7 +245,7 @@ class CconAiCodePatcher_wire_utils_tests {
   }
 
   @Test
-  fun test_parsePatchSet_rejectsUnknownFilePath() {
+  fun test_parseChangeSet_rejectsUnknownFilePath() {
     val maskedCodeCatalog =
         MaskedCodeCatalog(
             maskedCodeFileContentByPath =
@@ -274,7 +275,7 @@ class CconAiCodePatcher_wire_utils_tests {
 
     val exception =
         assertFailsWith<IllegalArgumentException> {
-          parsePatchSet(
+          parseChangeSet(
               responseText = responseText,
               maskedCodeCatalog = maskedCodeCatalog,
           )
@@ -287,7 +288,7 @@ class CconAiCodePatcher_wire_utils_tests {
   }
 
   @Test
-  fun test_parsePatchSet_rejectsReplaceWithoutLines() {
+  fun test_parseChangeSet_rejectsReplaceWithoutLines() {
     val filePath = RelativeUnixPath.of(UnixPath.Name.Literal("module.yaml"))
 
     val maskedCodeCatalog =
@@ -326,7 +327,7 @@ class CconAiCodePatcher_wire_utils_tests {
 
     val exception =
         assertFailsWith<IllegalArgumentException> {
-          parsePatchSet(
+          parseChangeSet(
               responseText = responseText,
               maskedCodeCatalog = maskedCodeCatalog,
           )

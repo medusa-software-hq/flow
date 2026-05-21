@@ -15,6 +15,7 @@ import org.luaj.vm2.lib.StringLib
 import org.luaj.vm2.lib.TableLib
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
+import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
 import software.medusa.flow.core_service.worker.code.CodeFileContent
@@ -96,16 +97,16 @@ class JsonAiCodePatcher_integrationTests {
             .patchToCompleteTask(
                 taskDescription = "Fix the Fibonacci function implementation.",
             )
-            .generatePatches(
+            .generateChanges(
                 maskedCodeCatalog = maskedCodeCatalog,
             )
 
     val fibLuaPatch =
         assertNotNull(
-            patchSet.patchByFilePath[fibLuaFilePath],
+            patchSet.changeByFilePath[fibLuaFilePath] as? Change.Patch,
         )
 
-    val patchedFibLuaText = fibLuaContent.applyPatch(fibLuaPatch).dump()
+    val patchedFibLuaText = fibLuaContent.applyChange(fibLuaPatch).dump()
 
     val result =
         buildLuaGlobals()
@@ -145,16 +146,16 @@ class JsonAiCodePatcher_integrationTests {
                             ),
                     ),
             )
-            .generatePatches(
+            .generateChanges(
                 maskedCodeCatalog = maskedCodeCatalog,
             )
 
     val fibLuaPatch =
         assertNotNull(
-            patchSet.patchByFilePath[fibLuaFilePath],
+            patchSet.changeByFilePath[fibLuaFilePath] as? Change.Patch,
         )
 
-    val patchedFibLuaText = fibLuaContent.applyPatch(patch = fibLuaPatch).dump()
+    val patchedFibLuaText = fibLuaContent.applyChange(patch = fibLuaPatch).dump()
 
     val result = buildLuaGlobals().load(patchedFibLuaText).call().toint()
 
