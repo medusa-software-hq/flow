@@ -9,7 +9,11 @@ plugins {
 
 allprojects {
     repositories {
-        mavenCentral()
+      mavenCentral()
+
+      maven {
+        url = uri("https://dl.cloudsmith.io/public/medusa-software-kqu4pn/mike/maven/")
+      }
     }
 }
 
