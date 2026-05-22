@@ -10,6 +10,7 @@ val integrationTestSourceSetName = "integrationTest"
 
 dependencies {
   api(project(":git"))
+  api(project(":markdown"))
   api(project(":openai-client"))
 
   api(libs.kotlinx.coroutines.core)
@@ -19,6 +20,8 @@ dependencies {
   implementation(project(":commons"))
   implementation(project(":shared"))
   implementation(project(":opencode-enclosed"))
+  implementation(gradleApi())
+  implementation(libs.snakeyaml)
 
   implementation(libs.logback.classic)
   implementation(libs.kotlinx.schema.annotations)
@@ -46,16 +49,6 @@ val integrationTest =
 
       testClassesDirs = sourceSets[integrationTestSourceSetName].output.classesDirs
       classpath = sourceSets[integrationTestSourceSetName].runtimeClasspath
-
-      doFirst {
-        val openAiApiKey =
-            System.getenv(openAiApiKeyEnvVarName)
-                ?: throw GradleException(
-                    "$openAiApiKeyEnvVarName environment variable must be set to run integration tests"
-                )
-
-        environment(openAiApiKeyEnvVarName, openAiApiKey)
-      }
     }
 
 kotlin {

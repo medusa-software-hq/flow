@@ -6,8 +6,10 @@ import org.eclipse.jgit.lib.FileMode
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.ObjectReader
 import org.eclipse.jgit.treewalk.TreeWalk
+import software.medusa.commons.paths.AbsoluteUnixPath
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitFileMode
-import software.medusa.git.UnixPath
 
 /** A tree group node backed by a Git tree object. */
 internal class GitObjectTreeGroup(
@@ -126,7 +128,15 @@ internal object GitObjectTreeUtils {
           val targetPathText =
               jObjectReader.open(jChildObjectId).cachedBytes.toString(Charsets.UTF_8)
 
-          val targetPath = UnixPath.parse(targetPathText)
+          val targetPath =
+              when {
+                targetPathText.startsWith(UnixPath.Separator) ->
+                    AbsoluteUnixPath.parse(
+                        targetPathText,
+                    )
+
+                else -> RelativeUnixPath.parse(targetPathText)
+              }
 
           GitTreeSymlink(targetPath = targetPath)
         }

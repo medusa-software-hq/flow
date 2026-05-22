@@ -21,6 +21,9 @@ armeria-bom = { module = "com.linecorp.armeria:armeria-bom", version.ref = "arme
 armeria-grpc = { module = "com.linecorp.armeria:armeria-grpc", version.ref = "armeria" }
 armeria-grpc-kotlin = { module = "com.linecorp.armeria:armeria-grpc-kotlin", version.ref = "armeria" }
 armeria-kotlin = { module = "com.linecorp.armeria:armeria-kotlin", version.ref = "armeria" }
+clikt = "com.github.ajalt.clikt:clikt-jvm:5.0.3"
+commonmark = "org.commonmark:commonmark:0.28.1-20260521.182917-2"
+commonmark-ext-cc = "org.commonmark:commonmark-ext-cc:0.28.1-20260521.182934-1"
 grpc-bom = { module = "io.grpc:grpc-bom", version.ref = "grpc" }
 grpc-kotlin-stub = { module = "io.grpc:grpc-kotlin-stub", version.ref = "grpc-kotlin" }
 grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
@@ -34,6 +37,7 @@ kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.re
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlin-serialization" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 openai-kotlin = { module = "com.aallam.openai:openai-client-jvm", version.ref = "openai-kotlin" }
+snakeyaml = "org.yaml:snakeyaml:2.4"
 ktor-client-okhttp = "io.ktor:ktor-client-okhttp-jvm:3.3.1"
 protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }

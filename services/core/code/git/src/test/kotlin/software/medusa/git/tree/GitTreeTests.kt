@@ -2,15 +2,21 @@ package software.medusa.git.tree
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlinx.coroutines.runBlocking
+import kotlinx.io.bytestring.decodeToString
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitFileMode
-import software.medusa.git.UnixPath
 import software.medusa.git.worktree.TestGitTreeFile
 import software.medusa.git.worktree.TestGitTreeGroup
 
 class GitTreeTests {
   @Test
-  fun realizeProjectsTreeNodesIntoWorktreeNodes() {
+  fun realizeProjectsTreeNodesIntoFilesystemView() = runBlocking {
     val tree =
         GitProperTree(
             rootGroup =
@@ -38,27 +44,39 @@ class GitTreeTests {
                         ),
                         GitTreeGroup.ChildEntry(
                             name = "tool-link",
-                            child = GitTreeSymlink(targetPath = UnixPath.Relative.of("tool.sh")),
+                            child =
+                                GitTreeSymlink(
+                                    targetPath =
+                                        RelativeUnixPath.of(
+                                            UnixPath.Name.Literal("tool.sh"),
+                                        ),
+                                ),
                         ),
                     ),
                 ),
         )
 
-    val worktree = tree.realize()
-    val rootDirectory = worktree.rootDirectory
+    val rootDirectory = tree.realize()
 
     val nestedDirectory =
-        assertIs<software.medusa.git.worktree.GitWorktreeDirectory>(rootDirectory.read("nested"))
+        assertIs<ReadonlyCompatFsDirectory>(
+            rootDirectory.extract(UnixPath.Name.Literal("nested")),
+        )
     val helloFile =
-        assertIs<software.medusa.git.worktree.GitWorktreeFile>(nestedDirectory.read("hello.txt"))
+        assertIs<ReadonlyCompatFsFile>(
+            nestedDirectory.extract(UnixPath.Name.Literal("hello.txt")),
+        )
     val toolFile =
-        assertIs<software.medusa.git.worktree.GitWorktreeFile>(rootDirectory.read("tool.sh"))
-    val toolLink =
-        assertIs<software.medusa.git.worktree.GitWorktreeSymlink>(rootDirectory.read("tool-link"))
+        assertIs<ReadonlyCompatFsFile>(
+            rootDirectory.extract(UnixPath.Name.Literal("tool.sh")),
+        )
 
-    assertEquals("hello", helloFile.read().bufferedReader().readText())
-    assertEquals("echo hi", toolFile.read().bufferedReader().readText())
+    assertEquals("hello", helloFile.read().decodeToString())
+    assertEquals("echo hi", toolFile.read().decodeToString())
     assertEquals(true, toolFile.isExecutable())
-    assertEquals(UnixPath.Relative.of("tool.sh"), toolLink.targetPath)
+
+    assertFailsWith<UnsupportedOperationException> {
+      rootDirectory.extract(UnixPath.Name.Literal("tool-link"))
+    }
   }
 }

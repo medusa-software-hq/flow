@@ -20,12 +20,15 @@ plugins {
 
 rootProject.name = "core-service"
 
+include("cli")
 include("commons")
 include("control")
 include("git")
+include("lab")
+include("local")
+include("markdown")
 include("openai-client")
 include("opencode-client")
 include("opencode-enclosed")
 include("shared")
 include("worker")
-include("local")

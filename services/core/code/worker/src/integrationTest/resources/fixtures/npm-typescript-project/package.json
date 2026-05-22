@@ -1,0 +1,7 @@
+{
+  "name": "npm-typescript-project",
+  "private": true,
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}

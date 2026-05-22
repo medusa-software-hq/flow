@@ -6,6 +6,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlinx.coroutines.runBlocking
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.paths.UnixPath
 
 private fun GitWorktreeFilter.Companion.parse(
     gitignoreText: String,
@@ -16,12 +19,12 @@ private fun GitWorktreeFilter.Companion.parse(
 
 class GitWorktreeTests {
   @Test
-  fun filteredAppliesBaseFilterAndLocalGitignoreToReadAndEntries() {
+  fun filteredAppliesBaseFilterAndLocalGitignoreToReadAndEntries() = runBlocking {
     val filteredRoot =
         TestGitWorktreeDirectory(
                 childByName =
                     mapOf(
-                        GitWorktreeDirectory.GitignoreFileName to
+                        ".gitignore" to
                             TestGitWorktreeFile(
                                 content = "!keep.log\nlocal-ignore.txt\n",
                             ),
@@ -33,7 +36,7 @@ class GitWorktreeTests {
                             TestGitWorktreeDirectory(
                                 childByName =
                                     mapOf(
-                                        GitWorktreeDirectory.GitignoreFileName to
+                                        ".gitignore" to
                                             TestGitWorktreeFile(
                                                 content = "nested-ignore.txt\n",
                                             ),
@@ -49,27 +52,30 @@ class GitWorktreeTests {
                 baseFilter = GitWorktreeFilter.parse("*.log\n"),
             )
 
-    assertNotNull(filteredRoot.read("keep.log"))
-    assertNull(filteredRoot.read("drop.log"))
-    assertNull(filteredRoot.read("local-ignore.txt"))
+    assertNotNull(filteredRoot.extract(UnixPath.Name.Literal("keep.log")))
+    assertNull(filteredRoot.extract(UnixPath.Name.Literal("drop.log")))
+    assertNull(filteredRoot.extract(UnixPath.Name.Literal("local-ignore.txt")))
 
     assertEquals(
-        expected = setOf(GitWorktreeDirectory.GitignoreFileName, "keep.log", "keep.txt", "sub"),
-        actual = filteredRoot.entries.map { it.name }.toSet(),
+        expected = setOf(".gitignore", "keep.log", "keep.txt", "sub"),
+        actual = filteredRoot.listEntries().map { it.name.name }.toSet(),
     )
 
-    val filteredSubdirectory = assertIs<GitWorktreeDirectory>(filteredRoot.read("sub"))
+    val filteredSubdirectory =
+        assertIs<ReadonlyCompatFsDirectory>(
+            filteredRoot.extract(UnixPath.Name.Literal("sub")),
+        )
 
-    assertNull(filteredSubdirectory.read("nested-ignore.txt"))
-    assertNotNull(filteredSubdirectory.read("nested-keep.txt"))
+    assertNull(filteredSubdirectory.extract(UnixPath.Name.Literal("nested-ignore.txt")))
+    assertNotNull(filteredSubdirectory.extract(UnixPath.Name.Literal("nested-keep.txt")))
     assertEquals(
-        expected = setOf(GitWorktreeDirectory.GitignoreFileName, "nested-keep.txt"),
-        actual = filteredSubdirectory.entries.map { it.name }.toSet(),
+        expected = setOf(".gitignore", "nested-keep.txt"),
+        actual = filteredSubdirectory.listEntries().map { it.name.name }.toSet(),
     )
   }
 
   @Test
-  fun filteredKeepsDirectoriesEvenWhenAllChildrenAreFilteredOut() {
+  fun filteredKeepsDirectoriesEvenWhenAllChildrenAreFilteredOut() = runBlocking {
     val filteredRoot =
         TestGitWorktreeDirectory(
                 childByName =
@@ -87,9 +93,12 @@ class GitWorktreeTests {
                 baseFilter = GitWorktreeFilter.parse("empty-dir/ignored.txt\n"),
             )
 
-    val filteredDirectory = assertIs<GitWorktreeDirectory>(filteredRoot.read("empty-dir"))
+    val filteredDirectory =
+        assertIs<ReadonlyCompatFsDirectory>(
+            filteredRoot.extract(UnixPath.Name.Literal("empty-dir")),
+        )
 
-    assertEquals(setOf("empty-dir"), filteredRoot.entries.map { it.name }.toSet())
-    assertEquals(emptyList(), filteredDirectory.entries.toList())
+    assertEquals(setOf("empty-dir"), filteredRoot.listEntries().map { it.name.name }.toSet())
+    assertEquals(emptyList(), filteredDirectory.listEntries())
   }
 }

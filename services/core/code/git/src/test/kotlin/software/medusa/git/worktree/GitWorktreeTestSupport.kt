@@ -1,21 +1,33 @@
 package software.medusa.git.worktree
 
-import java.io.ByteArrayInputStream
-import java.io.InputStream
+import kotlinx.io.bytestring.ByteString
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory.Entry
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsEntity
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
+import software.medusa.commons.paths.UnixPath
 
 internal class TestGitWorktreeDirectory(
-    private val childByName: Map<String, GitWorktreeNode>,
-) : GitWorktreeDirectory() {
-  override fun read(name: String): GitWorktreeNode? = childByName[name]
+    val childByName: Map<String, ReadonlyCompatFsEntity>,
+) : ReadonlyCompatFsDirectory {
+  suspend fun read(name: String): ReadonlyCompatFsEntity? = extract(UnixPath.Name.Literal(name))
 
-  override val entries: Sequence<GitWorktreeDirectory.Entry>
-    get() = childByName.asSequence().map { (name, node) -> Entry(name = name, node = node) }
+  override suspend fun extract(
+      name: UnixPath.Name.Literal,
+  ): ReadonlyCompatFsEntity? = childByName[name.name]
+
+  override suspend fun listEntries(): List<Entry<*>> = childByName.map { (name, node) ->
+    Entry(
+        name = UnixPath.Name.Literal(name),
+        entity = node,
+    )
+  }
 }
 
 internal class TestGitWorktreeFile(
     private val content: ByteArray,
     private val executable: Boolean = false,
-) : GitWorktreeFile() {
+) : ReadonlyCompatFsFile {
   constructor(
       content: String,
       executable: Boolean = false,
@@ -24,7 +36,7 @@ internal class TestGitWorktreeFile(
       executable = executable,
   )
 
-  override fun read(): InputStream = ByteArrayInputStream(content)
+  override suspend fun read(): ByteString = ByteString(content)
 
-  override fun isExecutable(): Boolean = executable
+  override suspend fun isExecutable(): Boolean = executable
 }

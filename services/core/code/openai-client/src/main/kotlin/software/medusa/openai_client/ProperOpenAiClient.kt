@@ -52,6 +52,7 @@ internal class ProperOpenAiClient(
 
     return OpenAiClient.UnstructuredCompletionResponse(
         responseText = responseText,
+        usage = chatCompletion.extractUsage(),
     )
   }
 
@@ -88,6 +89,7 @@ internal class ProperOpenAiClient(
 
     return OpenAiClient.RawStructuredCompletionResponse(
         responseJsonElement = responseJsonElement,
+        usage = chatCompletion.extractUsage(),
     )
   }
 
@@ -110,4 +112,12 @@ private fun ChatCompletion.extractResponseContent(): String {
   return messageContent
 }
 
-private fun String.ensureHasTrailingSlash(): String = if (endsWith('/')) this else "$this/"
+private fun ChatCompletion.extractUsage(): OpenAiClient.Usage? {
+  val sdkUsage = usage ?: return null
+
+  return OpenAiClient.Usage(
+      promptTokenCount = sdkUsage.promptTokens ?: 0,
+      completionTokenCount = sdkUsage.completionTokens ?: 0,
+      totalTokenCount = sdkUsage.totalTokens ?: 0,
+  )
+}

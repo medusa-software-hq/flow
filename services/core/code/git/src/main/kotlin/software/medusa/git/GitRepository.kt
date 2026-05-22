@@ -1,6 +1,7 @@
 package software.medusa.git
 
 import java.nio.file.Path
+import kotlinx.coroutines.runBlocking
 import org.eclipse.jgit.lib.CommitBuilder
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.ObjectId
@@ -12,9 +13,11 @@ import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.revwalk.filter.RevFilter
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsDirectory
+import software.medusa.commons.filesystem.compat.materializeIn
 import software.medusa.git.tree.GitTree
-import software.medusa.git.worktree.GitWorktree
 import software.medusa.git.worktree.GitWorktreeFilter
+import software.medusa.git.worktree.filtered
 
 class GitSession(
     internal val jRepository: Repository,
@@ -150,7 +153,11 @@ class GitRepository(
 
       val realizedWorktree = sourceCommit.tree.realize()
 
-      realizedWorktree.write(worktreePath = targetWorktreePath)
+      runBlocking {
+        realizedWorktree.materializeIn(
+            targetDirectory = NioCompatFsDirectory(directoryPath = targetWorktreePath),
+        )
+      }
     }
 
     context(session: GitSession)
@@ -159,12 +166,13 @@ class GitRepository(
         sourceWorktreePath: Path,
         commitDetails: GitCommitDetails,
     ): GitCommitHash {
-      val sourceWorktree = GitWorktree.read(worktreePath = sourceWorktreePath)
+      val sourceWorktree = NioCompatFsDirectory(directoryPath = sourceWorktreePath)
 
-      val filteredSourceWorktree =
-          sourceWorktree.filtered(
-              globalFilter = GitWorktreeFilter.Passive,
-          )
+      val filteredSourceWorktree = runBlocking {
+        sourceWorktree.filtered(
+            baseFilter = GitWorktreeFilter.Passive,
+        )
+      }
 
       val sourceTree =
           GitTree.interpret(

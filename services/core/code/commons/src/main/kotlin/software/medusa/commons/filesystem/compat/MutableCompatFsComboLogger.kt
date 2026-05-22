@@ -1,0 +1,3 @@
+package software.medusa.commons.filesystem.compat
+
+interface MutableCompatFsComboLogger : MutableCompatFsDirectoryLogger, MutableCompatFsFileLogger

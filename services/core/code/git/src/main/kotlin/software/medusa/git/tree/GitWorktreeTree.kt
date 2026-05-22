@@ -1,36 +1,39 @@
 package software.medusa.git.tree
 
+import java.io.ByteArrayInputStream
 import java.io.InputStream
+import kotlinx.coroutines.runBlocking
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsEntity
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
 import software.medusa.git.GitFileMode
-import software.medusa.git.worktree.GitWorktreeDirectory
-import software.medusa.git.worktree.GitWorktreeFile
-import software.medusa.git.worktree.GitWorktreeNode
-import software.medusa.git.worktree.GitWorktreeSymlink
 
 internal class GitWorktreeTreeGroup
 private constructor(
-    private val worktreeDirectory: GitWorktreeDirectory,
+    private val worktreeDirectory: ReadonlyCompatFsDirectory,
 ) : GitTreeGroup() {
   override val childEntries: Sequence<ChildEntry>
     get() =
-        worktreeDirectory.entries.mapNotNull { (name, worktreeNode) ->
-          val childNode: GitTreeNode =
-              GitWorktreeTreeUtils.interpret(
-                  worktreeNode = worktreeNode,
-              ) ?: return@mapNotNull null
+        runBlocking { worktreeDirectory.listEntries() }
+            .asSequence()
+            .mapNotNull { entry ->
+              val childNode: GitTreeNode =
+                  GitWorktreeTreeUtils.interpret(
+                      worktreeNode = entry.entity,
+                  ) ?: return@mapNotNull null
 
-          ChildEntry(
-              name = name,
-              child = childNode,
-          )
-        }
+              ChildEntry(
+                  name = entry.name.name,
+                  child = childNode,
+              )
+            }
 
   companion object {
     fun interpret(
-        worktreeDirectory: GitWorktreeDirectory,
+        worktreeDirectory: ReadonlyCompatFsDirectory,
     ): GitWorktreeTreeGroup? =
         when {
-          worktreeDirectory.isEmpty() -> null
+          runBlocking { worktreeDirectory.listEntries().isEmpty() } -> null
           else ->
               GitWorktreeTreeGroup(
                   worktreeDirectory = worktreeDirectory,
@@ -39,11 +42,11 @@ private constructor(
   }
 }
 
-internal class GitWorktreeTreeFile private constructor(private val worktreeFile: GitWorktreeFile) :
-    GitTreeFile() {
+internal class GitWorktreeTreeFile
+private constructor(private val worktreeFile: ReadonlyCompatFsFile) : GitTreeFile() {
   companion object {
     fun interpret(
-        worktreeNode: GitWorktreeFile,
+        worktreeNode: ReadonlyCompatFsFile,
     ): GitWorktreeTreeFile =
         GitWorktreeTreeFile(
             worktreeFile = worktreeNode,
@@ -53,33 +56,31 @@ internal class GitWorktreeTreeFile private constructor(private val worktreeFile:
   override val mode: GitFileMode
     get() =
         when {
-          worktreeFile.isExecutable() -> GitFileMode.Executable
+          runBlocking { worktreeFile.isExecutable() } -> GitFileMode.Executable
           else -> GitFileMode.Regular
         }
 
-  override fun read(): InputStream = worktreeFile.read()
+  override fun read(): InputStream =
+      ByteArrayInputStream(runBlocking { worktreeFile.read().toByteArray() })
 }
 
 private object GitWorktreeTreeUtils {
   fun interpret(
-      worktreeNode: GitWorktreeNode,
+      worktreeNode: ReadonlyCompatFsEntity,
   ): GitTreeNode? =
       when (worktreeNode) {
-        is GitWorktreeDirectory -> {
+        is ReadonlyCompatFsDirectory -> {
           GitWorktreeTreeGroup.interpret(
               worktreeDirectory = worktreeNode,
           )
         }
 
-        is GitWorktreeFile -> {
+        is ReadonlyCompatFsFile -> {
           GitWorktreeTreeFile.interpret(
               worktreeNode = worktreeNode,
           )
         }
 
-        is GitWorktreeSymlink ->
-            GitTreeSymlink(
-                targetPath = worktreeNode.targetPath,
-            )
+        else -> null
       }
 }

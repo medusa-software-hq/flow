@@ -12,7 +12,7 @@ import software.medusa.git.worktree.TestGitWorktreeFile
 
 class GitWorktreeTreeTests {
   @Test
-  fun projectsWorktreeIntoTreeNodes() {
+  fun projectsFilesystemViewIntoTreeNodes() {
     val projectedGroup =
         assertNotNull(
             GitWorktreeTreeGroup.interpret(

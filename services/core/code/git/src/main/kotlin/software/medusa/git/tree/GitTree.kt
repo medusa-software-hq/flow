@@ -11,22 +11,22 @@ import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.ObjectInserter
 import org.eclipse.jgit.lib.ObjectReader
 import org.eclipse.jgit.lib.TreeFormatter
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
+import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
+import software.medusa.commons.paths.AbsoluteUnixPath
+import software.medusa.commons.paths.RelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitCommitHash
 import software.medusa.git.GitFileMode
-import software.medusa.git.UnixPath
 import software.medusa.git.utils.contentEquals
+import software.medusa.git.worktree.GitEmptyFsDirectory
 import software.medusa.git.worktree.GitRealizedWorktreeDirectory
 import software.medusa.git.worktree.GitRealizedWorktreeFile
-import software.medusa.git.worktree.GitWorktree
-import software.medusa.git.worktree.GitWorktreeDirectory
-import software.medusa.git.worktree.GitWorktreeFile
-import software.medusa.git.worktree.GitWorktreeNode
-import software.medusa.git.worktree.GitWorktreeSymlink
 
 sealed interface GitTree {
   companion object {
     fun interpret(
-        worktree: GitWorktree,
+        worktree: ReadonlyCompatFsDirectory,
     ): GitTree = GitProperTree.interpret(worktree = worktree) ?: GitEmptyTree
   }
 
@@ -34,7 +34,7 @@ sealed interface GitTree {
       jObjectInserter: ObjectInserter,
   ): ObjectId
 
-  fun realize(): GitWorktree
+  fun realize(): ReadonlyCompatFsDirectory
 }
 
 /** A special Git tree that contains no content. */
@@ -43,7 +43,7 @@ data object GitEmptyTree : GitTree {
       jObjectInserter: ObjectInserter,
   ): ObjectId = jObjectInserter.insert(Constants.OBJ_TREE, ByteArray(0))
 
-  override fun realize(): GitWorktree = GitWorktree.Empty
+  override fun realize(): ReadonlyCompatFsDirectory = GitEmptyFsDirectory
 }
 
 /** A proper, non-empty Git tree. */
@@ -66,11 +66,11 @@ value class GitProperTree(
 
     /** Interpret a Git worktree as a proper (non-empty) Git tree. */
     internal fun interpret(
-        worktree: GitWorktree,
+        worktree: ReadonlyCompatFsDirectory,
     ): GitProperTree? {
       val rootGroup =
           GitWorktreeTreeGroup.interpret(
-              worktreeDirectory = worktree.rootDirectory,
+              worktreeDirectory = worktree,
           ) ?: return null
 
       return GitProperTree(
@@ -83,7 +83,7 @@ value class GitProperTree(
       jObjectInserter: ObjectInserter,
   ): ObjectId = rootGroup.storeGroup(jObjectInserter = jObjectInserter)
 
-  override fun realize(): GitWorktree = GitWorktree(rootDirectory = rootGroup.realizeGroup())
+  override fun realize(): ReadonlyCompatFsDirectory = rootGroup.realizeGroup()
 }
 
 /** A node within a Git tree. */
@@ -97,14 +97,6 @@ fun GitTreeNode.store(
       is GitTreeFile -> storeFile(objectInserter = objectInserter)
       is GitTreeSymlink -> storeSymlink(objectInserter = objectInserter)
       is GitTreeSubmoduleLink -> ObjectId.fromString(commitHash.raw)
-    }
-
-fun GitTreeNode.realizeNode(): GitWorktreeNode =
-    when (this) {
-      is GitTreeGroup -> realizeGroup()
-      is GitTreeFile -> realizeFile()
-      is GitTreeSymlink -> realizeSymlink()
-      is GitTreeSubmoduleLink -> realizeSubmoduleLink()
     }
 
 /**
@@ -164,7 +156,7 @@ private fun GitTreeGroup.storeGroup(
   return treeFormatter.insertTo(jObjectInserter)
 }
 
-fun GitTreeGroup.realizeGroup(): GitWorktreeDirectory =
+fun GitTreeGroup.realizeGroup(): ReadonlyCompatFsDirectory =
     GitRealizedWorktreeDirectory(
         treeGroup = this,
     )
@@ -210,7 +202,7 @@ private fun GitTreeFile.storeFile(
       objectInserter.insert(Constants.OBJ_BLOB, outputStream.toByteArray())
     }
 
-fun GitTreeFile.realizeFile(): GitWorktreeFile =
+fun GitTreeFile.realizeFile(): ReadonlyCompatFsFile =
     GitRealizedWorktreeFile(
         treeFile = this,
     )
@@ -226,7 +218,7 @@ fun GitTreeFile.realizeFile(): GitWorktreeFile =
  * is broken based on the information available in the Git tree alone.
  */
 data class GitTreeSymlink(
-    val targetPath: UnixPath,
+    val targetPath: UnixPath<*>,
 ) : GitTreeNode
 
 private fun GitTreeSymlink.storeSymlink(
@@ -235,16 +227,16 @@ private fun GitTreeSymlink.storeSymlink(
   // We might deny storing out-of-repo symlinks, absolute symlinks and we might normalize symlink
   // paths
 
-  val targetPathText = targetPath.toUnixPathString()
+  val targetPathText =
+      when (targetPath) {
+        is RelativeUnixPath -> targetPath.toUnixRelativePathString()
+        is AbsoluteUnixPath -> targetPath.toUnixAbsolutePathString()
+      }
 
   return objectInserter.insert(
       Constants.OBJ_BLOB,
       targetPathText.toByteArray(Charsets.UTF_8),
   )
-}
-
-fun GitTreeSymlink.realizeSymlink(): GitWorktreeSymlink {
-  return GitWorktreeSymlink(targetPath = targetPath)
 }
 
 /**
@@ -262,6 +254,6 @@ value class GitTreeSubmoduleLink(
     val commitHash: GitCommitHash,
 ) : GitTreeNode
 
-fun GitTreeSubmoduleLink.realizeSubmoduleLink(): GitWorktreeNode {
+fun GitTreeSubmoduleLink.realizeSubmoduleLink(): ReadonlyCompatFsDirectory {
   throw UnsupportedOperationException("Submodule link realization is not supported yet")
 }

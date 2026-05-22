@@ -1,0 +1,9 @@
+facets:
+  gradle:
+    formatting:
+      fix:
+        gradle-task: ktfmtFormat
+    verification:
+      - name: Compile & test
+        run:
+          gradle-task: test
