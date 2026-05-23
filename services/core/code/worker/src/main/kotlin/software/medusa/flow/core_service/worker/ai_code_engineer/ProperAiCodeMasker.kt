@@ -1,7 +1,7 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.openai_client.OpenAiClient
 
@@ -13,7 +13,7 @@ class ProperAiCodeMasker(
   ): AiCodePatcher.CodeMasker =
       object : AiCodePatcher.CodeMasker {
         override fun prepareMask(
-            codeFileContent: CodeFileContent,
+            codeFileContent: TechFileContent.Code,
         ): MaskedCodeFileContent.Mask = MaskedCodeFileContent.Mask(maskedLineRanges = emptySet())
       }
 
@@ -23,7 +23,7 @@ class ProperAiCodeMasker(
   ): AiCodePatcher.CodeMasker =
       object : AiCodePatcher.CodeMasker {
         override fun prepareMask(
-            codeFileContent: CodeFileContent,
+            codeFileContent: TechFileContent.Code,
         ): MaskedCodeFileContent.Mask = MaskedCodeFileContent.Mask(maskedLineRanges = emptySet())
       }
 }

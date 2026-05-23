@@ -9,7 +9,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.M
 import software.medusa.flow.core_service.worker.ai_code_engineer.RawAiCodePatcher_inputStructure_utils.toRawMaskedCodeCatalog
 import software.medusa.commons.code.CodeBlock.LineIndex
 import software.medusa.commons.code.CodeBlock.LineIndexRange
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.flow.core_service.worker.code.raw_masked_code_catalog.RawMaskedCodeCatalog
 import software.medusa.flow.core_service.worker.code.tc.ControlChar
 
@@ -29,7 +29,7 @@ class RawAiCodePatcher_inputStructure_utils_tests {
                     filePath to
                         MaskedCodeFileContent(
                             codeFileContent =
-                                CodeFileContent.of(
+                                TechFileContent.Code.of(
                                     "alpha: 1",
                                     "beta: 2",
                                 ),

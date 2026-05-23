@@ -11,6 +11,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.M
 import software.medusa.commons.code.CodeBlock
 import software.medusa.commons.code.CodeBlock.LineIndex
 import software.medusa.commons.code.CodeBlock.LineIndexRange
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.markdown.MarkdownBlock
 import software.medusa.markdown.MarkdownChapter
 import software.medusa.markdown.MarkdownDocument
@@ -473,7 +474,6 @@ internal data object CcMdAiCodePatcher_wire_utils {
         else -> CodeBlock.parse(rawContent = this)
       }
 
-  private val software.medusa.flow.core_service.worker.code.CodeFileContent.wholeFileRange:
-      LineIndexRange
+  private val TechFileContent.Code.wholeFileRange: LineIndexRange
     get() = LineIndexRange.of(startIndex = LineIndex.First, length = code.lineCount)
 }

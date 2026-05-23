@@ -18,7 +18,8 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
+import software.medusa.flow.core_service.worker.code.applyChange
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 import software.medusa.openai_client.OpenAiClient
@@ -55,7 +56,7 @@ class JsonAiCodePatcher_integrationTests {
         }
 
     private val fibLuaContent =
-        CodeFileContent.parse(
+        TechFileContent.Code.parse(
             """
             local function fib(n)
                 if n <= 1 then

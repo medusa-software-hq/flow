@@ -14,7 +14,7 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.commons.code.CodeBlock
 import software.medusa.commons.code.CodeBlock.LineIndex
 import software.medusa.commons.code.CodeBlock.LineIndexRange
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeFileDiagnosis
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 
@@ -27,7 +27,7 @@ class ProperAiCodeEditor_tests {
   private val irrelevantCodeMasker: AiCodePatcher.CodeMasker =
       object : AiCodePatcher.CodeMasker {
         override fun prepareMask(
-            codeFileContent: CodeFileContent,
+            codeFileContent: TechFileContent.Code,
         ): AiCodePatcher.MaskedCodeFileContent.Mask =
             AiCodePatcher.MaskedCodeFileContent.Mask(
                 maskedLineRanges =
@@ -37,7 +37,7 @@ class ProperAiCodeEditor_tests {
             )
 
         private fun buildMaskedLineRanges(
-            codeFileContent: CodeFileContent,
+            codeFileContent: TechFileContent.Code,
         ): Set<LineIndexRange> {
           val indexedLineIterator = codeFileContent.indexedLines.iterator()
 
@@ -413,7 +413,7 @@ class ProperAiCodeEditor_tests {
       private val replacement: String,
   ) {
     fun changeByReplacing(
-        codeFileContent: CodeFileContent,
+        codeFileContent: TechFileContent.Code,
     ): AiCodePatcher.ChangeSet.Change.Patch =
         AiCodePatcher.ChangeSet.Change.Patch(
             codeFileContent.indexedLines

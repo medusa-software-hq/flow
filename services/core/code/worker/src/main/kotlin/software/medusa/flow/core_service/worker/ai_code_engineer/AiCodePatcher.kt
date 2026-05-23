@@ -1,12 +1,12 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
 import software.medusa.commons.paths.LiteralRelativeUnixPath
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.CodeMasker
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.commons.code.CodeBlock
 import software.medusa.commons.code.CodeBlock.LineIndexRange
-import software.medusa.flow.core_service.worker.code.CodeFileContent
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 
 interface AiCodePatcher {
@@ -15,7 +15,7 @@ interface AiCodePatcher {
   )
 
   data class MaskedCodeFileContent(
-      val codeFileContent: CodeFileContent,
+      val codeFileContent: TechFileContent.Code,
       val mask: Mask,
   ) {
     data class Mask(
@@ -89,7 +89,7 @@ interface AiCodePatcher {
 
   interface CodeMasker {
     fun prepareMask(
-        codeFileContent: CodeFileContent,
+        codeFileContent: TechFileContent.Code,
     ): MaskedCodeFileContent.Mask
   }
 

@@ -12,7 +12,8 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
+import software.medusa.flow.core_service.worker.code.applyChange
 import software.medusa.openai_client.OpenAiClient
 
 class RawAiCodePatcher_integrationTests {
@@ -42,7 +43,7 @@ class RawAiCodePatcher_integrationTests {
         )
 
     private val moduleYamlContent =
-        CodeFileContent.parse(
+        TechFileContent.Code.parse(
             """
             submodules:
               backend: backend

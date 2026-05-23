@@ -14,7 +14,7 @@ class TechFileContent_tests {
     val content = file.readTechContent()
 
     assertEquals(
-        expected = TechFileContent.Utf8Text(text = "hello\nworld"),
+        expected = TechFileContent.Code.parse(rawContent = "hello\nworld"),
         actual = content,
     )
   }

@@ -1,6 +1,7 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
 import kotlinx.io.bytestring.encodeToByteString
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.filesystem.compat.MutableCompatFsDirectory
 import software.medusa.commons.filesystem.compat.MutableCompatFsFile
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
@@ -13,7 +14,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Ch
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.CodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.FileEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchGenerator
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.flow.core_service.worker.code.applyChange
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 
 interface AiCodeEditor {
@@ -41,7 +42,7 @@ interface AiCodeEditor {
                                       "Expected file at path ${filePath.toUnixRelativePathString()}, but found a directory",
                                   )
 
-                          CodeFileContent.parse(
+                          TechFileContent.Code.parse(
                               rawContent = file.readText(),
                           )
                         },
@@ -55,7 +56,7 @@ interface AiCodeEditor {
   }
 
   data class CodeCatalog(
-      val codeFileContentByPath: Map<LiteralRelativeUnixPath, CodeFileContent>,
+      val codeFileContentByPath: Map<LiteralRelativeUnixPath, TechFileContent.Code>,
   ) {
     suspend fun writeBack(
         targetDirectory: MutableCompatFsDirectory,
@@ -90,7 +91,7 @@ interface AiCodeEditor {
                       is AiCodePatcher.ChangeSet.Change.Patch ->
                           put(filePath, fileContent.applyChange(change))
                       is AiCodePatcher.ChangeSet.Change.Create ->
-                          put(filePath, CodeFileContent(code = change.content))
+                          put(filePath, TechFileContent.Code(code = change.content))
                       AiCodePatcher.ChangeSet.Change.Delete -> Unit
                     }
                   }
@@ -102,7 +103,7 @@ interface AiCodeEditor {
 
                     when (change) {
                       is AiCodePatcher.ChangeSet.Change.Create ->
-                          put(filePath, CodeFileContent(code = change.content))
+                          put(filePath, TechFileContent.Code(code = change.content))
                       is AiCodePatcher.ChangeSet.Change.Patch ->
                           throw IllegalStateException(
                               "Cannot patch missing file ${filePath.toUnixRelativePathString()}"
@@ -140,7 +141,7 @@ interface AiCodeEditor {
 
 private suspend fun MutableCompatFsDirectory.writeCodeFile(
     filePath: LiteralRelativeUnixPath,
-    fileContent: CodeFileContent,
+    fileContent: TechFileContent.Code,
 ) {
   val existingEntity = extractDeepMutable(filePath)
   val fileName =

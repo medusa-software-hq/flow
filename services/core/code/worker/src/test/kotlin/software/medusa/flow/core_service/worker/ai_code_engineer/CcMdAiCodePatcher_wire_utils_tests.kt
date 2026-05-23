@@ -15,7 +15,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.CcMdAiCodePatch
 import software.medusa.commons.code.CodeBlock
 import software.medusa.commons.code.CodeBlock.LineIndex
 import software.medusa.commons.code.CodeBlock.LineIndexRange
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
 
 class CcMdAiCodePatcher_wire_utils_tests {
   @Test
@@ -33,7 +33,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
                     filePath to
                         MaskedCodeFileContent(
                             codeFileContent =
-                                CodeFileContent.of(
+                                TechFileContent.Code.of(
                                     "alpha: 1",
                                     "beta: 2",
                                 ),
@@ -80,7 +80,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
                     moduleFilePath to
                         MaskedCodeFileContent(
                             codeFileContent =
-                                CodeFileContent.of(
+                                TechFileContent.Code.of(
                                     "alpha: 1",
                                     "beta: 2",
                                     "gamma: 3",
@@ -90,7 +90,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
                         ),
                     notesFilePath to
                         MaskedCodeFileContent(
-                            codeFileContent = CodeFileContent.of("obsolete"),
+                            codeFileContent = TechFileContent.Code.of("obsolete"),
                             mask = MaskedCodeFileContent.Mask.Empty,
                         ),
                 ),
@@ -255,7 +255,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
                 mapOf(
                     RelativeUnixPath.of(UnixPath.Name.Literal("known.txt")) to
                         MaskedCodeFileContent(
-                            codeFileContent = CodeFileContent.of("known"),
+                            codeFileContent = TechFileContent.Code.of("known"),
                             mask = MaskedCodeFileContent.Mask.Empty,
                         ),
                 ),
@@ -293,7 +293,7 @@ class CcMdAiCodePatcher_wire_utils_tests {
                 mapOf(
                     filePath to
                         MaskedCodeFileContent(
-                            codeFileContent = CodeFileContent.of("alpha: 1"),
+                            codeFileContent = TechFileContent.Code.of("alpha: 1"),
                             mask = MaskedCodeFileContent.Mask.Empty,
                         ),
                 ),

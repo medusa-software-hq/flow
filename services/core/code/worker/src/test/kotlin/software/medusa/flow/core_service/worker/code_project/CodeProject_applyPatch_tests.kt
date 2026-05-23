@@ -6,13 +6,14 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.C
 import software.medusa.commons.code.CodeBlock
 import software.medusa.commons.code.CodeBlock.LineIndex
 import software.medusa.commons.code.CodeBlock.LineIndexRange
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
+import software.medusa.flow.core_service.worker.code.applyChange
 
 class CodeProject_applyPatch_tests {
   @Test
   fun test_empty() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  world {",
             "  }",
@@ -30,7 +31,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_replacement_singleLine() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  world {",
             "  }",
@@ -38,7 +39,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  universe {",
             "  }",
@@ -75,7 +76,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_replacement_singleLine_expanding() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  world {",
             "  }",
@@ -90,7 +91,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  universe {",
             "    and all the other places too (",
@@ -124,7 +125,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_replacement_multipleLines() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "foo {{",
             "  bar {",
             "    baz (",
@@ -141,7 +142,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "foo {{",
             "  xyz [",
             "    asdf",
@@ -174,7 +175,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_front() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -182,7 +183,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "  ]",
             "}}",
         )
@@ -209,7 +210,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_middle() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -217,7 +218,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "}}",
         )
@@ -244,7 +245,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_rear() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -252,7 +253,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
         )
 
@@ -278,7 +279,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_deletion_whole() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -299,7 +300,7 @@ class CodeProject_applyPatch_tests {
         )
 
     assertEquals(
-        expected = CodeFileContent.Empty,
+        expected = TechFileContent.Code.Empty,
         actual = patchedContent,
     )
   }
@@ -307,7 +308,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_append_front() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -322,7 +323,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "#!/bin/hello",
             "%include hello.lib",
             "",
@@ -356,7 +357,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_append_middle() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -370,7 +371,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "// and all the other places",
@@ -403,7 +404,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_singleFragment_append_rear() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -417,7 +418,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world [",
             "  ]",
@@ -450,7 +451,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_oneToOne() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  world {",
             "    and all the other places too (",
@@ -471,7 +472,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hi {",
             "  world {",
             "    and universe [",
@@ -515,7 +516,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_collapsingOverall() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  world {",
             "    and all the other places too (",
@@ -538,7 +539,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hi {{",
             "    and all the other places too (",
             "      with hugs [{",
@@ -583,7 +584,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_expandingOverall() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  world {",
             "    and all the other places too (",
@@ -608,7 +609,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {{",
             "  world {",
             "    and all the known places too (",
@@ -652,7 +653,7 @@ class CodeProject_applyPatch_tests {
   @Test
   fun test_multipleFragments_appliedInLineOrder_notMapInsertionOrder() {
     val inputContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hello {",
             "  world {",
             "    and all the other places too (",
@@ -673,7 +674,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val expectedContent =
-        CodeFileContent.of(
+        TechFileContent.Code.of(
             "hi {",
             "  world {",
             "    and universe [",

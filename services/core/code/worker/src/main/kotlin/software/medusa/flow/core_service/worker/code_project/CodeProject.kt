@@ -1,7 +1,7 @@
 package software.medusa.flow.core_service.worker.code_project
 
 import software.medusa.commons.paths.LiteralRelativeUnixPath
-import software.medusa.flow.core_service.worker.code.CodeFileContent
+import software.medusa.commons.filesystem.tech.TechFileContent
 
 interface CodeProject {
   @JvmInline
@@ -11,7 +11,7 @@ interface CodeProject {
 
   @JvmInline
   value class BulkCodeFileContent(
-      val codeFileContentByPath: Map<LiteralRelativeUnixPath, CodeFileContent>,
+      val codeFileContentByPath: Map<LiteralRelativeUnixPath, TechFileContent.Code>,
   )
 
   val rootModule: CodeModule
