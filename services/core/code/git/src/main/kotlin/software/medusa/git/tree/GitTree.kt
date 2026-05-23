@@ -19,9 +19,8 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.git.GitCommitHash
 import software.medusa.git.GitFileMode
 import software.medusa.git.utils.contentEquals
-import software.medusa.git.worktree.GitEmptyFsDirectory
-import software.medusa.git.worktree.GitRealizedWorktreeDirectory
-import software.medusa.git.worktree.GitRealizedWorktreeFile
+import software.medusa.git.worktree.filesystem.GitRealizedWorktreeDirectory
+import software.medusa.git.worktree.filesystem.GitRealizedWorktreeFile
 
 sealed interface GitTree {
   companion object {
@@ -43,7 +42,12 @@ data object GitEmptyTree : GitTree {
       jObjectInserter: ObjectInserter,
   ): ObjectId = jObjectInserter.insert(Constants.OBJ_TREE, ByteArray(0))
 
-  override fun realize(): ReadonlyCompatFsDirectory = GitEmptyFsDirectory
+  override fun realize(): ReadonlyCompatFsDirectory = GitRealizedWorktreeDirectory(EmptyRootGroup)
+}
+
+private data object EmptyRootGroup : GitTreeGroup() {
+  override val childEntries: Sequence<GitTreeGroup.ChildEntry>
+    get() = emptySequence()
 }
 
 /** A proper, non-empty Git tree. */

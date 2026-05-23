@@ -1,4 +1,4 @@
-package software.medusa.git.worktree
+package software.medusa.git.worktree.filesystem
 
 import kotlinx.io.bytestring.ByteString
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
@@ -44,12 +44,9 @@ class GitRealizedWorktreeFile(
 private fun GitTreeNode.realizeEntity(): ReadonlyCompatFsEntity? =
     when (this) {
       is GitTreeGroup -> GitRealizedWorktreeDirectory(treeGroup = this)
-
       is GitTreeFile -> GitRealizedWorktreeFile(treeFile = this)
-
       is GitTreeSymlink ->
           throw UnsupportedOperationException("Symlink filesystem views are not supported yet")
-
       is GitTreeSubmoduleLink ->
           throw UnsupportedOperationException("Submodule filesystem views are not supported yet")
     }

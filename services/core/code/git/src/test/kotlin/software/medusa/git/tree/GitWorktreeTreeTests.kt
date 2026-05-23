@@ -7,34 +7,46 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import software.medusa.git.GitFileMode
+import software.medusa.git.worktree.GitConsiderateWorktreeDirectory
+import software.medusa.git.worktree.GitWorktreeFilter
 import software.medusa.git.worktree.TestGitWorktreeDirectory
 import software.medusa.git.worktree.TestGitWorktreeFile
 
 class GitWorktreeTreeTests {
   @Test
   fun projectsFilesystemViewIntoTreeNodes() {
+    val worktree =
+        kotlinx.coroutines.runBlocking {
+          GitConsiderateWorktreeDirectory.consider(
+                  fsDirectory =
+                      TestGitWorktreeDirectory(
+                          mapOf(
+                              "dir" to
+                                  TestGitWorktreeDirectory(
+                                      childByName =
+                                          mapOf(
+                                              "nested.txt" to
+                                                  TestGitWorktreeFile(
+                                                      content = "hello",
+                                                  ),
+                                          ),
+                                  ),
+                              "script.sh" to
+                                  TestGitWorktreeFile(
+                                      content = "echo hi",
+                                      executable = true,
+                                  ),
+                          ),
+                      ),
+                  baseFilter = GitWorktreeFilter.Passive,
+              )
+              .asFilteredFsEntity
+        }
+
     val projectedGroup =
         assertNotNull(
             GitWorktreeTreeGroup.interpret(
-                TestGitWorktreeDirectory(
-                    mapOf(
-                        "dir" to
-                            TestGitWorktreeDirectory(
-                                childByName =
-                                    mapOf(
-                                        "nested.txt" to
-                                            TestGitWorktreeFile(
-                                                content = "hello",
-                                            ),
-                                    ),
-                            ),
-                        "script.sh" to
-                            TestGitWorktreeFile(
-                                content = "echo hi",
-                                executable = true,
-                            ),
-                    ),
-                ),
+                worktreeDirectory = checkNotNull(worktree),
             ),
         )
 
@@ -76,7 +88,10 @@ class GitWorktreeTreeTests {
 
   @Test
   fun returnsNullForEmptyProjectedDirectory() {
-    val group = GitWorktreeTreeGroup.interpret(TestGitWorktreeDirectory(emptyMap()))
+    val group =
+        GitWorktreeTreeGroup.interpret(
+            worktreeDirectory = TestGitWorktreeDirectory(emptyMap()),
+        )
 
     assertNull(group)
   }

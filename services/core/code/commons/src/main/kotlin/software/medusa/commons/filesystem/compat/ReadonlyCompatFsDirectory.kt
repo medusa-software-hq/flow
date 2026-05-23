@@ -16,6 +16,14 @@ interface ReadonlyCompatFsDirectory : ReadonlyCompatFsEntity {
       val entity: EntityT,
   )
 
+  /**
+   * A split of the direct children of a directory into files and directories.
+   */
+  data class SplitEntrySet(
+      val directories: List<Entry<ReadonlyCompatFsDirectory>>,
+      val files: List<Entry<ReadonlyCompatFsFile>>,
+  )
+
   /** Returns the direct children of this directory. */
   suspend fun listEntries(): List<Entry<*>>
 
@@ -23,6 +31,37 @@ interface ReadonlyCompatFsDirectory : ReadonlyCompatFsEntity {
   suspend fun extract(
       name: UnixPath.Name.Literal,
   ): ReadonlyCompatFsEntity?
+}
+
+/**
+ * Lists the direct children of this directory, splitting them into files and directories.
+ */
+suspend fun ReadonlyCompatFsDirectory.listEntriesSplit(): ReadonlyCompatFsDirectory.SplitEntrySet {
+  val directories = mutableListOf<ReadonlyCompatFsDirectory.Entry<ReadonlyCompatFsDirectory>>()
+  val files = mutableListOf<ReadonlyCompatFsDirectory.Entry<ReadonlyCompatFsFile>>()
+
+  for (entry in listEntries()) {
+    when (val entity = entry.entity) {
+      is ReadonlyCompatFsDirectory ->
+          directories +=
+              ReadonlyCompatFsDirectory.Entry(
+                  name = entry.name,
+                  entity = entity,
+              )
+
+      is ReadonlyCompatFsFile ->
+          files +=
+              ReadonlyCompatFsDirectory.Entry(
+                  name = entry.name,
+                  entity = entity,
+              )
+    }
+  }
+
+  return ReadonlyCompatFsDirectory.SplitEntrySet(
+      directories = directories,
+      files = files,
+  )
 }
 
 /**

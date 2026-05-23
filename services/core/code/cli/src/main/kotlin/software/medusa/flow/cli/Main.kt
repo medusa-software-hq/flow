@@ -34,8 +34,8 @@ import software.medusa.commons.code.CodeBlock
 import software.medusa.flow.core_service.worker.code_project.YamlCodeProjectLoader
 import software.medusa.flow.core_service.worker.code_project.tools.AiGradleOutputParser
 import software.medusa.flow.core_service.worker.code_project.tools.AiNpxOutputParser
+import software.medusa.git.worktree.GitConsiderateWorktreeDirectory
 import software.medusa.git.worktree.GitWorktreeFilter
-import software.medusa.git.worktree.filtered
 import software.medusa.openai_client.FilesystemOpenAiLogger
 import software.medusa.openai_client.LoggingOpenAiClient
 import software.medusa.openai_client.OpenAiClient
@@ -108,7 +108,12 @@ private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
                   statusCode = 1,
               )
 
-      val filteredRepoDirectory = repoDirectory.filtered(baseFilter = GitWorktreeFilter.Passive)
+      val filteredRepoDirectory =
+          GitConsiderateWorktreeDirectory.consider(
+                  fsDirectory = repoDirectory,
+                  baseFilter = GitWorktreeFilter.Passive,
+              )
+              .asFilteredFsEntity
 
       val moduleDirectory =
           repoDirectory.extractDeepMutable(relativePath = modulePath) as? MutableCompatFsDirectory

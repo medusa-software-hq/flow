@@ -16,8 +16,8 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsDirectory
 import software.medusa.commons.filesystem.compat.materializeIn
 import software.medusa.git.tree.GitTree
+import software.medusa.git.worktree.GitConsiderateWorktreeDirectory
 import software.medusa.git.worktree.GitWorktreeFilter
-import software.medusa.git.worktree.filtered
 
 class GitSession(
     internal val jRepository: Repository,
@@ -168,11 +168,14 @@ class GitRepository(
     ): GitCommitHash {
       val sourceWorktree = NioCompatFsDirectory(directoryPath = sourceWorktreePath)
 
-      val filteredSourceWorktree = runBlocking {
-        sourceWorktree.filtered(
-            baseFilter = GitWorktreeFilter.Passive,
-        )
-      }
+      val filteredSourceWorktree =
+          runBlocking {
+            GitConsiderateWorktreeDirectory.consider(
+                    fsDirectory = sourceWorktree,
+                    baseFilter = GitWorktreeFilter.Passive,
+                )
+                .asFilteredFsEntity
+          }
 
       val sourceTree =
           GitTree.interpret(
