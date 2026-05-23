@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import software.medusa.commons.paths.AbsoluteUnixPath
 import software.medusa.commons.paths.toLiteral
-import software.medusa.flow.core_service.worker.code.CodeBlock
+import software.medusa.commons.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.tc.ControlChar
 
 class RawPatchSet_tests {

@@ -1,10 +1,10 @@
 package software.medusa.flow.core_service.worker.code.raw_patchset
 
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
 import software.medusa.commons.paths.AbsoluteUnixPath
 import software.medusa.commons.paths.LiteralAbsoluteUnixPath
 import software.medusa.commons.paths.toLiteral
-import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
 import software.medusa.flow.core_service.worker.code.raw_patchset.CharStream.CharClass
 import software.medusa.flow.core_service.worker.code.tc.ControlChar
 

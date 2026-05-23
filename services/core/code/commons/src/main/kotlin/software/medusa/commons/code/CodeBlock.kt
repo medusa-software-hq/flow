@@ -1,7 +1,6 @@
-package software.medusa.flow.core_service.worker.code
+package software.medusa.commons.code
 
-import software.medusa.flow.core_service.worker.code.tc.ControlChar
-import software.medusa.flow.core_service.worker.code.tc.TcString
+import software.medusa.commons.unicode.ControlChar
 
 /** A multi-line block of a code. An empty code block (containing no lines) is possible. */
 data class CodeBlock(
@@ -109,17 +108,6 @@ data class CodeBlock(
         "Line content cannot contain control characters (including newline)"
       }
     }
-
-    /**
-     * Dumps the content of the line as a [TcString] (without a trailing newline character).
-     *
-     * This operation always succeeds because [Line] content is guaranteed to not contain control
-     * characters, which are the only invalid characters for a [TcString].
-     */
-    fun toTcString(): TcString =
-        TcString(
-            content = content,
-        )
   }
 
   companion object {

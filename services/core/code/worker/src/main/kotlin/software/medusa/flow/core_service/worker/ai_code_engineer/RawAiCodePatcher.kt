@@ -6,9 +6,9 @@ import software.medusa.commons.paths.relativizeAgainst
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.RawAiCodePatcher_inputStructure_utils.toRawMaskedCodeCatalog
-import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.raw_masked_code_catalog.RawMaskedCodeCatalog
 import software.medusa.flow.core_service.worker.code.raw_patchset.RawDeleteFragment
 import software.medusa.flow.core_service.worker.code.raw_patchset.RawFilePatch

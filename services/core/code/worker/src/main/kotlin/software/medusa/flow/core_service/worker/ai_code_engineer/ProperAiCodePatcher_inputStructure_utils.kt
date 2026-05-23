@@ -1,9 +1,9 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.tc.ControlChar
 import software.medusa.flow.core_service.worker.code.tc.TcFile
 import software.medusa.flow.core_service.worker.code.tc.TcGroup
@@ -68,12 +68,12 @@ internal data object ProperAiCodePatcher_inputStructure_utils {
             } else {
               TcRecord(
                   units =
-                      listOf(
-                          TcUnit.of(value = TcString(indexedLine.index.indexOneBased.toString())),
-                          TcUnit.of(value = indexedLine.line.toTcString()),
-                      ),
-              )
-            }
+                       listOf(
+                           TcUnit.of(value = TcString(indexedLine.index.indexOneBased.toString())),
+                           TcUnit.of(value = TcString(indexedLine.line.content)),
+                       ),
+               )
+             }
           }
           .toList()
 }

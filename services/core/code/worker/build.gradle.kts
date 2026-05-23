@@ -17,7 +17,7 @@ dependencies {
   api(libs.kotlinx.serialization.json)
   api(libs.kotlinx.schema.generator.json)
 
-  implementation(project(":commons"))
+  api(project(":commons"))
   implementation(project(":shared"))
   implementation(project(":opencode-enclosed"))
   implementation(gradleApi())

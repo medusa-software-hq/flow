@@ -4,8 +4,8 @@ import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.CodeMasker
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
-import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.CodeFileContent
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 

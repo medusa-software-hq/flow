@@ -11,9 +11,9 @@ import software.medusa.commons.filesystem.compat.MutableCompatFsFile
 import software.medusa.commons.filesystem.compat.impl.memory.MemoryCompatFsDirectory
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.UnixPath
-import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.CodeFileContent
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeFileDiagnosis
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis

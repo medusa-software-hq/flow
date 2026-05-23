@@ -14,7 +14,7 @@ import software.medusa.commons.filesystem.compat.impl.memory.MemoryCompatFsDirec
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
-import software.medusa.flow.core_service.worker.code.CodeBlock
+import software.medusa.commons.code.CodeBlock
 import software.medusa.flow.core_service.worker.code_project.CodeModule
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeFileDiagnosis

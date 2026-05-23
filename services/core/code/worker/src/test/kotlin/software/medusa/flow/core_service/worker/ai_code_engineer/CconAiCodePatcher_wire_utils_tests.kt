@@ -14,9 +14,9 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.M
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.encodeToCconString
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parseAst
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parseChangeSet
-import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.CodeFileContent
 
 class CconAiCodePatcher_wire_utils_tests {

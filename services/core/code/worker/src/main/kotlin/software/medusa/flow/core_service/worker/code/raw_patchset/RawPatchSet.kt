@@ -1,7 +1,7 @@
 package software.medusa.flow.core_service.worker.code.raw_patchset
 
+import software.medusa.commons.code.CodeBlock
 import software.medusa.commons.paths.LiteralAbsoluteUnixPath
-import software.medusa.flow.core_service.worker.code.CodeBlock
 import software.medusa.flow.core_service.worker.code.tc.ControlChar
 
 data class RawPatchSet(

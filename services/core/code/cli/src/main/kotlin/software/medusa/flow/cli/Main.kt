@@ -30,7 +30,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEdi
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEngineer
 import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeMasker
 import software.medusa.flow.core_service.worker.ai_code_engineer.RawAiCodePatcher
-import software.medusa.flow.core_service.worker.code.CodeBlock
+import software.medusa.commons.code.CodeBlock
 import software.medusa.flow.core_service.worker.code_project.YamlCodeProjectLoader
 import software.medusa.flow.core_service.worker.code_project.tools.AiGradleOutputParser
 import software.medusa.flow.core_service.worker.code_project.tools.AiNpxOutputParser

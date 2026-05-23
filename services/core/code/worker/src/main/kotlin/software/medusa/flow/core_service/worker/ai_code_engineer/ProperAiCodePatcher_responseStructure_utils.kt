@@ -7,9 +7,9 @@ import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.toLiteral
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
-import software.medusa.flow.core_service.worker.code.CodeBlock
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndex
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 
 internal data object ProperAiCodePatcher_responseStructure_utils {

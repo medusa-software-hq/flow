@@ -1,7 +1,8 @@
 package software.medusa.flow.core_service.worker.code
 
+import software.medusa.commons.code.CodeBlock
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change.Patch
-import software.medusa.flow.core_service.worker.code.CodeBlock.LineIndexRange
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.utils.withNextOrNull
 
 /** Content of a code file. */
