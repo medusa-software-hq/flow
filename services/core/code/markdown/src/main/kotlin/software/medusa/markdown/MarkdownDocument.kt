@@ -9,7 +9,10 @@ import org.commonmark.node.HardLineBreak
 import org.commonmark.node.Heading
 import org.commonmark.node.IndentedCodeBlock
 import org.commonmark.node.Link
+import org.commonmark.node.ListBlock
+import org.commonmark.node.ListItem
 import org.commonmark.node.Node
+import org.commonmark.node.OrderedList
 import org.commonmark.node.Paragraph
 import org.commonmark.node.SoftLineBreak
 import org.commonmark.node.StrongEmphasis
@@ -34,6 +37,15 @@ sealed class MarkdownBlock {
   data class Paragraph(
       val inlineContent: List<MarkdownInline>,
   ) : MarkdownBlock()
+
+  data class ListBlock(
+      val ordered: Boolean,
+      val items: kotlin.collections.List<Item>,
+  ) : MarkdownBlock() {
+    data class Item(
+        val blocks: kotlin.collections.List<MarkdownBlock>,
+    )
+  }
 
   data class CodeBlock(
       val code: String,
@@ -170,6 +182,11 @@ private object MarkdownParser {
   private fun parseBlock(node: Node): MarkdownBlock =
       when (node) {
         is Paragraph -> MarkdownBlock.Paragraph(inlineContent = parseInlineNodes(node.childNodes()))
+        is ListBlock ->
+            MarkdownBlock.ListBlock(
+                ordered = node is OrderedList,
+                items = node.childNodes().map(::parseListItem),
+            )
         is FencedCodeBlock ->
             MarkdownBlock.CodeBlock(
                 code = node.literal,
@@ -179,6 +196,14 @@ private object MarkdownParser {
         is CcCodeBlock -> MarkdownBlock.RawCodeBlock(code = node.literal)
         else -> unsupported(node, "Unsupported block node")
       }
+
+  private fun parseListItem(node: Node): MarkdownBlock.ListBlock.Item {
+    val item = node as? ListItem ?: unsupported(node, "Expected list item")
+
+    return MarkdownBlock.ListBlock.Item(
+        blocks = item.childNodes().map(::parseBlock),
+    )
+  }
 
   private fun parseInlineNodes(nodes: List<Node>): List<MarkdownInline> = nodes.map(::parseInline)
 
@@ -204,6 +229,7 @@ private object MarkdownParser {
       when (child) {
         is Heading,
         is Paragraph,
+        is ListBlock,
         is FencedCodeBlock,
         is IndentedCodeBlock,
         is CcCodeBlock,

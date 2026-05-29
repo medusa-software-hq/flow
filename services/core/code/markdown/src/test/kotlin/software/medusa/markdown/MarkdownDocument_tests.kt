@@ -120,6 +120,166 @@ class MarkdownDocument_tests {
   }
 
   @Test
+  fun parse_supportsBulletAndOrderedLists() {
+    val document =
+        MarkdownDocument.parse(
+            """
+            # Root
+
+            - first item
+            - second item with `code`
+
+            1. ordered item
+            2. next item
+            """
+                .trimIndent(),
+        )
+
+    assertEquals(
+        MarkdownDocument(
+            chapters =
+                listOf(
+                    MarkdownChapter(
+                        title = listOf(MarkdownInline.Text("Root")),
+                        introBlocks =
+                            listOf(
+                                MarkdownBlock.ListBlock(
+                                    ordered = false,
+                                    items =
+                                        listOf(
+                                            MarkdownBlock.ListBlock.Item(
+                                                blocks =
+                                                    listOf(
+                                                        MarkdownBlock.Paragraph(
+                                                            inlineContent =
+                                                                listOf(
+                                                                    MarkdownInline.Text("first item")
+                                                                ),
+                                                        ),
+                                                    ),
+                                            ),
+                                            MarkdownBlock.ListBlock.Item(
+                                                blocks =
+                                                    listOf(
+                                                        MarkdownBlock.Paragraph(
+                                                            inlineContent =
+                                                                listOf(
+                                                                    MarkdownInline.Text(
+                                                                        "second item with ",
+                                                                    ),
+                                                                    MarkdownInline.Code("code"),
+                                                                ),
+                                                        ),
+                                                    ),
+                                            ),
+                                        ),
+                                ),
+                                MarkdownBlock.ListBlock(
+                                    ordered = true,
+                                    items =
+                                        listOf(
+                                            MarkdownBlock.ListBlock.Item(
+                                                blocks =
+                                                    listOf(
+                                                        MarkdownBlock.Paragraph(
+                                                            inlineContent =
+                                                                listOf(
+                                                                    MarkdownInline.Text(
+                                                                        "ordered item",
+                                                                    ),
+                                                                ),
+                                                        ),
+                                                    ),
+                                            ),
+                                            MarkdownBlock.ListBlock.Item(
+                                                blocks =
+                                                    listOf(
+                                                        MarkdownBlock.Paragraph(
+                                                            inlineContent =
+                                                                listOf(
+                                                                    MarkdownInline.Text("next item"),
+                                                                ),
+                                                        ),
+                                                    ),
+                                            ),
+                                        ),
+                                ),
+                            ),
+                        subChapters = emptyList(),
+                    ),
+                ),
+        ),
+        document,
+    )
+  }
+
+  @Test
+  fun parse_supportsNestedListsInsideListItems() {
+    val document =
+        MarkdownDocument.parse(
+            """
+            # Root
+
+            - parent item
+              - nested child
+            """
+                .trimIndent(),
+        )
+
+    assertEquals(
+        MarkdownDocument(
+            chapters =
+                listOf(
+                    MarkdownChapter(
+                        title = listOf(MarkdownInline.Text("Root")),
+                        introBlocks =
+                            listOf(
+                                MarkdownBlock.ListBlock(
+                                    ordered = false,
+                                    items =
+                                        listOf(
+                                            MarkdownBlock.ListBlock.Item(
+                                                blocks =
+                                                    listOf(
+                                                        MarkdownBlock.Paragraph(
+                                                            inlineContent =
+                                                                listOf(
+                                                                    MarkdownInline.Text("parent item"),
+                                                                ),
+                                                        ),
+                                                        MarkdownBlock.ListBlock(
+                                                            ordered = false,
+                                                            items =
+                                                                listOf(
+                                                                    MarkdownBlock.ListBlock.Item(
+                                                                        blocks =
+                                                                            listOf(
+                                                                                MarkdownBlock.Paragraph(
+                                                                                    inlineContent =
+                                                                                        listOf(
+                                                                                            MarkdownInline.Text(
+                                                                                                "nested child"
+                                                                                            ),
+                                                                                        ),
+                                                                                ),
+                                                                            ),
+                                                                    ),
+                                                                ),
+                                                        ),
+                                                    ),
+                                            ),
+                                        ),
+                                ),
+                            ),
+                        subChapters = emptyList(),
+                    ),
+                ),
+        ),
+        document,
+    )
+  }
+
+  @Test
   fun parse_supportsRawCcCodeBlocks() {
     val document =
         MarkdownDocument.parse(
@@ -421,13 +581,13 @@ class MarkdownDocument_tests {
               """
               # Root
 
-              - item
+              > quoted
               """
                   .trimIndent(),
           )
         }
 
-    assertEquals("Unsupported top-level node: BulletList", exception.message)
+    assertEquals("Unsupported top-level node: BlockQuote", exception.message)
   }
 
   @Test
