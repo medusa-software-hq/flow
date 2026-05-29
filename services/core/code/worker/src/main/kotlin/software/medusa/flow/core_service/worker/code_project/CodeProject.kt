@@ -1,7 +1,7 @@
 package software.medusa.flow.core_service.worker.code_project
 
-import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.filesystem.tech.TechFileContent
+import software.medusa.commons.paths.LiteralRelativeUnixPath
 
 interface CodeProject {
   @JvmInline

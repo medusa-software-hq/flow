@@ -1,5 +1,9 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
+import software.medusa.commons.code.CodeBlock.LineIndexRange
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.toLiteral
@@ -8,10 +12,6 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.C
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.commons.code.CodeBlock
-import software.medusa.commons.code.CodeBlock.LineIndex
-import software.medusa.commons.code.CodeBlock.LineIndexRange
-import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.markdown.MarkdownBlock
 import software.medusa.markdown.MarkdownChapter
 import software.medusa.markdown.MarkdownDocument
@@ -260,7 +260,7 @@ internal data object CcMdAiCodePatcher_wire_utils {
                       },
               )
               .also {
-                require(chapter.introBlocks.isEmpty()) {
+                require(chapter.blocks.isEmpty()) {
                   "Expected $context update chapter to have no intro blocks"
                 }
               }
@@ -365,7 +365,7 @@ internal data object CcMdAiCodePatcher_wire_utils {
     }
 
     deleteRegex.matchEntire(title)?.destructured?.let { (start, end) ->
-      require(chapter.introBlocks.isEmpty()) {
+      require(chapter.blocks.isEmpty()) {
         "Expected $context delete chapter to have no intro blocks"
       }
       require(chapter.subChapters.isEmpty()) {
@@ -407,11 +407,9 @@ internal data object CcMdAiCodePatcher_wire_utils {
       chapter: MarkdownChapter,
       context: String,
   ): String {
-    require(chapter.introBlocks.size == 1) {
-      "Expected $context to contain exactly one raw code block"
-    }
+    require(chapter.blocks.size == 1) { "Expected $context to contain exactly one raw code block" }
 
-    val block = chapter.introBlocks.single()
+    val block = chapter.blocks.single()
 
     return (block as? MarkdownBlock.RawCodeBlock)?.code
         ?: throw IllegalArgumentException("Expected $context to contain a raw code block")

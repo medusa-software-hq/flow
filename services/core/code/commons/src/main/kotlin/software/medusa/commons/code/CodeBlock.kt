@@ -2,10 +2,19 @@ package software.medusa.commons.code
 
 import software.medusa.commons.unicode.ControlChar
 
-/** A multi-line block of a code. An empty code block (containing no lines) is possible. */
+/**
+ * A multi-line block of a code. An empty code block (containing no lines) is possible. Code must
+ * consist solely of safe characters. _Safe_ characters consist of: non-control characters,
+ * horizontal tab (\t) and line feed (\n).
+ */
 data class CodeBlock(
     val lines: List<Line>,
 ) {
+  class IllegalCodeContentException(illegalChar: Char) :
+      IllegalArgumentException(
+          "Code content cannot contain control characters, but found: ${illegalChar.toUPlusString()}",
+      )
+
   @JvmInline
   value class LineIndex(
       /** Zero-based line index. */
@@ -83,6 +92,19 @@ data class CodeBlock(
       }
     }
 
+    /**
+     * Checks whether this line index range collides with another line index range. Two line index
+     * ranges collide if they share at least one line index or if the end index of one range is
+     * equal to the start index of the other range (i.e., they are adjacent).
+     */
+    fun collides(
+        other: LineIndexRange,
+    ): Boolean = startIndex <= other.endIndexExclusive && endIndexExclusive >= other.startIndex
+
+    /**
+     * Checks whether this line index range overlaps with another line index range. Two line index
+     * ranges overlap if they share at least one line index.
+     */
     fun overlaps(
         other: LineIndexRange,
     ): Boolean = startIndex < other.endIndexExclusive && endIndexExclusive > other.startIndex
@@ -101,6 +123,24 @@ data class CodeBlock(
     companion object {
       /** A line with no characters. */
       val Empty = Line(content = "")
+
+      /** Checks whether a character is safe for inclusion in line content. */
+      fun isSafe(char: Char): Boolean = !ControlChar.isControl(char) || char == '\t'
+
+      /**
+       * @throws IllegalCodeContentException if [rawLineContent] contains any control characters.
+       */
+      fun parse(
+          rawLineContent: String,
+      ): Line {
+        rawLineContent.forEach {
+          if (!Line.isSafe(it)) {
+            throw IllegalCodeContentException(illegalChar = it)
+          }
+        }
+
+        return Line(content = rawLineContent)
+      }
     }
 
     init {
@@ -116,6 +156,9 @@ data class CodeBlock(
 
     /** A code block consisting of a single empty line. */
     val SingleEmptyLine = CodeBlock(lines = listOf(Line.Empty))
+
+    /** Checks whether a character is safe for inclusion in code content. */
+    fun isSafe(char: Char): Boolean = Line.isSafe(char) || char == '\n'
 
     fun of(
         vararg lines: String,
@@ -165,6 +208,8 @@ data class CodeBlock(
      * Parses the raw content of a code block into a [CodeBlock] by splitting it into lines.
      * [rawContent] is expected to consist of LF-terminated lines. If [rawContent] lacks a trailing
      * LF character, it will be parsed as a one-line file.
+     *
+     * @throws IllegalCodeContentException if [rawContent] contains any control characters.
      */
     fun parse(
         rawContent: String,
@@ -175,13 +220,13 @@ data class CodeBlock(
             else -> rawContent
           }
 
-      val lines = strippedRawContent.split('\n').map { Line(content = it) }
+      val lines = strippedRawContent.split('\n').map { Line.parse(rawLineContent = it) }
 
       return CodeBlock(lines = lines)
     }
   }
 
-  val lineCount: Int
+  val height: Int
     get() = lines.size
 
   /** Dumps the content of the code block as a string with LF-terminated lines. */
@@ -199,4 +244,18 @@ data class CodeBlock(
             line = line,
         )
       }
+
+  /**
+   * Applies a [CodePatch] to this code block and returns the resulting code block. The
+   * [baseLineIndex] parameter specifies the line index in the original code file that corresponds
+   * to the first line of this code block.
+   */
+  fun applyPatch(
+      patch: CodePatch,
+      baseLineIndex: LineIndex = LineIndex.First,
+  ): CodeBlock {
+    TODO()
+  }
 }
+
+private fun Char.toUPlusString(): String = "U+" + code.toString(16).uppercase().padStart(4, '0')

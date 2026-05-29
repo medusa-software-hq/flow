@@ -21,7 +21,7 @@ class GitWorktreeEntityTests {
   @Test
   fun considerateDirectoryAppliesBaseFilterAndLocalGitignoreToFilteredView() = runBlocking {
     val worktree =
-        GitConsiderateWorktreeDirectory.consider(
+        GitIncludedWorktreeDirectory.consider(
             fsDirectory =
                 TestGitWorktreeDirectory(
                     childByName =
@@ -85,7 +85,7 @@ class GitWorktreeEntityTests {
   @Test
   fun ignoredDirectoryCanStillBeTraversedAsNonConsidered() = runBlocking {
     val root =
-        GitConsiderateWorktreeDirectory.consider(
+        GitIncludedWorktreeDirectory.consider(
             fsDirectory =
                 TestGitWorktreeDirectory(
                     childByName =
@@ -94,7 +94,8 @@ class GitWorktreeEntityTests {
                                 TestGitWorktreeDirectory(
                                     childByName =
                                         mapOf(
-                                            "artifact.txt" to TestGitWorktreeFile(content = "artifact"),
+                                            "artifact.txt" to
+                                                TestGitWorktreeFile(content = "artifact"),
                                         ),
                                 ),
                         ),
@@ -103,7 +104,7 @@ class GitWorktreeEntityTests {
         )
 
     val buildDirectory =
-        assertIs<GitInconsiderateWorktreeDirectory>(
+        assertIs<GitExcludedWorktreeDirectory>(
             root.readChild(UnixPath.Name.Literal("build")),
         )
 
@@ -128,7 +129,7 @@ class GitWorktreeEntityTests {
   @Test
   fun filteredViewKeepsDirectoriesEvenWhenAllChildrenAreFilteredOut() = runBlocking {
     val worktree =
-        GitConsiderateWorktreeDirectory.consider(
+        GitIncludedWorktreeDirectory.consider(
             fsDirectory =
                 TestGitWorktreeDirectory(
                     childByName =
@@ -137,7 +138,8 @@ class GitWorktreeEntityTests {
                                 TestGitWorktreeDirectory(
                                     childByName =
                                         mapOf(
-                                            "ignored.txt" to TestGitWorktreeFile(content = "ignored"),
+                                            "ignored.txt" to
+                                                TestGitWorktreeFile(content = "ignored"),
                                         ),
                                 ),
                         ),

@@ -7,11 +7,11 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.yaml.snakeyaml.Yaml
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.flow.core_service.worker.code.applyChange
 import software.medusa.openai_client.OpenAiClient
 

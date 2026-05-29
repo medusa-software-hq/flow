@@ -4,62 +4,45 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.PrintMessage
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.core.subcommands
-import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import java.nio.file.Files
 import java.nio.file.Path
-import java.time.Clock
-import kotlin.io.path.readText
 import kotlinx.coroutines.runBlocking
-import software.medusa.commons.filesystem.compat.MutableCompatFsDirectory
+import software.medusa.code_agent.exploration.ProperCodeFileExplorer
+import software.medusa.code_agent.scouting.ProperCodeWorktreePreScout
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
-import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
-import software.medusa.commons.filesystem.compat.extractDeepMutable
 import software.medusa.commons.filesystem.compat.extractDeepReadonly
 import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsDirectory
 import software.medusa.commons.paths.AbsoluteUnixPath
-import software.medusa.commons.paths.LiteralRelativeUnixPath
-import software.medusa.commons.paths.RelativeUnixPath
-import software.medusa.commons.paths.resolve
 import software.medusa.commons.paths.toLiteral
-import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEngineer
-import software.medusa.flow.core_service.worker.ai_code_engineer.FilesystemAiCodeEditorLogger
-import software.medusa.flow.core_service.worker.ai_code_engineer.LoggingAiCodeEditor
-import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEditor
-import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeEngineer
-import software.medusa.flow.core_service.worker.ai_code_engineer.ProperAiCodeMasker
-import software.medusa.flow.core_service.worker.ai_code_engineer.RawAiCodePatcher
-import software.medusa.commons.code.CodeBlock
-import software.medusa.flow.core_service.worker.code_project.YamlCodeProjectLoader
-import software.medusa.flow.core_service.worker.code_project.tools.AiGradleOutputParser
-import software.medusa.flow.core_service.worker.code_project.tools.AiNpxOutputParser
-import software.medusa.git.worktree.GitConsiderateWorktreeDirectory
-import software.medusa.git.worktree.GitWorktreeFilter
-import software.medusa.openai_client.FilesystemOpenAiLogger
-import software.medusa.openai_client.LoggingOpenAiClient
+import software.medusa.git.worktree.GitWorktree
 import software.medusa.openai_client.OpenAiClient
 
 private const val openAiApiKeyEnvVarName = "OPENAI_API_KEY"
 private const val openRouterApiKeyEnvVarName = "OPENROUTER_API_KEY"
 
+fun readTaskDescription(source: String): String = Files.readString(Path.of(source))
+
+fun createOpenAiLogRootPath(): Path = Files.createTempDirectory("openai-logs-")
+
 fun main(args: Array<String>) {
-  FlowCli().subcommands(AiEngineerCommand()).main(argv = args)
+  FlowCli().subcommands(CodeAgentCommand()).main(argv = args)
 }
 
 private class FlowCli : CliktCommand(name = "flow") {
   override fun run() = Unit
 }
 
-private class AiEngineerCommand : CliktCommand(name = "ai-engineer") {
+private class CodeAgentCommand : CliktCommand(name = "code-agent") {
   override fun run() = Unit
 
   init {
-    subcommands(SolveProblemCommand())
+    subcommands(PreScoutCommand())
   }
 }
 
-private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
+private class PreScoutCommand : CliktCommand(name = "pre-scout") {
   private val repoPathText by
       option(
               "--repo-path",
@@ -67,204 +50,60 @@ private class SolveProblemCommand : CliktCommand(name = "solve-problem") {
           )
           .required()
 
-  private val modulePathText by
-      option(
-              "--module-path",
-              help = "Literal relative real path to the module (relative to the repository root)",
-          )
-          .required()
-
-  private val taskDescriptionSource by
-      argument(
-          name = "task-description-path",
-          help = "Path to task description (- means stdin)",
-      )
-
   override fun run() {
     runBlocking {
-      val taskDescription = readTaskDescription(taskDescriptionSource)
-      val problemStatementBlock = CodeBlock.parse(taskDescription)
-
-      val repoPath =
-          AbsoluteUnixPath.parse(repoPathText).toLiteral()
+      val openRouterApiKey =
+          System.getenv(openRouterApiKeyEnvVarName)
               ?: throw PrintMessage(
-                  "Repo path must be a literal absolute Unix path: $repoPathText",
+                  message = "Environment variable $openRouterApiKeyEnvVarName is not set",
                   statusCode = 1,
               )
 
-      val modulePath =
-          RelativeUnixPath.parse(modulePathText).toLiteral()
+      val openAiClient =
+          OpenAiClient.build(
+              config =
+                  OpenAiClient.Config(
+                      baseUrl = OpenAiClient.openRouterBaseUrl,
+                      apiKey = openRouterApiKey,
+                  ),
+          )
+
+      val structureExtractor =
+          ProperCodeFileExplorer(
+              openAiClient = openAiClient,
+          )
+
+      val preScout =
+          ProperCodeWorktreePreScout(
+              structureExtractor = structureExtractor,
+          )
+
+      val repoAbsolutePath =
+          AbsoluteUnixPath.parse(repoPathText).toLiteral()
               ?: throw PrintMessage(
-                  "Module path must be a literal relative Unix path: $modulePathText",
+                  message = "Expected repo path to be an absolute literal path, got: $repoPathText",
                   statusCode = 1,
               )
 
       val repoDirectory =
           NioCompatFsDirectory.Root.extractDeepReadonly(
-              relativePath = repoPath.innerPath,
-          ) as? MutableCompatFsDirectory
+              relativePath = repoAbsolutePath.innerPath,
+          ) as? ReadonlyCompatFsDirectory
               ?: throw PrintMessage(
-                  "Repo path does not exist or is not a directory: $repoPath",
+                  message =
+                      "Expected ${repoAbsolutePath.toUnixAbsolutePathString()} path to exist and be a directory",
                   statusCode = 1,
               )
 
-      val filteredRepoDirectory =
-          GitConsiderateWorktreeDirectory.consider(
-                  fsDirectory = repoDirectory,
-                  baseFilter = GitWorktreeFilter.Passive,
-              )
-              .asFilteredFsEntity
-
-      val moduleDirectory =
-          repoDirectory.extractDeepMutable(relativePath = modulePath) as? MutableCompatFsDirectory
-              ?: throw PrintMessage(
-                  "Module path does not exist within the repository or is not a directory: $modulePath",
-                  statusCode = 1,
-              )
-
-      val filteredModuleDirectory =
-          filteredRepoDirectory.extractDeepReadonly(relativePath = modulePath)
-              as? ReadonlyCompatFsDirectory
-              ?: throw PrintMessage(
-                  "Module path does not (visibly) exist within the repository: $modulePath Is it git-ignored?",
-                  statusCode = 1,
-              )
-
-      val openAiLogRootPath = createOpenAiLogRootPath()
-      val logsDirectoryPath = Files.createDirectories(openAiLogRootPath.resolve("logs"))
-      val openAiLogsDirectoryPath = Files.createDirectories(logsDirectoryPath.resolve("openai"))
-      val openRouterLogsDirectoryPath =
-          Files.createDirectories(logsDirectoryPath.resolve("openrouter"))
-      val aiCodeEditorLogsDirectoryPath =
-          Files.createDirectories(logsDirectoryPath.resolve("ai-code-editor"))
-
-      println(openAiLogRootPath)
-
-      val openAiClient =
-          buildRequiredClient(
-              apiKeyEnvVarName = openAiApiKeyEnvVarName,
-              baseUrl = OpenAiClient.openAiBaseUrl,
-              logDirectoryPath = openAiLogsDirectoryPath,
+      val gitWorktree =
+          GitWorktree.load(
+              repoDirectory = repoDirectory,
           )
 
-      val openRouterClient =
-          buildRequiredClient(
-              apiKeyEnvVarName = openRouterApiKeyEnvVarName,
-              baseUrl = OpenAiClient.openRouterBaseUrl,
-              logDirectoryPath = openRouterLogsDirectoryPath,
+      val preScoutedVirtualWorkspace =
+          preScout.preScoutWorktree(
+              gitWorktree = gitWorktree,
           )
-
-      openAiClient.use { patchingClient ->
-        openRouterClient.use { parsingClient ->
-          val aiCodeEditor =
-              LoggingAiCodeEditor(
-                  baseAiCodeEditor =
-                      ProperAiCodeEditor(
-                          aiCodePatcher = RawAiCodePatcher(openAiClient = patchingClient),
-                          aiCodeMasker = ProperAiCodeMasker(openAiClient = patchingClient),
-                      ),
-                  logger =
-                      FilesystemAiCodeEditorLogger(
-                          logDirectory =
-                              NioCompatFsDirectory(directoryPath = aiCodeEditorLogsDirectoryPath),
-                          clock = Clock.systemUTC(),
-                      ),
-              )
-
-          val aiCodeEngineer =
-              ProperAiCodeEngineer(
-                  aiCodeEditor = aiCodeEditor,
-              )
-
-          val codeProject =
-              YamlCodeProjectLoader(
-                      gradleOutputParser = AiGradleOutputParser(openAiClient = parsingClient),
-                      npxOutputParser = AiNpxOutputParser(openAiClient = parsingClient),
-                  )
-                  .loadProject(
-                      projectDirectory = moduleDirectory as ReadonlyCompatFsDirectory,
-                      projectPath = repoPath.resolve(modulePath),
-                  )
-
-          val relevantFilePaths = filteredModuleDirectory.collectAllFilePaths()
-
-          println("Relevant file paths:")
-          relevantFilePaths.forEach { println(it.toUnixRelativePathString()) }
-
-          aiCodeEngineer.solveProblem(
-              codeProject = codeProject,
-              codeRootDirectory = moduleDirectory,
-              problemStatement =
-                  AiCodeEngineer.ProblemStatement(
-                      statement = problemStatementBlock,
-                  ),
-              problemScope =
-                  AiCodeEngineer.ProblemScope(
-                      relevantFilePaths = relevantFilePaths,
-                  ),
-          )
-        }
-      }
-    }
-  }
-}
-
-internal fun readTaskDescription(
-    source: String,
-): String =
-    when (source) {
-      "-" -> generateSequence { readlnOrNull() }.joinToString(separator = "\n")
-      else -> Path.of(source).readText()
-    }
-
-private fun buildRequiredClient(
-    apiKeyEnvVarName: String,
-    baseUrl: java.net.URI,
-    logDirectoryPath: Path,
-): OpenAiClient {
-  val apiKey =
-      System.getenv(apiKeyEnvVarName)
-          ?: throw PrintMessage("Environment variable $apiKeyEnvVarName is not set", statusCode = 1)
-
-  val properClient =
-      OpenAiClient.build(
-          config =
-              OpenAiClient.Config(
-                  baseUrl = baseUrl,
-                  apiKey = apiKey,
-              ),
-      )
-
-  val logger =
-      FilesystemOpenAiLogger(
-          logDirectoryPath = logDirectoryPath,
-          clock = Clock.systemUTC(),
-      )
-
-  val loggingOpenAiClient = LoggingOpenAiClient(baseClient = properClient, logger = logger)
-
-  return loggingOpenAiClient
-}
-
-internal fun createOpenAiLogRootPath(): Path = Files.createTempDirectory("flow-cli-")
-
-private suspend fun ReadonlyCompatFsDirectory.collectAllFilePaths(): Set<LiteralRelativeUnixPath> =
-    collectAllFilePathsRecursively(
-        directory = this,
-        prefix = RelativeUnixPath.Empty.toLiteral()!!,
-    )
-
-private suspend fun collectAllFilePathsRecursively(
-    directory: ReadonlyCompatFsDirectory,
-    prefix: RelativeUnixPath<software.medusa.commons.paths.UnixPath.Name.Literal>,
-): Set<LiteralRelativeUnixPath> = buildSet {
-  directory.listEntries().forEach { entry ->
-    val childEntity = entry.entity
-    val childPath = LiteralRelativeUnixPath.of(prefix.names + entry.name)
-
-    when (childEntity) {
-      is ReadonlyCompatFsFile -> add(childPath)
-      is ReadonlyCompatFsDirectory -> addAll(collectAllFilePathsRecursively(childEntity, childPath))
     }
   }
 }

@@ -7,7 +7,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import software.medusa.git.GitFileMode
-import software.medusa.git.worktree.GitConsiderateWorktreeDirectory
+import software.medusa.git.worktree.GitIncludedWorktreeDirectory
 import software.medusa.git.worktree.GitWorktreeFilter
 import software.medusa.git.worktree.TestGitWorktreeDirectory
 import software.medusa.git.worktree.TestGitWorktreeFile
@@ -17,7 +17,7 @@ class GitWorktreeTreeTests {
   fun projectsFilesystemViewIntoTreeNodes() {
     val worktree =
         kotlinx.coroutines.runBlocking {
-          GitConsiderateWorktreeDirectory.consider(
+          GitIncludedWorktreeDirectory.consider(
                   fsDirectory =
                       TestGitWorktreeDirectory(
                           mapOf(

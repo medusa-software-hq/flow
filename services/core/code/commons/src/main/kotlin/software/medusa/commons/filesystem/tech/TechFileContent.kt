@@ -1,6 +1,5 @@
 package software.medusa.commons.filesystem.tech
 
-import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
@@ -54,17 +53,14 @@ sealed interface TechFileContent {
   data object Binary : TechFileContent
 }
 
-/**
- * Reads file contents and classifies them naively as either valid UTF-8 code or binary data.
- */
+/** Reads file contents and classifies them naively as either valid UTF-8 code or binary data. */
 suspend fun ReadonlyCompatFsFile.readTechContent(): TechFileContent {
   val byteContent = read()
 
   return try {
     val text =
         withContext(Dispatchers.IO) {
-          StandardCharsets.UTF_8
-              .newDecoder()
+          StandardCharsets.UTF_8.newDecoder()
               .onMalformedInput(CodingErrorAction.REPORT)
               .onUnmappableCharacter(CodingErrorAction.REPORT)
               .decode(byteContent.asReadOnlyByteBuffer())
@@ -73,6 +69,8 @@ suspend fun ReadonlyCompatFsFile.readTechContent(): TechFileContent {
 
     TechFileContent.Code.parse(rawContent = text)
   } catch (_: CharacterCodingException) {
+    TechFileContent.Binary
+  } catch (_: CodeBlock.IllegalCodeContentException) {
     TechFileContent.Binary
   }
 }

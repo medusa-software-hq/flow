@@ -30,18 +30,41 @@ import software.medusa.commons.unicode.ControlChar
 data class MarkdownDocument(
     val chapters: List<MarkdownChapter>,
 ) {
-  fun toMarkdownString(): String = MarkdownCommonMark.render(this)
-
   companion object {
     fun parse(markdown: String): MarkdownDocument = MarkdownCommonMark.parse(markdown)
   }
+
+  fun toMarkdownString(): String = MarkdownCommonMark.render(this)
 }
 
 data class MarkdownChapter(
     val title: List<MarkdownInline>,
-    val introBlocks: List<MarkdownBlock>,
+    val blocks: List<MarkdownBlock>,
     val subChapters: List<MarkdownChapter>,
-)
+) {
+  companion object {
+    fun wrapper(
+        title: List<MarkdownInline>,
+        introBlocks: List<MarkdownBlock> = emptyList(),
+        subChapters: List<MarkdownChapter>,
+    ): MarkdownChapter =
+        MarkdownChapter(
+            title = title,
+            blocks = introBlocks,
+            subChapters = subChapters,
+        )
+
+    fun leaf(
+        title: List<MarkdownInline>,
+        blocks: List<MarkdownBlock>,
+    ): MarkdownChapter =
+        wrapper(
+            title = title,
+            introBlocks = blocks,
+            subChapters = emptyList(),
+        )
+  }
+}
 
 sealed class MarkdownBlock {
   data class Paragraph(
@@ -49,17 +72,30 @@ sealed class MarkdownBlock {
   ) : MarkdownBlock()
 
   data class ListBlock(
-      val ordered: Boolean,
+      val ordered: Boolean = false,
       val items: kotlin.collections.List<Item>,
   ) : MarkdownBlock() {
     data class Item(
         val blocks: kotlin.collections.List<MarkdownBlock>,
-    )
+    ) {
+      companion object {
+        fun inline(
+            inlineContent: List<MarkdownInline>,
+        ): Item =
+            Item(
+                blocks = listOf(Paragraph(inlineContent)),
+            )
+
+        fun inline(
+            vararg inlineContent: MarkdownInline,
+        ): Item = inline(inlineContent.toList())
+      }
+    }
   }
 
   data class CodeBlock(
       val code: String,
-      val info: String?,
+      val info: String? = null,
   ) : MarkdownBlock()
 
   data class RawCodeBlock(
@@ -178,7 +214,7 @@ private object MarkdownCommonMark {
       chapters +=
           MarkdownChapter(
               title = parseInlineNodes(heading.childNodes()),
-              introBlocks = introBlocks,
+              blocks = introBlocks,
               subChapters =
                   parseChapterSequence(nodes = subChapterNodes, expectedLevel = expectedLevel + 1),
           )
@@ -219,13 +255,12 @@ private object MarkdownCommonMark {
     )
   }
 
-  private fun parseInlineNodes(nodes: List<Node>): List<MarkdownInline> =
-      nodes.mapNotNull { node ->
-        when (node) {
-          is Text if node.literal.isEmpty() -> null
-          else -> parseInline(node)
-        }
-      }
+  private fun parseInlineNodes(nodes: List<Node>): List<MarkdownInline> = nodes.mapNotNull { node ->
+    when (node) {
+      is Text if node.literal.isEmpty() -> null
+      else -> parseInline(node)
+    }
+  }
 
   private fun parseInline(node: Node): MarkdownInline =
       when (node) {
@@ -246,20 +281,21 @@ private object MarkdownCommonMark {
 
   private fun MarkdownDocument.toCommonMarkDocument(): Document =
       Document().also { document ->
-        chapters.flatMap { chapter -> chapter.toCommonMarkNodes(level = 1) }.forEach(document::appendChild)
+        chapters
+            .flatMap { chapter -> chapter.toCommonMarkNodes(level = 1) }
+            .forEach(document::appendChild)
       }
 
-  private fun MarkdownChapter.toCommonMarkNodes(level: Int): List<Node> =
-      buildList {
-        add(
-            Heading().also { heading ->
-              heading.level = level
-              title.toCommonMarkChildren().forEach(heading::appendChild)
-            },
-        )
-        addAll(introBlocks.map { block -> block.toCommonMarkNode() })
-        subChapters.forEach { subChapter -> addAll(subChapter.toCommonMarkNodes(level = level + 1)) }
-      }
+  private fun MarkdownChapter.toCommonMarkNodes(level: Int): List<Node> = buildList {
+    add(
+        Heading().also { heading ->
+          heading.level = level
+          title.toCommonMarkChildren().forEach(heading::appendChild)
+        },
+    )
+    addAll(blocks.map { block -> block.toCommonMarkNode() })
+    subChapters.forEach { subChapter -> addAll(subChapter.toCommonMarkNodes(level = level + 1)) }
+  }
 
   private fun MarkdownBlock.toCommonMarkNode(): Node =
       when (this) {
@@ -269,8 +305,14 @@ private object MarkdownCommonMark {
             }
         is MarkdownBlock.ListBlock ->
             when {
-              ordered -> OrderedList().also(::configureList).also { list -> items.forEach { item -> list.appendChild(item.toCommonMarkNode()) } }
-              else -> BulletList().also(::configureList).also { list -> items.forEach { item -> list.appendChild(item.toCommonMarkNode()) } }
+              ordered ->
+                  OrderedList().also(::configureList).also { list ->
+                    items.forEach { item -> list.appendChild(item.toCommonMarkNode()) }
+                  }
+              else ->
+                  BulletList().also(::configureList).also { list ->
+                    items.forEach { item -> list.appendChild(item.toCommonMarkNode()) }
+                  }
             }
         is MarkdownBlock.CodeBlock ->
             FencedCodeBlock().also { codeBlock ->
@@ -278,26 +320,36 @@ private object MarkdownCommonMark {
               codeBlock.info = info
             }
         is MarkdownBlock.RawCodeBlock ->
-            CcCodeBlock().also { codeBlock ->
-              codeBlock.literal = code
-            }
+            CcCodeBlock().also { codeBlock -> codeBlock.literal = code }
       }
 
   private fun MarkdownBlock.ListBlock.Item.toCommonMarkNode(): ListItem =
       ListItem().also { item ->
-        blocks.map { block -> block.toCommonMarkNode() }.forEach { blockNode -> item.appendChild(blockNode) }
+        blocks
+            .map { block -> block.toCommonMarkNode() }
+            .forEach { blockNode -> item.appendChild(blockNode) }
       }
 
-  private fun List<MarkdownInline>.toCommonMarkChildren(): List<Node> = map { inline -> inline.toCommonMarkNode() }
+  private fun List<MarkdownInline>.toCommonMarkChildren(): List<Node> = map { inline ->
+    inline.toCommonMarkNode()
+  }
 
   private fun MarkdownInline.toCommonMarkNode(): Node =
       when (this) {
         is MarkdownInline.Text -> Text(text)
         is MarkdownInline.Code -> Code(code)
-        is MarkdownInline.Emphasis -> Emphasis().also { emphasis -> content.toCommonMarkChildren().forEach(emphasis::appendChild) }
-        is MarkdownInline.Strong -> StrongEmphasis().also { strong -> content.toCommonMarkChildren().forEach(strong::appendChild) }
+        is MarkdownInline.Emphasis ->
+            Emphasis().also { emphasis ->
+              content.toCommonMarkChildren().forEach(emphasis::appendChild)
+            }
+        is MarkdownInline.Strong ->
+            StrongEmphasis().also { strong ->
+              content.toCommonMarkChildren().forEach(strong::appendChild)
+            }
         is MarkdownInline.Link ->
-            Link(destination, title).also { link -> content.toCommonMarkChildren().forEach(link::appendChild) }
+            Link(destination, title).also { link ->
+              content.toCommonMarkChildren().forEach(link::appendChild)
+            }
         MarkdownInline.SoftBreak -> SoftLineBreak()
         MarkdownInline.HardBreak -> HardLineBreak()
       }
@@ -349,7 +401,8 @@ private object MarkdownCommonMark {
 }
 
 private object CcMarkdownNodeRendererFactory : MarkdownNodeRendererFactory {
-  override fun create(context: MarkdownNodeRendererContext): NodeRenderer = CcMarkdownNodeRenderer(context)
+  override fun create(context: MarkdownNodeRendererContext): NodeRenderer =
+      CcMarkdownNodeRenderer(context)
 
   override fun getSpecialCharacters(): MutableSet<Char> = mutableSetOf()
 }
@@ -362,7 +415,8 @@ private class CcMarkdownNodeRenderer(
   override fun getNodeTypes(): Set<Class<out Node>> = setOf(CcCodeBlock::class.java)
 
   override fun render(node: Node) {
-    val ccCodeBlock = node as? CcCodeBlock ?: error("Unexpected node type: ${node::class.simpleName}")
+    val ccCodeBlock =
+        node as? CcCodeBlock ?: error("Unexpected node type: ${node::class.simpleName}")
     val lines = ccCodeBlock.literal.split("\n").dropLastWhile(String::isEmpty)
 
     writer.raw(ControlChar.STX.toString())

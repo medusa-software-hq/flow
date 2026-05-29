@@ -7,6 +7,7 @@ import kotlin.test.assertNotNull
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.bytestring.decodeToString
 import kotlinx.io.bytestring.encodeToByteString
+import software.medusa.commons.code.CodeBlock
 import software.medusa.commons.filesystem.compat.MutableCompatFsDirectory
 import software.medusa.commons.filesystem.compat.MutableCompatFsFile
 import software.medusa.commons.filesystem.compat.extractDeepMutable
@@ -14,7 +15,6 @@ import software.medusa.commons.filesystem.compat.impl.memory.MemoryCompatFsDirec
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
-import software.medusa.commons.code.CodeBlock
 import software.medusa.flow.core_service.worker.code_project.CodeModule
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeFileDiagnosis

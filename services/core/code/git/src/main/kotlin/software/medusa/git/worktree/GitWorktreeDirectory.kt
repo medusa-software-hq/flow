@@ -6,49 +6,65 @@ import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory.Entry
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsEntity
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
 import software.medusa.commons.paths.UnixPath
+import software.medusa.git.worktree.GitIncludedWorktreeDirectory.LocalFilterLoader
+import software.medusa.git.worktree.GitWorktreeEntity.Status
+import software.medusa.git.worktree.GitWorktreeFilter.Classification
 
-sealed class GitWorktreeDirectory : GitWorktreeEntity() {
-  abstract override val asFilteredFsEntity: ReadonlyCompatFsDirectory?
+sealed interface GitWorktreeDirectory : GitWorktreeEntity, ReadonlyCompatFsDirectory {
+  override val asFsEntity: ReadonlyCompatFsDirectory
 
-  abstract suspend fun readStructure(): Map<UnixPath.Name.Literal, GitWorktreeEntity>
+  override val asFilteredFsEntity: ReadonlyCompatFsDirectory?
 
-  abstract suspend fun readChild(name: UnixPath.Name.Literal): GitWorktreeEntity?
+  val effectiveFilter: GitWorktreeFilter?
+
+  suspend fun readStructure(): Map<UnixPath.Name.Literal, GitWorktreeEntity>
+
+  suspend fun readChild(name: UnixPath.Name.Literal): GitWorktreeEntity?
 }
 
-class GitConsiderateWorktreeDirectory private constructor(
-    private val fsDirectory: ReadonlyCompatFsDirectory,
-    private val effectiveFilter: GitWorktreeFilter,
-) : GitWorktreeDirectory() {
-  companion object {
+interface GitIncludedWorktreeDirectory : GitWorktreeDirectory {
+  interface LocalFilterLoader {
+    suspend fun loadLocalFilter(
+        fsDirectory: ReadonlyCompatFsDirectory,
+    ): GitWorktreeFilter?
+  }
+
+  data object GitignoreLocalFilterLoader : LocalFilterLoader {
     private val GitignoreFileName = UnixPath.Name.Literal(".gitignore")
 
-    suspend fun consider(
+    override suspend fun loadLocalFilter(
+        fsDirectory: ReadonlyCompatFsDirectory,
+    ): GitWorktreeFilter? {
+      val gitignoreFile = fsDirectory.extract(name = GitignoreFileName) ?: return null
+
+      if (gitignoreFile !is ReadonlyCompatFsFile) {
+        throw IllegalStateException(
+            "Expected $GitignoreFileName to be a file, got ${gitignoreFile::class.simpleName}",
+        )
+      }
+
+      return GitWorktreeFilter.parse(
+          gitignoreInputStream = ByteArrayInputStream(gitignoreFile.read().toByteArray()),
+      )
+    }
+  }
+
+  companion object {
+    context(localFilterLoader: LocalFilterLoader)
+    suspend fun include(
         fsDirectory: ReadonlyCompatFsDirectory,
         baseFilter: GitWorktreeFilter,
-    ): GitConsiderateWorktreeDirectory {
-      val gitignoreFile = fsDirectory.extract(name = GitignoreFileName)
+    ): GitIncludedWorktreeDirectory {
+      val localFilter = localFilterLoader.loadLocalFilter(fsDirectory = fsDirectory)
 
       val effectiveFilter =
-          when (gitignoreFile) {
-            is ReadonlyCompatFsFile -> {
-              val localFilter =
-                  GitWorktreeFilter.parse(
-                      gitignoreInputStream =
-                          ByteArrayInputStream(gitignoreFile.read().toByteArray()),
-                  )
-
-              localFilter.chain(baseFilter = baseFilter)
-            }
-
+          when (localFilter) {
             null -> baseFilter
-
-            else ->
-                throw IllegalStateException(
-                    "Expected $GitignoreFileName to be a file, got ${gitignoreFile::class.simpleName}",
-                )
+            else -> localFilter.chain(baseFilter)
           }
 
-      return GitConsiderateWorktreeDirectory(
+      return FsGitIncludedWorktreeDirectory(
+          localFilterLoader = localFilterLoader,
           fsDirectory = fsDirectory,
           effectiveFilter = effectiveFilter,
       )
@@ -56,7 +72,23 @@ class GitConsiderateWorktreeDirectory private constructor(
   }
 
   override val status: Status.Considered
-    get() = Status.Considered(GitWorktreeFilter.Classification.Include)
+
+  override val asFilteredFsEntity: ReadonlyCompatFsDirectory
+
+  override val effectiveFilter: GitWorktreeFilter
+}
+
+class FsGitIncludedWorktreeDirectory(
+    private val localFilterLoader: LocalFilterLoader,
+    private val fsDirectory: ReadonlyCompatFsDirectory,
+    override val effectiveFilter: GitWorktreeFilter,
+) : GitIncludedWorktreeDirectory, ReadonlyCompatFsDirectory by fsDirectory {
+
+  override val status: Status.Considered
+    get() = Status.Considered(Classification.Include)
+
+  override val asFsEntity: ReadonlyCompatFsDirectory
+    get() = fsDirectory
 
   override val asFilteredFsEntity: ReadonlyCompatFsDirectory
     get() =
@@ -83,11 +115,13 @@ class GitConsiderateWorktreeDirectory private constructor(
   override suspend fun readStructure(): Map<UnixPath.Name.Literal, GitWorktreeEntity> =
       fsDirectory.listEntries().associate { (name, fsEntity) ->
         name to
-            consider(
-                effectiveFilter = effectiveFilter,
-                name = name,
-                fsEntity = fsEntity,
-            )
+            with(localFilterLoader) {
+              GitWorktreeEntity.consider(
+                  effectiveFilter = effectiveFilter,
+                  name = name,
+                  fsEntity = fsEntity,
+              )
+            }
       }
 
   override suspend fun readChild(
@@ -95,27 +129,50 @@ class GitConsiderateWorktreeDirectory private constructor(
   ): GitWorktreeEntity? {
     val fsEntity = fsDirectory.extract(name) ?: return null
 
-    return consider(
-        effectiveFilter = effectiveFilter,
-        name = name,
-        fsEntity = fsEntity,
-    )
+    return with(localFilterLoader) {
+      GitWorktreeEntity.consider(
+          effectiveFilter = effectiveFilter,
+          name = name,
+          fsEntity = fsEntity,
+      )
+    }
   }
 }
 
-class GitInconsiderateWorktreeDirectory(
+interface GitExcludedWorktreeDirectory : GitWorktreeDirectory {
+  override val asFilteredFsEntity: Nothing?
+
+  override val effectiveFilter: Nothing?
+}
+
+sealed class FsGitExcludedWorktreeDirectory(
     private val fsDirectory: ReadonlyCompatFsDirectory,
-    override val status: Status,
-) : GitWorktreeDirectory() {
+) : GitExcludedWorktreeDirectory, ReadonlyCompatFsDirectory by fsDirectory {
+  override val asFsEntity: ReadonlyCompatFsDirectory
+    get() = fsDirectory
+
+  class Ignored(
+      fsDirectory: ReadonlyCompatFsDirectory,
+  ) : FsGitExcludedWorktreeDirectory(fsDirectory = fsDirectory) {
+    override val status: Status.Considered
+      get() = Status.Considered(classification = Classification.Ignore)
+  }
+
+  class NonConsidered(
+      fsDirectory: ReadonlyCompatFsDirectory,
+  ) : FsGitExcludedWorktreeDirectory(fsDirectory = fsDirectory) {
+    override val status: Status.NonConsidered
+      get() = Status.NonConsidered
+  }
+
   companion object {
     fun wrap(
         fsEntity: ReadonlyCompatFsEntity,
     ): GitWorktreeEntity =
         when (fsEntity) {
           is ReadonlyCompatFsDirectory ->
-              GitInconsiderateWorktreeDirectory(
+              FsGitExcludedWorktreeDirectory.NonConsidered(
                   fsDirectory = fsEntity,
-                  status = Status.NonConsidered,
               )
 
           is ReadonlyCompatFsFile ->
@@ -126,15 +183,16 @@ class GitInconsiderateWorktreeDirectory(
         }
   }
 
-  override val asFilteredFsEntity: ReadonlyCompatFsDirectory?
-    get() = fsDirectory.filter(status)
+  final override val asFilteredFsEntity: Nothing?
+    get() = null
 
-  override suspend fun readStructure(): Map<UnixPath.Name.Literal, GitWorktreeEntity> =
-      fsDirectory.listEntries().associate { (name, fsEntity) ->
-        name to wrap(fsEntity = fsEntity)
-      }
+  final override val effectiveFilter: Nothing?
+    get() = null
 
-  override suspend fun readChild(
+  final override suspend fun readStructure(): Map<UnixPath.Name.Literal, GitWorktreeEntity> =
+      fsDirectory.listEntries().associate { (name, fsEntity) -> name to wrap(fsEntity = fsEntity) }
+
+  final override suspend fun readChild(
       name: UnixPath.Name.Literal,
   ): GitWorktreeEntity? {
     val fsEntity = fsDirectory.extract(name) ?: return null

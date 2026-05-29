@@ -33,7 +33,7 @@ fun TechFileContent.Code.applyChange(
 
       val followupStartIndex = patchIndexRange.endIndexExclusive.indexZeroBased
       val nextPatchStartIndex = nextPatchEntry?.key?.startIndex?.indexZeroBased
-      val followupEndIndexExclusive = nextPatchStartIndex ?: code.lineCount
+      val followupEndIndexExclusive = nextPatchStartIndex ?: code.height
 
       addAll(
           oldLines.subList(followupStartIndex, followupEndIndexExclusive),

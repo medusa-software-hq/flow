@@ -6,7 +6,7 @@ plugins {
 dependencies {
   implementation(project(":commons"))
   implementation(project(":openai-client"))
-  implementation(project(":worker"))
+  implementation(project(":code-agent"))
 
   implementation(libs.clikt)
   implementation(libs.kotlinx.coroutines.core)

@@ -27,7 +27,7 @@ class MarkdownDocument_tests {
                                         ),
                                 ),
                             ),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.Paragraph(
                                     inlineContent =
@@ -77,14 +77,16 @@ class MarkdownDocument_tests {
                                                                     MarkdownBlock.ListBlock.Item(
                                                                         blocks =
                                                                             listOf(
-                                                                                MarkdownBlock.Paragraph(
-                                                                                    inlineContent =
-                                                                                        listOf(
-                                                                                            MarkdownInline.Text(
-                                                                                                "nested ordered"
+                                                                                MarkdownBlock
+                                                                                    .Paragraph(
+                                                                                        inlineContent =
+                                                                                            listOf(
+                                                                                                MarkdownInline
+                                                                                                    .Text(
+                                                                                                        "nested ordered"
+                                                                                                    ),
                                                                                             ),
-                                                                                        ),
-                                                                                ),
+                                                                                    ),
                                                                             ),
                                                                     ),
                                                                 ),
@@ -105,7 +107,7 @@ class MarkdownDocument_tests {
                             listOf(
                                 MarkdownChapter(
                                     title = listOf(MarkdownInline.Text("Child")),
-                                    introBlocks =
+                                    blocks =
                                         listOf(
                                             MarkdownBlock.Paragraph(
                                                 inlineContent =
@@ -132,7 +134,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.Paragraph(
                                     inlineContent =
@@ -157,7 +159,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.Paragraph(
                                     inlineContent =
@@ -218,7 +220,7 @@ class MarkdownDocument_tests {
                                     content = listOf(MarkdownInline.Text("Medusa")),
                                 ),
                             ),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.Paragraph(
                                     inlineContent =
@@ -241,7 +243,7 @@ class MarkdownDocument_tests {
                             listOf(
                                 MarkdownChapter(
                                     title = listOf(MarkdownInline.Text("Getting Started")),
-                                    introBlocks =
+                                    blocks =
                                         listOf(
                                             MarkdownBlock.Paragraph(
                                                 inlineContent =
@@ -260,7 +262,7 @@ class MarkdownDocument_tests {
                                         listOf(
                                             MarkdownChapter(
                                                 title = listOf(MarkdownInline.Text("Install")),
-                                                introBlocks =
+                                                blocks =
                                                     listOf(
                                                         MarkdownBlock.Paragraph(
                                                             inlineContent =
@@ -315,7 +317,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.ListBlock(
                                     ordered = false,
@@ -327,7 +329,9 @@ class MarkdownDocument_tests {
                                                         MarkdownBlock.Paragraph(
                                                             inlineContent =
                                                                 listOf(
-                                                                    MarkdownInline.Text("first item")
+                                                                    MarkdownInline.Text(
+                                                                        "first item"
+                                                                    )
                                                                 ),
                                                         ),
                                                     ),
@@ -371,7 +375,9 @@ class MarkdownDocument_tests {
                                                         MarkdownBlock.Paragraph(
                                                             inlineContent =
                                                                 listOf(
-                                                                    MarkdownInline.Text("next item"),
+                                                                    MarkdownInline.Text(
+                                                                        "next item"
+                                                                    ),
                                                                 ),
                                                         ),
                                                     ),
@@ -406,7 +412,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.ListBlock(
                                     ordered = false,
@@ -418,7 +424,9 @@ class MarkdownDocument_tests {
                                                         MarkdownBlock.Paragraph(
                                                             inlineContent =
                                                                 listOf(
-                                                                    MarkdownInline.Text("parent item"),
+                                                                    MarkdownInline.Text(
+                                                                        "parent item"
+                                                                    ),
                                                                 ),
                                                         ),
                                                         MarkdownBlock.ListBlock(
@@ -428,14 +436,16 @@ class MarkdownDocument_tests {
                                                                     MarkdownBlock.ListBlock.Item(
                                                                         blocks =
                                                                             listOf(
-                                                                                MarkdownBlock.Paragraph(
-                                                                                    inlineContent =
-                                                                                        listOf(
-                                                                                            MarkdownInline.Text(
-                                                                                                "nested child"
+                                                                                MarkdownBlock
+                                                                                    .Paragraph(
+                                                                                        inlineContent =
+                                                                                            listOf(
+                                                                                                MarkdownInline
+                                                                                                    .Text(
+                                                                                                        "nested child"
+                                                                                                    ),
                                                                                             ),
-                                                                                        ),
-                                                                                ),
+                                                                                    ),
                                                                             ),
                                                                     ),
                                                                 ),
@@ -474,7 +484,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.RawCodeBlock(
                                     code =
@@ -512,7 +522,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks = listOf(MarkdownBlock.RawCodeBlock(code = "")),
+                        blocks = listOf(MarkdownBlock.RawCodeBlock(code = "")),
                         subChapters = emptyList(),
                     ),
                 ),
@@ -542,7 +552,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.RawCodeBlock(
                                     code =
@@ -582,7 +592,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.RawCodeBlock(
                                     code = "code\n${ControlChar.ETX} a\n",
@@ -617,7 +627,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks = listOf(MarkdownBlock.RawCodeBlock(code = "code\n")),
+                        blocks = listOf(MarkdownBlock.RawCodeBlock(code = "code\n")),
                         subChapters = emptyList(),
                     ),
                 ),
@@ -646,7 +656,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.CodeBlock(code = "${ControlChar.STX}\n", info = null),
                                 MarkdownBlock.Paragraph(
@@ -687,7 +697,7 @@ class MarkdownDocument_tests {
                 listOf(
                     MarkdownChapter(
                         title = listOf(MarkdownInline.Text("Root")),
-                        introBlocks =
+                        blocks =
                             listOf(
                                 MarkdownBlock.RawCodeBlock(
                                     code = "code\n    ${ControlChar.ETX}\nend\n",

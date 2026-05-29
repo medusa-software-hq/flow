@@ -68,12 +68,12 @@ internal data object ProperAiCodePatcher_inputStructure_utils {
             } else {
               TcRecord(
                   units =
-                       listOf(
-                           TcUnit.of(value = TcString(indexedLine.index.indexOneBased.toString())),
-                           TcUnit.of(value = TcString(indexedLine.line.content)),
-                       ),
-               )
-             }
+                      listOf(
+                          TcUnit.of(value = TcString(indexedLine.index.indexOneBased.toString())),
+                          TcUnit.of(value = TcString(indexedLine.line.content)),
+                      ),
+              )
+            }
           }
           .toList()
 }

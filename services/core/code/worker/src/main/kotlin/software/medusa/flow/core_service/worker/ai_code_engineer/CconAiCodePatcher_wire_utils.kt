@@ -1,5 +1,8 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.toLiteral
@@ -10,9 +13,6 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.C
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.commons.code.CodeBlock
-import software.medusa.commons.code.CodeBlock.LineIndex
-import software.medusa.commons.code.CodeBlock.LineIndexRange
 
 internal data object CconAiCodePatcher_wire_utils {
   private const val inputFileTag = "input_file"

@@ -6,16 +6,15 @@ plugins {
 }
 
 val openAiApiKeyEnvVarName = "OPENAI_API_KEY"
-
 val integrationTestSourceSetName = "integrationTest"
 
 dependencies {
   api(libs.kotlinx.coroutines.core)
+  api(libs.kotlinx.schema.annotations)
+  api(libs.kotlinx.schema.generator.json)
 
   implementation(libs.openai.kotlin)
-  implementation(libs.kotlinx.schema.annotations)
   implementation(libs.kotlinx.serialization.json)
-  implementation(libs.kotlinx.schema.generator.json)
 
   runtimeOnly(libs.ktor.client.okhttp)
 

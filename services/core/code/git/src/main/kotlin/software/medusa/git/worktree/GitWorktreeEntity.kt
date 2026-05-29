@@ -5,9 +5,10 @@ import software.medusa.commons.filesystem.compat.ReadonlyCompatFsEntity
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.commons.paths.UnixPath
+import software.medusa.git.worktree.GitIncludedWorktreeDirectory.LocalFilterLoader
 import software.medusa.git.worktree.GitWorktreeFilter.Classification
 
-sealed class GitWorktreeEntity {
+sealed interface GitWorktreeEntity {
   sealed interface Status {
     data class Considered(
         val classification: Classification,
@@ -17,31 +18,33 @@ sealed class GitWorktreeEntity {
   }
 
   companion object {
+    context(localFilterLoader: LocalFilterLoader)
     suspend fun consider(
         effectiveFilter: GitWorktreeFilter,
         name: UnixPath.Name.Literal,
         fsEntity: ReadonlyCompatFsEntity,
     ): GitWorktreeEntity {
-      val classification = effectiveFilter.classifyEffectively(
-          path = LiteralRelativeUnixPath.of(name),
-          nodeKind = fsEntity.fsNodeKind,
-      )
+      val classification =
+          effectiveFilter.classifyEffectively(
+              path = LiteralRelativeUnixPath.of(name),
+              nodeKind = fsEntity.fsNodeKind,
+          )
 
-      val status = Status.Considered(
-          classification = classification,
-      )
+      val status =
+          Status.Considered(
+              classification = classification,
+          )
 
       return when (fsEntity) {
         is ReadonlyCompatFsDirectory -> {
           when (classification) {
             Classification.Ignore ->
-                GitInconsiderateWorktreeDirectory(
+                FsGitExcludedWorktreeDirectory.Ignored(
                     fsDirectory = fsEntity,
-                    status = status,
                 )
 
             Classification.Include ->
-                GitConsiderateWorktreeDirectory.consider(
+                GitIncludedWorktreeDirectory.include(
                     fsDirectory = fsEntity,
                     baseFilter = effectiveFilter.nest(name.name),
                 )
@@ -63,7 +66,9 @@ sealed class GitWorktreeEntity {
         }
   }
 
-  abstract val status: Status
+  val status: Status
 
-  abstract val asFilteredFsEntity: ReadonlyCompatFsEntity?
+  val asFsEntity: ReadonlyCompatFsEntity
+
+  val asFilteredFsEntity: ReadonlyCompatFsEntity?
 }

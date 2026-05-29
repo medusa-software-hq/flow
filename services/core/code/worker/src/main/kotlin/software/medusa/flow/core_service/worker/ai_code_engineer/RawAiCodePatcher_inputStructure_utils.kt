@@ -1,9 +1,9 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
+import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.commons.paths.resolve
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.flow.core_service.worker.code.raw_masked_code_catalog.RawLiteralLineRecord
 import software.medusa.flow.core_service.worker.code.raw_masked_code_catalog.RawMaskedCodeCatalog
 import software.medusa.flow.core_service.worker.code.raw_masked_code_catalog.RawMaskedCodeFile

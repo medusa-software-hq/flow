@@ -96,16 +96,16 @@ data class RelativeUnixPath<out NameT : UnixPath.Name>(
      * An empty relative path. Semantically, an empty relative path is equivalent to a series of
      * [Name.Symbolic.ThisDirectory] names (".", "./.", "././.", etc.).
      */
-    val Empty =
+    val Empty: LiteralRelativeUnixPath =
         RelativeUnixPath(
             names = emptyList(),
         )
 
-    fun <NameT : UnixPath.Name> of(
+    fun <NameT : Name> of(
         vararg names: NameT,
     ): RelativeUnixPath<NameT> = RelativeUnixPath(names = names.toList())
 
-    fun <NameT : UnixPath.Name> of(
+    fun <NameT : Name> of(
         names: List<NameT>,
     ): RelativeUnixPath<NameT> = RelativeUnixPath(names = names)
 
@@ -133,17 +133,20 @@ data class RelativeUnixPath<out NameT : UnixPath.Name>(
       )
     }
 
-    fun <NameT : UnixPath.Name> concat(
+    fun <NameT : Name> concat(
         vararg paths: RelativeUnixPath<NameT>,
     ): RelativeUnixPath<NameT> = concat(paths.toList())
 
-    fun <NameT : UnixPath.Name> concat(
+    fun <NameT : Name> concat(
         paths: List<RelativeUnixPath<NameT>>,
     ): RelativeUnixPath<NameT> =
         RelativeUnixPath(
             names = paths.flatMap { it.names },
         )
   }
+
+  val fileName: NameT?
+    get() = names.lastOrNull()
 
   /** Builds a conventional Unix-style relative path string. */
   fun toUnixRelativePathString(): String = names.joinToString(separator = "$Separator") { it.name }
@@ -166,7 +169,7 @@ data class AbsoluteUnixPath<out NameT : UnixPath.Name>(
 ) : UnixPath<NameT>() {
   companion object {
     /** Path to the root directory ("/"). */
-    val Root =
+    val Root: LiteralAbsoluteUnixPath =
         AbsoluteUnixPath(
             innerPath = RelativeUnixPath.Empty,
         )
@@ -219,6 +222,14 @@ fun <NameT : UnixPath.Name> AbsoluteUnixPath<NameT>.resolve(
 ): AbsoluteUnixPath<NameT> =
     AbsoluteUnixPath(
         innerPath = RelativeUnixPath.concat(innerPath, nestedPath),
+    )
+
+/** Resolves a single name against this absolute path, returning a new absolute path. */
+fun <NameT : UnixPath.Name> AbsoluteUnixPath<NameT>.resolve(
+    name: NameT,
+): AbsoluteUnixPath<NameT> =
+    resolve(
+        nestedPath = RelativeUnixPath.of(name),
     )
 
 typealias LiteralAbsoluteUnixPath = AbsoluteUnixPath<UnixPath.Name.Literal>

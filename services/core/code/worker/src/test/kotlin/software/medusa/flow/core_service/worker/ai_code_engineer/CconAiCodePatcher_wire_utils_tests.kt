@@ -3,6 +3,10 @@ package software.medusa.flow.core_service.worker.ai_code_engineer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodeBlock.LineIndex
+import software.medusa.commons.code.CodeBlock.LineIndexRange
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 import software.medusa.commons.serialization.ccon.CconElement
@@ -14,10 +18,6 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.M
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.encodeToCconString
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parseAst
 import software.medusa.flow.core_service.worker.ai_code_engineer.CconAiCodePatcher_wire_utils.parseChangeSet
-import software.medusa.commons.code.CodeBlock
-import software.medusa.commons.code.CodeBlock.LineIndex
-import software.medusa.commons.code.CodeBlock.LineIndexRange
-import software.medusa.commons.filesystem.tech.TechFileContent
 
 class CconAiCodePatcher_wire_utils_tests {
   @Test

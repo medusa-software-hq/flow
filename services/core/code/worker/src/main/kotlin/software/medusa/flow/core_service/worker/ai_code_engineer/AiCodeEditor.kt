@@ -1,7 +1,6 @@
 package software.medusa.flow.core_service.worker.ai_code_engineer
 
 import kotlinx.io.bytestring.encodeToByteString
-import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.filesystem.compat.MutableCompatFsDirectory
 import software.medusa.commons.filesystem.compat.MutableCompatFsFile
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
@@ -9,6 +8,7 @@ import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
 import software.medusa.commons.filesystem.compat.extractDeepMutable
 import software.medusa.commons.filesystem.compat.extractDeepReadonly
 import software.medusa.commons.filesystem.compat.readText
+import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.paths.LiteralRelativeUnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.ChangeApplier
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.CodeCatalog
