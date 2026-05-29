@@ -7,6 +7,180 @@ import software.medusa.commons.unicode.ControlChar
 
 class MarkdownDocument_tests {
   @Test
+  fun toMarkdownString_roundTripsSupportedDocument() {
+    val document =
+        MarkdownDocument(
+            chapters =
+                listOf(
+                    MarkdownChapter(
+                        title =
+                            listOf(
+                                MarkdownInline.Text("Welcome to "),
+                                MarkdownInline.Link(
+                                    destination = "https://example.com/docs path",
+                                    title = "Docs",
+                                    content =
+                                        listOf(
+                                            MarkdownInline.Strong(
+                                                listOf(MarkdownInline.Text("Medusa")),
+                                            ),
+                                        ),
+                                ),
+                            ),
+                        introBlocks =
+                            listOf(
+                                MarkdownBlock.Paragraph(
+                                    inlineContent =
+                                        listOf(
+                                            MarkdownInline.Text("Intro with "),
+                                            MarkdownInline.Code("code"),
+                                            MarkdownInline.Text(" and "),
+                                            MarkdownInline.Emphasis(
+                                                listOf(MarkdownInline.Text("focus")),
+                                            ),
+                                            MarkdownInline.HardBreak,
+                                            MarkdownInline.Text("second line"),
+                                        ),
+                                ),
+                                MarkdownBlock.ListBlock(
+                                    ordered = false,
+                                    items =
+                                        listOf(
+                                            MarkdownBlock.ListBlock.Item(
+                                                blocks =
+                                                    listOf(
+                                                        MarkdownBlock.Paragraph(
+                                                            inlineContent =
+                                                                listOf(
+                                                                    MarkdownInline.Text(
+                                                                        "first bullet",
+                                                                    ),
+                                                                ),
+                                                        ),
+                                                    ),
+                                            ),
+                                            MarkdownBlock.ListBlock.Item(
+                                                blocks =
+                                                    listOf(
+                                                        MarkdownBlock.Paragraph(
+                                                            inlineContent =
+                                                                listOf(
+                                                                    MarkdownInline.Text(
+                                                                        "parent bullet",
+                                                                    ),
+                                                                ),
+                                                        ),
+                                                        MarkdownBlock.ListBlock(
+                                                            ordered = true,
+                                                            items =
+                                                                listOf(
+                                                                    MarkdownBlock.ListBlock.Item(
+                                                                        blocks =
+                                                                            listOf(
+                                                                                MarkdownBlock.Paragraph(
+                                                                                    inlineContent =
+                                                                                        listOf(
+                                                                                            MarkdownInline.Text(
+                                                                                                "nested ordered"
+                                                                                            ),
+                                                                                        ),
+                                                                                ),
+                                                                            ),
+                                                                    ),
+                                                                ),
+                                                        ),
+                                                    ),
+                                            ),
+                                        ),
+                                ),
+                                MarkdownBlock.CodeBlock(
+                                    code = "val ticks = \"```\"\n",
+                                    info = "kotlin",
+                                ),
+                                MarkdownBlock.RawCodeBlock(
+                                    code = "literal **markdown**\n",
+                                ),
+                            ),
+                        subChapters =
+                            listOf(
+                                MarkdownChapter(
+                                    title = listOf(MarkdownInline.Text("Child")),
+                                    introBlocks =
+                                        listOf(
+                                            MarkdownBlock.Paragraph(
+                                                inlineContent =
+                                                    listOf(
+                                                        MarkdownInline.Text("child paragraph"),
+                                                    ),
+                                            ),
+                                        ),
+                                    subChapters = emptyList(),
+                                ),
+                            ),
+                    ),
+                ),
+        )
+
+    assertEquals(document, MarkdownDocument.parse(document.toMarkdownString()))
+  }
+
+  @Test
+  fun toMarkdownString_escapesParagraphStartThatWouldBecomeList() {
+    val document =
+        MarkdownDocument(
+            chapters =
+                listOf(
+                    MarkdownChapter(
+                        title = listOf(MarkdownInline.Text("Root")),
+                        introBlocks =
+                            listOf(
+                                MarkdownBlock.Paragraph(
+                                    inlineContent =
+                                        listOf(
+                                            MarkdownInline.Text("- bullet?"),
+                                        ),
+                                ),
+                            ),
+                        subChapters = emptyList(),
+                    ),
+                ),
+        )
+
+    assertEquals(document, MarkdownDocument.parse(document.toMarkdownString()))
+  }
+
+  @Test
+  fun toMarkdownString_roundTripsCodeSpanContainingBackticks() {
+    val document =
+        MarkdownDocument(
+            chapters =
+                listOf(
+                    MarkdownChapter(
+                        title = listOf(MarkdownInline.Text("Root")),
+                        introBlocks =
+                            listOf(
+                                MarkdownBlock.Paragraph(
+                                    inlineContent =
+                                        listOf(
+                                            MarkdownInline.Text("prefix "),
+                                            MarkdownInline.Code("has `` inside"),
+                                            MarkdownInline.Text(" suffix"),
+                                        ),
+                                ),
+                                MarkdownBlock.CodeBlock(
+                                    code = "````\ncontent\n````\n",
+                                    info = null,
+                                ),
+                            ),
+                        subChapters = emptyList(),
+                    ),
+                ),
+        )
+
+    assertEquals(document, MarkdownDocument.parse(document.toMarkdownString()))
+  }
+
+  @Test
   fun parse_buildsChapterTreeWithIntroBlocksAndInlineContent() {
     val document =
         MarkdownDocument.parse(

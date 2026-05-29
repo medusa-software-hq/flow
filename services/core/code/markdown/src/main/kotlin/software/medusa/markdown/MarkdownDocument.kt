@@ -18,10 +18,13 @@ import org.commonmark.node.SoftLineBreak
 import org.commonmark.node.StrongEmphasis
 import org.commonmark.node.Text
 import org.commonmark.parser.Parser
+import software.medusa.commons.unicode.ControlChar
 
 data class MarkdownDocument(
     val chapters: List<MarkdownChapter>,
 ) {
+  fun toMarkdownString(): String = MarkdownRenderer.render(this)
+
   companion object {
     fun parse(markdown: String): MarkdownDocument = MarkdownParser.parse(markdown)
   }
@@ -256,5 +259,242 @@ private object MarkdownParser {
     }
 
     return children
+  }
+}
+
+private object MarkdownRenderer {
+  fun render(document: MarkdownDocument): String =
+      document.chapters.joinToString(separator = "\n\n") { chapter ->
+        renderChapter(chapter = chapter, level = 1)
+      }
+
+  private fun renderChapter(
+      chapter: MarkdownChapter,
+      level: Int,
+  ): String {
+    val parts = mutableListOf<String>()
+
+    parts += "${"#".repeat(level)} ${renderInlineContent(chapter.title)}"
+    parts += chapter.introBlocks.map { block -> renderBlock(block = block, indent = "") }
+    parts +=
+        chapter.subChapters.map { subChapter -> renderChapter(chapter = subChapter, level = level + 1) }
+
+    return parts.joinToString(separator = "\n\n")
+  }
+
+  private fun renderBlock(
+      block: MarkdownBlock,
+      indent: String,
+  ): String =
+      when (block) {
+        is MarkdownBlock.Paragraph ->
+            renderParagraph(
+                inlineContent = block.inlineContent,
+                firstLinePrefix = indent,
+                continuationPrefix = indent,
+            )
+        is MarkdownBlock.ListBlock -> renderListBlock(block = block, indent = indent)
+        is MarkdownBlock.CodeBlock -> prefixLines(renderFencedCodeBlock(block), indent = indent)
+        is MarkdownBlock.RawCodeBlock -> prefixLines(renderRawCodeBlock(block), indent = indent)
+      }
+
+  private fun renderListBlock(
+      block: MarkdownBlock.ListBlock,
+      indent: String,
+  ): String =
+      block.items.mapIndexed { index, item ->
+        renderListItem(
+            item = item,
+            indent = indent,
+            marker = when {
+              block.ordered -> "${index + 1}. "
+              else -> "- "
+            },
+        )
+      }.joinToString(separator = "\n")
+
+  private fun renderListItem(
+      item: MarkdownBlock.ListBlock.Item,
+      indent: String,
+      marker: String,
+  ): String {
+    if (item.blocks.isEmpty()) {
+      return indent + marker.trimEnd()
+    }
+
+    val continuationIndent = indent + " ".repeat(marker.length)
+    val parts = mutableListOf<String>()
+    val firstBlock = item.blocks.first()
+
+    when (firstBlock) {
+      is MarkdownBlock.Paragraph ->
+          parts +=
+              renderParagraph(
+                  inlineContent = firstBlock.inlineContent,
+                  firstLinePrefix = indent + marker,
+                  continuationPrefix = continuationIndent,
+              )
+      else -> {
+        parts += indent + marker.trimEnd()
+        parts += renderBlock(block = firstBlock, indent = continuationIndent)
+      }
+    }
+
+    parts += item.blocks.drop(1).map { block -> renderBlock(block = block, indent = continuationIndent) }
+
+    return parts.joinToString(separator = "\n\n")
+  }
+
+  private fun renderParagraph(
+      inlineContent: List<MarkdownInline>,
+      firstLinePrefix: String,
+      continuationPrefix: String,
+  ): String =
+      renderInlineContent(inlineContent)
+          .split("\n")
+          .mapIndexed { index, line ->
+            val prefix = when (index) {
+              0 -> firstLinePrefix
+              else -> continuationPrefix
+            }
+            prefix + escapeParagraphLineStart(line)
+          }
+          .joinToString(separator = "\n")
+
+  private fun renderInlineContent(inlineContent: List<MarkdownInline>): String =
+      inlineContent.joinToString(separator = "") { inline -> renderInline(inline) }
+
+  private fun renderInline(inline: MarkdownInline): String =
+      when (inline) {
+        is MarkdownInline.Text -> escapeInlineText(inline.text)
+        is MarkdownInline.Code -> renderCodeSpan(inline.code)
+        is MarkdownInline.Emphasis -> "*${renderInlineContent(inline.content)}*"
+        is MarkdownInline.Strong -> "**${renderInlineContent(inline.content)}**"
+        is MarkdownInline.Link -> renderLink(inline)
+        MarkdownInline.SoftBreak -> "\n"
+        MarkdownInline.HardBreak -> "\\\n"
+      }
+
+  private fun renderLink(link: MarkdownInline.Link): String =
+      buildString {
+        append("[")
+        append(renderInlineContent(link.content))
+        append("](")
+        append("<")
+        append(link.destination)
+        append(">")
+
+        link.title?.let { title ->
+          append(" ")
+          append('"')
+          append(title.replace("\\", "\\\\").replace("\"", "\\\""))
+          append('"')
+        }
+
+        append(")")
+      }
+
+  private fun renderCodeSpan(code: String): String {
+    val fenceLength = maxOf(1, longestRunLength(text = code, char = '`') + 1)
+    val fence = "`".repeat(fenceLength)
+    val content =
+        when {
+          code.contains("`") ||
+              code.startsWith("`") ||
+              code.endsWith("`") ||
+              code.startsWith(" ") ||
+              code.endsWith(" ") ->
+              " $code "
+          else -> code
+        }
+
+    return "$fence$content$fence"
+  }
+
+  private fun renderFencedCodeBlock(block: MarkdownBlock.CodeBlock): String {
+    val fence = "`".repeat(maxOf(3, longestRunLength(text = block.code, char = '`') + 1))
+
+    return buildString {
+      append(fence)
+      block.info?.let(::append)
+      append('\n')
+      append(block.code)
+      if (block.code.isNotEmpty() && !block.code.endsWith("\n")) {
+        append('\n')
+      }
+      append(fence)
+    }
+  }
+
+  private fun renderRawCodeBlock(block: MarkdownBlock.RawCodeBlock): String =
+      buildString {
+        append(ControlChar.STX)
+        append('\n')
+        append(block.code)
+        if (block.code.isNotEmpty() && !block.code.endsWith("\n")) {
+          append('\n')
+        }
+        append(ControlChar.ETX)
+      }
+
+  private fun prefixLines(
+      value: String,
+      indent: String,
+  ): String = value.split("\n").joinToString(separator = "\n") { line -> indent + line }
+
+  private fun escapeInlineText(text: String): String =
+      buildString {
+        text.forEach { char ->
+          when (char) {
+            '\\', '`', '*', '_', '[', ']', '!' -> {
+              append('\\')
+              append(char)
+            }
+            else -> append(char)
+          }
+        }
+      }
+
+  private fun escapeParagraphLineStart(line: String): String {
+    if (line.isEmpty()) {
+      return line
+    }
+
+    if (line.startsWith("#") || line.startsWith(">") || line.startsWith("```") || line.startsWith("~~~")) {
+      return encodeFirstCharAsEntity(line)
+    }
+
+    if (line.startsWith("- ") || line.startsWith("+ ") || line.startsWith("* ")) {
+      return encodeFirstCharAsEntity(line)
+    }
+
+    val orderedListRegex = Regex("""^(\\d+)([.)])(\\s.*)$""")
+    return orderedListRegex.replace(line) { matchResult ->
+      encodeFirstCharAsEntity(matchResult.value)
+    }
+  }
+
+  private fun encodeFirstCharAsEntity(line: String): String {
+    val firstChar = line.first()
+    return "&#${firstChar.code};" + line.drop(1)
+  }
+
+  private fun longestRunLength(
+      text: String,
+      char: Char,
+  ): Int {
+    var maxRunLength = 0
+    var currentRunLength = 0
+
+    text.forEach { currentChar ->
+      if (currentChar == char) {
+        currentRunLength += 1
+        maxRunLength = maxOf(maxRunLength, currentRunLength)
+      } else {
+        currentRunLength = 0
+      }
+    }
+
+    return maxRunLength
   }
 }
