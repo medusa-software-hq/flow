@@ -19,7 +19,7 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.code.applyChange
+import software.medusa.flow.core_service.worker.code.applyPatch
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool.CodeModuleDiagnosis
 import software.medusa.openai_client.OpenAiClient
@@ -107,7 +107,7 @@ class JsonAiCodePatcher_integrationTests {
             patchSet.changeByFilePath[fibLuaFilePath] as? Change.Patch,
         )
 
-    val patchedFibLuaText = fibLuaContent.applyChange(fibLuaPatch).dump()
+    val patchedFibLuaText = fibLuaContent.applyPatch(fibLuaPatch).dump()
 
     val result =
         buildLuaGlobals()
@@ -156,7 +156,7 @@ class JsonAiCodePatcher_integrationTests {
             patchSet.changeByFilePath[fibLuaFilePath] as? Change.Patch,
         )
 
-    val patchedFibLuaText = fibLuaContent.applyChange(patch = fibLuaPatch).dump()
+    val patchedFibLuaText = fibLuaContent.applyPatch(patch = fibLuaPatch).dump()
 
     val result = buildLuaGlobals().load(patchedFibLuaText).call().toint()
 

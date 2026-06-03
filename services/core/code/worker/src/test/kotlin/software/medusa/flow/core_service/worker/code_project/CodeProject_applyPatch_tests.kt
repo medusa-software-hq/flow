@@ -7,7 +7,7 @@ import software.medusa.commons.code.CodeBlock.LineIndex
 import software.medusa.commons.code.CodeBlock.LineIndexRange
 import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change.Patch
-import software.medusa.flow.core_service.worker.code.applyChange
+import software.medusa.flow.core_service.worker.code.applyPatch
 
 class CodeProject_applyPatch_tests {
   @Test
@@ -20,7 +20,7 @@ class CodeProject_applyPatch_tests {
             "}",
         )
 
-    val patchedContent = inputContent.applyChange(Patch.Empty)
+    val patchedContent = inputContent.applyPatch(Patch.Empty)
 
     assertEquals(
         expected = inputContent,
@@ -47,7 +47,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -101,7 +101,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -151,7 +151,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -189,7 +189,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -224,7 +224,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -258,7 +258,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -287,7 +287,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -334,7 +334,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -381,7 +381,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -428,7 +428,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -482,7 +482,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -550,7 +550,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -622,7 +622,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     mapOf(
@@ -684,7 +684,7 @@ class CodeProject_applyPatch_tests {
         )
 
     val patchedContent =
-        inputContent.applyChange(
+        inputContent.applyPatch(
             Patch(
                 fragmentByOldLineIndexRange =
                     linkedMapOf(

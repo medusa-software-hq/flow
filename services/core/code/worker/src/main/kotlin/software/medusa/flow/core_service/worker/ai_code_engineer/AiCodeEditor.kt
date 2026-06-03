@@ -14,7 +14,7 @@ import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.Ch
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.CodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodeEditor.FileEditor
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.PatchGenerator
-import software.medusa.flow.core_service.worker.code.applyChange
+import software.medusa.flow.core_service.worker.code.applyPatch
 import software.medusa.flow.core_service.worker.code_project.tools.CodeTool
 
 interface AiCodeEditor {
@@ -89,7 +89,7 @@ interface AiCodeEditor {
 
                     when (change) {
                       is AiCodePatcher.ChangeSet.Change.Patch ->
-                          put(filePath, fileContent.applyChange(change))
+                          put(filePath, fileContent.applyPatch(change))
                       is AiCodePatcher.ChangeSet.Change.Create ->
                           put(filePath, TechFileContent.Code(code = change.content))
                       AiCodePatcher.ChangeSet.Change.Delete -> Unit

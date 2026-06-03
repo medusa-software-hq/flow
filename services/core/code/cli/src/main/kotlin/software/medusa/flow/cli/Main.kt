@@ -9,14 +9,20 @@ import com.github.ajalt.clikt.parameters.options.required
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.coroutines.runBlocking
-import software.medusa.code_agent.exploration.ProperCodeFileExplorer
 import software.medusa.code_agent.scouting.ProperCodeWorktreePreScout
+import software.medusa.code_agent.virtual_workspace.CodeVirtualWorkspace_markdownUtils.encodeToMarkdownDocument
+import software.medusa.code_agent.virtual_workspace.document.ProperCodeDocumentBootstrapper
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsDirectory
 import software.medusa.commons.filesystem.compat.extractDeepReadonly
 import software.medusa.commons.filesystem.compat.impl.nio.NioCompatFsDirectory
 import software.medusa.commons.paths.AbsoluteUnixPath
+import software.medusa.commons.paths.LiteralRelativeUnixPath
+import software.medusa.commons.paths.UnixPath
 import software.medusa.commons.paths.toLiteral
+import software.medusa.git.worktree.GitFsNodeKind
 import software.medusa.git.worktree.GitWorktree
+import software.medusa.git.worktree.GitWorktreeFilter
+import software.medusa.git.worktree.chain
 import software.medusa.openai_client.OpenAiClient
 
 private const val openAiApiKeyEnvVarName = "OPENAI_API_KEY"
@@ -43,6 +49,21 @@ private class CodeAgentCommand : CliktCommand(name = "code-agent") {
 }
 
 private class PreScoutCommand : CliktCommand(name = "pre-scout") {
+  private data object IdeaFilter : GitWorktreeFilter {
+    private val ideaName = UnixPath.Name.Literal(".idea")
+
+    override fun classify(
+        path: LiteralRelativeUnixPath,
+        nodeKind: GitFsNodeKind,
+    ): GitWorktreeFilter.Classification? =
+        when {
+          path == LiteralRelativeUnixPath.of(ideaName) -> GitWorktreeFilter.Classification.Ignore
+          else -> null
+        }
+  }
+
+  private val gitGlobalFilter = IdeaFilter.chain(GitWorktreeFilter.GitCheckedOutWorktreeFilter)
+
   private val repoPathText by
       option(
               "--repo-path",
@@ -68,14 +89,14 @@ private class PreScoutCommand : CliktCommand(name = "pre-scout") {
                   ),
           )
 
-      val structureExtractor =
-          ProperCodeFileExplorer(
+      val documentBootstrapper =
+          ProperCodeDocumentBootstrapper(
               openAiClient = openAiClient,
           )
 
       val preScout =
           ProperCodeWorktreePreScout(
-              structureExtractor = structureExtractor,
+              documentBootstrapper = documentBootstrapper,
           )
 
       val repoAbsolutePath =
@@ -98,12 +119,18 @@ private class PreScoutCommand : CliktCommand(name = "pre-scout") {
       val gitWorktree =
           GitWorktree.load(
               repoDirectory = repoDirectory,
+              globalFilter = gitGlobalFilter,
           )
 
       val preScoutedVirtualWorkspace =
           preScout.preScoutWorktree(
               gitWorktree = gitWorktree,
           )
+
+      val preScoutedVirtualWorkspaceMarkdownDocument =
+          preScoutedVirtualWorkspace.encodeToMarkdownDocument()
+
+      print(preScoutedVirtualWorkspaceMarkdownDocument.toMarkdownString())
     }
   }
 }

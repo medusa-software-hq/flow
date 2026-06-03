@@ -6,7 +6,7 @@ import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change.Patch
 import software.medusa.flow.core_service.worker.utils.withNextOrNull
 
-fun TechFileContent.Code.applyChange(
+fun TechFileContent.Code.applyPatch(
     patch: Patch,
 ): TechFileContent.Code {
   val oldLines = code.lines

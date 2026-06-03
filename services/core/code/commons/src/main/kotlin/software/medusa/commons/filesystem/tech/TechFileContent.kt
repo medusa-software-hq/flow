@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.io.bytestring.asReadOnlyByteBuffer
 import software.medusa.commons.code.CodeBlock
+import software.medusa.commons.code.CodePatch
 import software.medusa.commons.filesystem.compat.ReadonlyCompatFsFile
 
 /** Content classification for technical files stored in the compat filesystem. */
@@ -45,6 +46,13 @@ sealed interface TechFileContent {
 
     val indexedLines: Sequence<CodeBlock.IndexedLine>
       get() = code.buildIndexedLines(baseIndex = CodeBlock.LineIndex.First)
+
+    fun applyPatch(
+        patch: CodePatch,
+    ): Code =
+        Code(
+            code = code.applyPatch(patch = patch),
+        )
 
     /** Dumps the content of the code file as a string with LF-terminated lines. */
     fun dump(): String = code.dump()

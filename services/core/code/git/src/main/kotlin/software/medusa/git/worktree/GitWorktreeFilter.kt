@@ -7,11 +7,29 @@ import software.medusa.commons.paths.RelativeUnixPath
 import software.medusa.commons.paths.UnixPath
 
 interface GitWorktreeFilter {
+  /** A filter that doesn't effectively classify any paths. */
   data object Passive : GitWorktreeFilter {
     override fun classify(
         path: LiteralRelativeUnixPath,
         nodeKind: GitFsNodeKind,
     ): Classification? = null
+  }
+
+  /**
+   * A filter that classifies the top-level ".git" file/directory as ignored, and doesn't classify
+   * any other paths.
+   */
+  data object GitCheckedOutWorktreeFilter : GitWorktreeFilter {
+    val gitDatabaseName = UnixPath.Name.Literal(".git")
+
+    override fun classify(
+        path: LiteralRelativeUnixPath,
+        nodeKind: GitFsNodeKind,
+    ): Classification? =
+        when {
+          path == RelativeUnixPath.of(gitDatabaseName) -> Classification.Ignore
+          else -> null
+        }
   }
 
   companion object {

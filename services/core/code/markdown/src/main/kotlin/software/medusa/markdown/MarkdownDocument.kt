@@ -129,6 +129,8 @@ sealed class MarkdownInline {
   data object SoftBreak : MarkdownInline()
 
   data object HardBreak : MarkdownInline()
+
+  fun toMarkdownString(): String = MarkdownCommonMark.render(this)
 }
 
 class MarkdownParseException(
@@ -151,6 +153,13 @@ private object MarkdownCommonMark {
   }
 
   fun render(document: MarkdownDocument): String = renderer.render(document.toCommonMarkDocument())
+
+  fun render(inline: MarkdownInline): String =
+      renderer
+          .render(
+              Paragraph().also { paragraph -> paragraph.appendChild(inline.toCommonMarkNode()) },
+          )
+          .trimEnd('\n')
 
   private fun parseChapterSequence(
       nodes: List<Node>,

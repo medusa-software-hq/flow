@@ -13,7 +13,7 @@ import software.medusa.commons.paths.UnixPath
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.ChangeSet.Change
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeCatalog
 import software.medusa.flow.core_service.worker.ai_code_engineer.AiCodePatcher.MaskedCodeFileContent
-import software.medusa.flow.core_service.worker.code.applyChange
+import software.medusa.flow.core_service.worker.code.applyPatch
 import software.medusa.openai_client.OpenAiClient
 
 class CconAiCodePatcher_integrationTests {
@@ -125,7 +125,7 @@ class CconAiCodePatcher_integrationTests {
             patchSet.changeByFilePath[moduleYamlFilePath] as? Change.Patch,
         )
 
-    val patchedModuleYamlText = moduleYamlContent.applyChange(moduleYamlPatch).dump()
+    val patchedModuleYamlText = moduleYamlContent.applyPatch(moduleYamlPatch).dump()
 
     val parsedYaml =
         checkNotNull(

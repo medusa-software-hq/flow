@@ -47,6 +47,22 @@ data class CodeBlock(
   }
 
   /**
+   * Code indentation level.
+   *
+   * Tabs (U+0009) are currently not considered indentation.
+   */
+  @JvmInline
+  value class IndentationLevel(
+      /** Number of spaces (U+0020) in the indentation. */
+      val spaceCount: Int,
+  ) : Comparable<IndentationLevel> {
+    override fun compareTo(other: IndentationLevel): Int =
+        compareValuesBy(this, other) { it.spaceCount }
+
+    fun dump(): String = " ".repeat(spaceCount)
+  }
+
+  /**
    * Represents a range of line indices in a code file. An empty line range is possible and
    * describes the "empty space" before/after a line.
    */
@@ -144,10 +160,31 @@ data class CodeBlock(
     }
 
     init {
-      require(content.none { ControlChar.isControl(it) }) {
-        "Line content cannot contain control characters (including newline)"
+      require(content.all(::isSafe)) {
+        "Line content cannot contain unsafe control characters (including newline): `$content`"
       }
     }
+
+    /**
+     * Detects the indentation level of this line by counting the number of leading space
+     * characters.
+     */
+    fun detectIndentationLevel(): IndentationLevel {
+      var spaceCount = 0
+
+      for (char in content) {
+        when (char) {
+          ' ' -> spaceCount++
+          else -> break
+        }
+      }
+
+      return IndentationLevel(spaceCount = spaceCount)
+    }
+
+    fun indented(
+        level: IndentationLevel,
+    ): Line = Line(content = level.dump() + content)
   }
 
   companion object {

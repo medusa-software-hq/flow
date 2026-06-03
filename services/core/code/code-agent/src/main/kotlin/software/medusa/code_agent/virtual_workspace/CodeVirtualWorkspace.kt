@@ -1,8 +1,7 @@
 package software.medusa.code_agent.virtual_workspace
 
-import software.medusa.code_agent.structure.CodeFileStructure
+import software.medusa.code_agent.virtual_workspace.document.CodeDocument
 import software.medusa.commons.code.CodeBlock
-import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.paths.UnixPath
 
 data class CodeVirtualWorkspace(
@@ -45,13 +44,8 @@ data class CodeVirtualWorkspace(
 
   data class OpenedCodeFile(
       override val vcsStatus: VcsStatus,
-      val structuredContent: StructuredContent,
-  ) : File {
-    data class StructuredContent(
-        val content: TechFileContent.Code,
-        val structure: CodeFileStructure,
-    )
-  }
+      val document: CodeDocument,
+  ) : File
 
   data class ClosedFile(
       override val vcsStatus: VcsStatus,
@@ -61,6 +55,10 @@ data class CodeVirtualWorkspace(
   // endregion
 
   // region Reshaping model
+
+  data class ReshapingContext(
+      val foo: Unit,
+  )
 
   @JvmInline
   value class Reshape(
@@ -310,7 +308,7 @@ fun CodeVirtualWorkspace.ClosedFileReshape.Open.openFile(
 
   return CodeVirtualWorkspace.OpenedCodeFile(
       vcsStatus = originalFile.vcsStatus,
-      structuredContent = TODO(), // TODO: context
+      document = TODO(), // TODO: context
   )
 }
 

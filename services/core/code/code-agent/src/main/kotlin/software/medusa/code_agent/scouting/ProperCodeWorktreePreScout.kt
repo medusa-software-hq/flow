@@ -1,9 +1,11 @@
 package software.medusa.code_agent.scouting
 
-import software.medusa.code_agent.exploration.CodeFileExplorer
 import software.medusa.code_agent.virtual_workspace.CodeVirtualWorkspace
 import software.medusa.code_agent.virtual_workspace.CodeVirtualWorkspace.LockState
 import software.medusa.code_agent.virtual_workspace.CodeVirtualWorkspace.OpenedCodeFile
+import software.medusa.code_agent.virtual_workspace.document.CodeDocument
+import software.medusa.code_agent.virtual_workspace.document.CodeDocumentBootstrapper
+import software.medusa.code_agent.virtual_workspace.document.CodeLanguage
 import software.medusa.commons.filesystem.tech.TechFileContent
 import software.medusa.commons.filesystem.tech.readTechContent
 import software.medusa.commons.paths.UnixPath
@@ -16,7 +18,7 @@ import software.medusa.git.worktree.GitWorktreeFile
 import software.medusa.git.worktree.GitWorktreeFilter
 
 class ProperCodeWorktreePreScout(
-    private val structureExtractor: CodeFileExplorer,
+    private val documentBootstrapper: CodeDocumentBootstrapper,
 ) : CodeWorktreePreScout {
   override suspend fun preScoutWorktree(
       gitWorktree: GitWorktree,
@@ -25,7 +27,7 @@ class ProperCodeWorktreePreScout(
           rootDirectory =
               with(
                   ScoutingContext(
-                      structureExtractor = structureExtractor,
+                      documentBootstrapper = documentBootstrapper,
                   ),
               ) {
                 gitWorktree.rootDirectory.scoutIncludedDirectory()
@@ -34,7 +36,7 @@ class ProperCodeWorktreePreScout(
 }
 
 private data class ScoutingContext(
-    val structureExtractor: CodeFileExplorer,
+    val documentBootstrapper: CodeDocumentBootstrapper,
 )
 
 context(scoutingContext: ScoutingContext)
@@ -81,19 +83,21 @@ private suspend fun GitWorktreeFile.scoutFile(
       }
 
       is TechFileContent.Code -> {
-        val explorationResult =
-            scoutingContext.structureExtractor.exploreFile(
-                fileName = fileName,
-                fileContent = techContent,
+        val loadedDocument =
+            CodeDocument.load(
+                language = CodeLanguage.Kotlin, // TODO: Detect language heuristically (based on
+                // filename/extension)
+                content = techContent,
+            )
+
+        val bootstrappedDocument =
+            scoutingContext.documentBootstrapper.bootstrapDocument(
+                document = loadedDocument,
             )
 
         OpenedCodeFile(
             vcsStatus = status.toVcsStatus(),
-            structuredContent =
-                OpenedCodeFile.StructuredContent(
-                    content = techContent,
-                    structure = explorationResult.fileStructure,
-                ),
+            document = bootstrappedDocument,
         )
       }
     }
