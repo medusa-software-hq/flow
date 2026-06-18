@@ -1,0 +1,63 @@
+name: Check PR
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: 21
+  TERRAFORM_VERSION: 1.14
+
+  TF_INPUT: false
+  TF_CLI_ARGS: -no-color
+  NO_COLOR: 1
+
+jobs:
+  check-gradle-project:
+    name: Check root Gradle project
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - uses: actions/setup-java@v5.3.0
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.2.0
+
+      - name: Check formatting
+        run: ./gradlew ktfmtCheck
+
+      - name: Analyze statically
+        run: ./gradlew detekt
+
+      - name: Build and test
+        run: ./gradlew build
+
+  check-repo-config:
+    name: Check repo Terraform configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ~> ${{ env.TERRAFORM_VERSION }}
+
+      - uses: terraform-linters/setup-tflint@v6.2.2
+
+      - name: Check formatting
+        working-directory: .github/config
+        run: terraform fmt -check -recursive
+
+      - name: Lint configuration
+        working-directory: .github/config
+        run: tflint --recursive

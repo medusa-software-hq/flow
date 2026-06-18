@@ -1,0 +1,44 @@
+version: "3"
+
+includes:
+  github:
+    taskfile: .github/Taskfile.yml
+    dir: github
+
+  backend:cli:
+    taskfile: cli/Taskfile.yml
+    dir: cli
+
+# noinspection YAMLSchemaValidation
+.kotlinSources: &kotlinSources
+  - '**/*.kt'
+  - '**/*.kts'
+
+tasks:
+  all:fixFormatting:
+    desc: Fix formatting for the entire codebase
+    deps:
+      - github:config:fixFormatting
+      - gradleRoot:fixFormatting
+
+  all:analyzeStatically:
+    desc: Lint the entire codebase
+    deps:
+      - github:workflows:lint
+      - github:config:lint
+      - gradleRoot:analyzeStatically
+
+  gradleRoot:fixFormatting:
+    desc: Fix Kotlin formatting
+    sources: *kotlinSources
+    cmds:
+      - ./gradlew ktfmtFormat
+    interactive: true
+
+  gradleRoot:analyzeStatically:
+    desc: Lint the Kotlin sources
+    sources: *kotlinSources
+    cmds:
+      - ./gradlew assemble
+      - ./gradlew detekt
+    interactive: true

@@ -1,0 +1,31 @@
+version: "3"
+
+includes:
+  config:
+    taskfile: config/Taskfile.yml
+    dir: config
+
+# noinspection YAMLSchemaValidation
+.workflowSources: &workflowSources
+  - "workflows/*.yml"
+
+tasks:
+  workflows:lint:
+    desc: Lint GitHub workflows
+    sources: *workflowSources
+    dir: ..
+    cmds:
+      - github-ci lint
+
+  workflows:fixLint:
+    desc: Fix lint issues in GitHub workflows
+    sources: *workflowSources
+    dir: ..
+    cmds:
+      - github-ci lint --fix
+
+  workflows:upgrade:
+    desc: Upgrade GitHub workflow actions to the latest versions
+    dir: ..
+    cmds:
+      - github-ci upgrade
