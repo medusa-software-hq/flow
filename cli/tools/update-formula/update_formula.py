@@ -29,7 +29,7 @@ def render_formula(version: str, sha256: str) -> str:
 
           def install
             libexec.install "flow-cli.jar"
-            bin.write_jar_script libexec/"flow-cli.jar", "ms-flow"
+            bin.write_jar_script libexec/"flow-cli.jar", "ms-flow", "--enable-native-access=ALL-UNNAMED"
           end
         end
     """)
