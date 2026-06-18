@@ -2,7 +2,9 @@ name: Publish CLI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - trunk/*
+
     paths:
       - cli/**
       - engine/**
