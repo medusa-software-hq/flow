@@ -2,6 +2,7 @@ plugins {
   application
 
   alias(libs.plugins.kotlin.jvm)
+  alias(libs.plugins.shadow)
 }
 
 dependencies {
@@ -23,4 +24,10 @@ application {
           // opt-in.
           "--enable-native-access=ALL-UNNAMED",
       )
+}
+
+tasks.shadowJar {
+  archiveBaseName = "flow-cli"
+  archiveClassifier = ""
+  archiveVersion = ""
 }

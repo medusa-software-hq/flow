@@ -4,6 +4,7 @@ kotlin = "2.4.0"
 kotlinxCoroutines = "1.11.0"
 ktfmt = "0.26.0"
 medusa-commons = "0.1.0-alpha.1-SNAPSHOT"
+shadow = "9.4.2"
 versionCatalogUpdate = "1.1.0"
 
 [libraries]
@@ -20,4 +21,5 @@ medusa-commons-unix-filesystem = { module = "software.medusa.commons:unix-filesy
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ktfmt = { id = "com.ncorti.ktfmt.gradle", version.ref = "ktfmt" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 versionCatalogUpdate = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogUpdate" }
