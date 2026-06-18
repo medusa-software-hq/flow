@@ -1,0 +1,14 @@
+# Task cache
+.task/
+
+# Gradle project-specific cache
+.gradle/
+
+# Kotlin Gradle plugin cache
+.kotlin/
+
+# Gradle build output
+build/
+
+# Claud Code root
+.claude/

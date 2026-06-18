@@ -1,0 +1,25 @@
+[versions]
+detekt = "1.23.8"
+kotlin = "2.4.0"
+kotlinxCoroutines = "1.11.0"
+ktfmt = "0.26.0"
+medusa-commons = "0.1.0-alpha.1-SNAPSHOT"
+shadow = "9.4.2"
+versionCatalogUpdate = "1.1.0"
+
+[libraries]
+clikt = "com.github.ajalt.clikt:clikt-jvm:5.1.0"
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+medusa-commons-git = { module = "software.medusa.commons:git", version.ref = "medusa-commons" }
+medusa-commons-markdown = { module = "software.medusa.commons:markdown", version.ref = "medusa-commons" }
+medusa-commons-system = { module = "software.medusa.commons:system", version.ref = "medusa-commons" }
+medusa-commons-text = { module = "software.medusa.commons:text", version.ref = "medusa-commons" }
+medusa-commons-unix-filesystem = { module = "software.medusa.commons:unix-filesystem", version.ref = "medusa-commons" }
+
+[plugins]
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+ktfmt = { id = "com.ncorti.ktfmt.gradle", version.ref = "ktfmt" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+versionCatalogUpdate = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogUpdate" }
