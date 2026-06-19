@@ -1,0 +1,27 @@
+package software.medusa.flow.integration.nodejs.process
+
+import software.medusa.commons.system.SysExecutableHandle
+import software.medusa.commons.system.SysProcessSpawner
+import software.medusa.flow.integration.nodejs.NjsCommand
+import software.medusa.flow.integration.nodejs.NjsCommand.ExecutionResult
+
+class NjsProcessCommand(
+    private val processSpawner: SysProcessSpawner,
+    private val executable: SysExecutableHandle,
+) : NjsCommand {
+  override suspend fun execute(
+      arguments: List<String>,
+  ): ExecutionResult {
+    val processOutcome =
+        processSpawner.spawn(
+            executable = executable,
+            arguments = arguments,
+        )
+
+    return ExecutionResult(
+        exitCode = processOutcome.exitCode,
+        standardOutput = processOutcome.standardOutput,
+        errorOutput = processOutcome.errorOutput,
+    )
+  }
+}
