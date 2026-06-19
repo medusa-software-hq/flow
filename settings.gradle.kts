@@ -7,5 +7,6 @@ rootProject.name = "flow"
 
 include(
     ":cli",
+    ":engine:harness",
     ":engine:virtual-editor",
 )

@@ -6,6 +6,7 @@ plugins {
 }
 
 dependencies {
+  implementation(project(":engine:harness"))
   implementation(project(":engine:virtual-editor"))
 
   implementation(libs.kotlinx.coroutines.core)
