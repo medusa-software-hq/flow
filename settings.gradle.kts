@@ -8,6 +8,7 @@ rootProject.name = "flow"
 include(
     ":cli",
     ":engine:harness",
+    ":engine:toolchains:gradle",
     ":engine:toolchains:nodejs",
     ":engine:virtual-editor",
 )

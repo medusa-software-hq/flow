@@ -10,6 +10,7 @@ versionCatalogUpdate = "1.1.0"
 
 [libraries]
 clikt = "com.github.ajalt.clikt:clikt-jvm:5.1.0"
+gradle-toolingApi = "org.gradle:gradle-tooling-api:9.5.1"
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
