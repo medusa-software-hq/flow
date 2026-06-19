@@ -133,7 +133,7 @@ class HrsProperSolutionCoder_integrationTests {
                 ),
         )
 
-    val finalWorktree = solutionPatch.apply(worktree = baseWorktree)
+    val finalWorktree = solutionPatch.apply(worktree = baseWorktree).patchedWorktree
 
     val fixedFile =
         finalWorktree.rootDirectory.labeledEntityByName.getValue(fibFileName).entity

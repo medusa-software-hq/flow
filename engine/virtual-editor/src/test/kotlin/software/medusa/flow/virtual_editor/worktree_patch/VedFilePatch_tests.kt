@@ -3,11 +3,13 @@ package software.medusa.flow.virtual_editor.worktree_patch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlinx.io.bytestring.encodeToByteString
 import software.medusa.commons.text.TxtBlock
 import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.text.TxtLineIndex
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
+import software.medusa.commons.unix.filesystem.mutation.UfsFileMutation
 import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
 
@@ -33,9 +35,16 @@ class VedFilePatch_tests {
 
     val result = patch.apply(file)
 
+    val patchedFile = result.patchedEntity as VedOpenedFile
+
     assertEquals(
         TxtFileContent(content = TxtBlock.of("new line", "second line")),
-        result.content,
+        patchedFile.content,
+    )
+
+    assertEquals(
+        UfsFileMutation.Update(newContent = "new line\nsecond line\n".encodeToByteString()),
+        result.entityMutation,
     )
   }
 

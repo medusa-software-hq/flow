@@ -52,7 +52,8 @@ class HrsRawWorktreePatch_tests {
                 ),
         )
 
-    val finalWorktree = rawPatch.toFullWorktreePatch(baseWorktree).apply(baseWorktree)
+    val finalWorktree =
+        rawPatch.toFullWorktreePatch(baseWorktree).apply(baseWorktree).patchedWorktree
 
     val patchedFile =
         finalWorktree.rootDirectory.labeledEntityByName.getValue(UfsName.Literal("Main.kt")).entity
@@ -87,7 +88,8 @@ class HrsRawWorktreePatch_tests {
                 ),
         )
 
-    val finalWorktree = rawPatch.toFullWorktreePatch(baseWorktree).apply(baseWorktree)
+    val finalWorktree =
+        rawPatch.toFullWorktreePatch(baseWorktree).apply(baseWorktree).patchedWorktree
 
     val subdirectory =
         finalWorktree.rootDirectory.labeledEntityByName.getValue(UfsName.Literal("src")).entity
@@ -109,7 +111,8 @@ class HrsRawWorktreePatch_tests {
                 listOf(HrsRawWorktreePatch.EditedFile(path = "/Main.kt", newContent = "patched\n")),
         )
 
-    val finalWorktree = rawPatch.toFullWorktreePatch(baseWorktree).apply(baseWorktree)
+    val finalWorktree =
+        rawPatch.toFullWorktreePatch(baseWorktree).apply(baseWorktree).patchedWorktree
 
     val fileView =
         assertIs<UfsReadonlyFile>(

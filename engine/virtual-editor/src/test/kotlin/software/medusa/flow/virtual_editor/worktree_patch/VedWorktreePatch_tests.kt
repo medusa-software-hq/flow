@@ -70,7 +70,8 @@ class VedWorktreePatch_tests {
     val result = patch.apply(worktree)
 
     val patchedFile =
-        result.rootDirectory.labeledEntityByName.getValue(fileName).entity as VedOpenedFile
+        result.patchedWorktree.rootDirectory.labeledEntityByName.getValue(fileName).entity
+            as VedOpenedFile
     assertEquals(
         TxtBlock.of("fun main(args: Array<String>) {", "}"),
         patchedFile.content.content,

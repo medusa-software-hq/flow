@@ -9,6 +9,7 @@ import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.text.TxtLineIndex
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
+import software.medusa.commons.unix.filesystem.mutation.UfsDirectoryMutation
 import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.virtual_editor.worktree.VedCollapsedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
@@ -45,7 +46,7 @@ class VedDirectoryPatch_tests {
 
     val patch = VedDirectoryPatch(childPatchByName = mapOf(name to singleLinePatch("new line")))
 
-    val result = patch.apply(directory)
+    val result = patch.apply(directory).patchedEntity as VedExpandedDirectory
 
     val patchedEntity = result.labeledEntityByName.getValue(name).entity as VedOpenedFile
     assertEquals(TxtBlock.of("new line"), patchedEntity.content.content)
@@ -72,7 +73,7 @@ class VedDirectoryPatch_tests {
     val patch =
         VedDirectoryPatch(childPatchByName = mapOf(patchedName to singleLinePatch("new line")))
 
-    val result = patch.apply(directory)
+    val result = patch.apply(directory).patchedEntity as VedExpandedDirectory
 
     assertEquals(untouchedFile, result.labeledEntityByName.getValue(untouchedName).entity)
   }
@@ -108,12 +109,33 @@ class VedDirectoryPatch_tests {
                 ),
         )
 
-    val result = patch.apply(outerDirectory)
+    val result = patch.apply(outerDirectory).patchedEntity as VedExpandedDirectory
 
     val resultInner =
         result.labeledEntityByName.getValue(childDirName).entity as VedExpandedDirectory
     val patchedFile = resultInner.labeledEntityByName.getValue(fileName).entity as VedOpenedFile
     assertEquals(TxtBlock.of("new line"), patchedFile.content.content)
+  }
+
+  @Test
+  fun `apply produces a mutation only for patched children`() {
+    val patchedName = UfsName.Literal("a.kt")
+    val untouchedName = UfsName.Literal("b.kt")
+    val directory =
+        VedExpandedDirectory(
+            labeledEntityByName =
+                mapOf(
+                    patchedName to labeledFile("old line"),
+                    untouchedName to labeledFile("unchanged line"),
+                ),
+        )
+
+    val patch =
+        VedDirectoryPatch(childPatchByName = mapOf(patchedName to singleLinePatch("new line")))
+
+    val mutation = patch.apply(directory).entityMutation as UfsDirectoryMutation.Dive
+
+    assertEquals(setOf(patchedName), mutation.operationByName.keys)
   }
 
   @Test

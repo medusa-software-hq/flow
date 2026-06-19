@@ -1,10 +1,9 @@
 package software.medusa.flow.harness
 
 import software.medusa.commons.git.worktree.GitWorktree
-import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.copyRecursivelyTo
+import software.medusa.commons.unix.filesystem.mutation.applyMutation
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
-import software.medusa.flow.virtual_editor.worktree.asFilesystemEntity
 
 class HrsProperTaskCompleter(
     private val temporaryWorkspaceAllocator: HrsProperTemporaryWorkspaceAllocator,
@@ -32,18 +31,15 @@ class HrsProperTaskCompleter(
             taskDescription = taskDescription,
         )
 
-    val finalEditorWorktree = solutionPatch.apply(worktree = baseEditorWorktree)
+    // Applying the patch yields a filesystem mutation that references only the files the model
+    // actually changed. Writing that back touches just those files instead of re-writing every
+    // opened file. The full source tree is already materialized above; the next step will run
+    // Gradle tasks there.
+    val solutionApplicationResult = solutionPatch.apply(worktree = baseEditorWorktree)
 
-    // Overlay the edited, opened files back onto the physical workspace.
-    val finalRootDirectory: UfsReadonlyDirectory =
-        finalEditorWorktree.rootDirectory.asFilesystemEntity
-
-    finalRootDirectory.copyRecursivelyTo(
-        targetDirectory = temporaryWorkspace.rootDirectory,
+    temporaryWorkspace.rootDirectory.applyMutation(
+        mutation = solutionApplicationResult.rootDirectoryMutation,
     )
-
-    // For now, copying to a physical workspace might appear extraneous.
-    // _But_ the next step will be running Gradle tasks there.
 
     return temporaryWorkspace
   }
