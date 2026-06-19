@@ -3,6 +3,7 @@ package software.medusa.flow.harness
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import software.medusa.commons.unix.filesystem.UfsMutableDirectory
+import software.medusa.commons.unix.filesystem.deleteRecursively
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
 import software.medusa.commons.unix.path.UfsName
 
@@ -38,7 +39,7 @@ class HrsProperTemporaryWorkspaceAllocator(
         get() = workspaceDirectory
 
       override fun close() {
-        coroutineScope.launch { workspaceDirectory.delete() }
+        coroutineScope.launch { workspaceDirectory.deleteRecursively() }
       }
     }
   }

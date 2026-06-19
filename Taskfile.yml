@@ -5,7 +5,7 @@ includes:
     taskfile: .github/Taskfile.yml
     dir: github
 
-  backend:cli:
+  cli:
     taskfile: cli/Taskfile.yml
     dir: cli
 
