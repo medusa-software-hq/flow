@@ -2,21 +2,21 @@ package software.medusa.flow.integration.gradle
 
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.createDirectories
-import kotlin.io.path.writeText
+import java.nio.file.Paths
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 
 /**
  * Runs real Gradle builds through [GrdProperProjectConnector]/[GrdProperProjectConnection] against
- * a generated fixture project. The fixture pins the same Gradle distribution this repository
- * already uses, so the Tooling API reuses the cached distribution rather than downloading one.
+ * a fixture project copied from test resources into a temporary directory. The fixture pins the
+ * same Gradle distribution this repository already uses, so the Tooling API reuses the cached
+ * distribution rather than downloading one.
  */
 class GrdProperProjectConnection_integrationTests {
   @Test
-  fun `runs a passing task and captures its output`() = runBlocking {
+  fun `runs a passing task and captures its output`() = runTest {
     withFixtureProject { projectPath ->
       GrdProperProjectConnector().connect(projectPath = projectPath).use { connection ->
         val result = connection.runTask(taskName = GrdTaskName(name = "hello"))
@@ -28,7 +28,7 @@ class GrdProperProjectConnection_integrationTests {
   }
 
   @Test
-  fun `reports a failing task as a Failure`() = runBlocking {
+  fun `reports a failing task as a Failure`() = runTest {
     withFixtureProject { projectPath ->
       GrdProperProjectConnector().connect(projectPath = projectPath).use { connection ->
         val result = connection.runTask(taskName = GrdTaskName(name = "boom"))
@@ -44,37 +44,37 @@ class GrdProperProjectConnection_integrationTests {
     val projectPath = Files.createTempDirectory("grd-fixture-")
 
     try {
-      projectPath.resolve("settings.gradle.kts").writeText("rootProject.name = \"fixture\"\n")
-
-      projectPath
-          .resolve("build.gradle.kts")
-          .writeText(
-              """
-              tasks.register("hello") { doLast { println("hello from gradle") } }
-              tasks.register("boom") { doLast { throw GradleException("boom") } }
-              """
-                  .trimIndent() + "\n",
-          )
-
-      val wrapperDirectory = projectPath.resolve("gradle/wrapper")
-      wrapperDirectory.createDirectories()
-      wrapperDirectory
-          .resolve("gradle-wrapper.properties")
-          .writeText(
-              """
-              distributionBase=GRADLE_USER_HOME
-              distributionPath=wrapper/dists
-              distributionUrl=https://services.gradle.org/distributions/gradle-9.5.1-bin.zip
-              zipStoreBase=GRADLE_USER_HOME
-              zipStorePath=wrapper/dists
-              validateDistributionUrl=false
-              """
-                  .trimIndent() + "\n",
-          )
-
+      copyResourceTree(resourcePath = fixtureResourcePath, targetDirectory = projectPath)
       block(projectPath)
     } finally {
       projectPath.toFile().deleteRecursively()
     }
+  }
+
+  private fun copyResourceTree(
+      resourcePath: String,
+      targetDirectory: Path,
+  ) {
+    val resourceUrl =
+        checkNotNull(javaClass.getResource(resourcePath)) { "Missing test fixture: $resourcePath" }
+    val sourceDirectory = Paths.get(resourceUrl.toURI())
+
+    Files.walk(sourceDirectory).use { entries ->
+      entries.forEach { sourceEntry ->
+        val targetEntry =
+            targetDirectory.resolve(sourceDirectory.relativize(sourceEntry).toString())
+
+        if (Files.isDirectory(sourceEntry)) {
+          Files.createDirectories(targetEntry)
+        } else {
+          Files.createDirectories(checkNotNull(targetEntry.parent))
+          Files.copy(sourceEntry, targetEntry)
+        }
+      }
+    }
+  }
+
+  private companion object {
+    const val fixtureResourcePath = "/fixtures/gradle-project"
   }
 }
