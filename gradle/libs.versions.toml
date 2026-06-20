@@ -22,6 +22,7 @@ medusa-commons-openaiClient = { module = "software.medusa.commons:openai-client"
 medusa-commons-system = { module = "software.medusa.commons:system", version.ref = "medusa-commons" }
 medusa-commons-text = { module = "software.medusa.commons:text", version.ref = "medusa-commons" }
 medusa-commons-unix-filesystem = { module = "software.medusa.commons:unix-filesystem", version.ref = "medusa-commons" }
+medusa-commons-yaml = { module = "software.medusa.commons:yaml", version.ref = "medusa-commons" }
 
 [plugins]
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

@@ -12,5 +12,6 @@ include(
     ":engine:test-utils",
     ":engine:toolchains:gradle",
     ":engine:toolchains:nodejs",
+    ":engine:universal-project",
     ":engine:virtual-editor",
 )
