@@ -21,6 +21,8 @@ sourceSets {
   }
 }
 
+dependencies { "${integrationTestSourceSetName}Implementation"(project(":engine:test-utils")) }
+
 tasks.register<Test>(integrationTestSourceSetName) {
   description = "Runs integration tests (spawn real processes via the system toolchain)."
   group = "verification"

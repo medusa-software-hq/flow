@@ -26,6 +26,8 @@ sourceSets {
   }
 }
 
+dependencies { "${integrationTestSourceSetName}Implementation"(project(":engine:test-utils")) }
+
 tasks.register<Test>(integrationTestSourceSetName) {
   description = "Runs integration tests (spawns a real Gradle build via the Tooling API)."
   group = "verification"

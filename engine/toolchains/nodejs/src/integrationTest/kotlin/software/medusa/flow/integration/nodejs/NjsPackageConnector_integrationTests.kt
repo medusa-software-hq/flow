@@ -1,8 +1,5 @@
 package software.medusa.flow.integration.nodejs
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -10,12 +7,15 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.test.runTest
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
+import software.medusa.commons.unix.path.UfsAbsolutePath
+import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
 import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.integration.nodejs.package_manager.NjsNpmConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsPackageManager
 import software.medusa.flow.integration.nodejs.package_manager.NjsPackageManagerConnectorHub
 import software.medusa.flow.integration.nodejs.package_manager.NjsYarnConnector
 import software.medusa.flow.integration.nodejs.process.NjsProcessPackageConnector
+import software.medusa.flow.test_utils.withMaterializedResource
 
 /**
  * Drives the module through its public API against micro TypeScript projects copied from test
@@ -47,7 +47,8 @@ class NjsPackageConnector_integrationTests {
   fun `npm installs typescript and type-checks the project`() =
       runTest(timeout = installTimeout) {
         assertTypeChecks(
-            fixtureResourcePath = "/fixtures/npm-project",
+            fixturePath =
+                UfsAbsolutePath.of(UfsName.Literal("fixtures"), UfsName.Literal("npm-project")),
             packageManager = NjsPackageManager.Npm,
         )
       }
@@ -56,16 +57,17 @@ class NjsPackageConnector_integrationTests {
   fun `yarn installs typescript and type-checks the project`() =
       runTest(timeout = installTimeout) {
         assertTypeChecks(
-            fixtureResourcePath = "/fixtures/yarn-project",
+            fixturePath =
+                UfsAbsolutePath.of(UfsName.Literal("fixtures"), UfsName.Literal("yarn-project")),
             packageManager = NjsPackageManager.Yarn,
         )
       }
 
   private suspend fun assertTypeChecks(
-      fixtureResourcePath: String,
+      fixturePath: UfsLiteralAbsolutePath,
       packageManager: NjsPackageManager,
   ) {
-    withFixtureProject(fixtureResourcePath = fixtureResourcePath) { packagePath ->
+    withMaterializedResource(resourcePath = fixturePath) { packagePath ->
       val connection =
           packageConnector.connect(packagePath = packagePath, packageManager = packageManager)
 
@@ -81,43 +83,6 @@ class NjsPackageConnector_integrationTests {
           actual = result.exitCode,
           message = "tsc reported errors:\n${result.standardOutput}\n${result.errorOutput}",
       )
-    }
-  }
-
-  private suspend fun withFixtureProject(
-      fixtureResourcePath: String,
-      block: suspend (Path) -> Unit,
-  ) {
-    val packagePath = Files.createTempDirectory("njs-project-")
-
-    try {
-      copyResourceTree(resourcePath = fixtureResourcePath, targetDirectory = packagePath)
-      block(packagePath)
-    } finally {
-      packagePath.toFile().deleteRecursively()
-    }
-  }
-
-  private fun copyResourceTree(
-      resourcePath: String,
-      targetDirectory: Path,
-  ) {
-    val resourceUrl =
-        checkNotNull(javaClass.getResource(resourcePath)) { "Missing test fixture: $resourcePath" }
-    val sourceDirectory = Paths.get(resourceUrl.toURI())
-
-    Files.walk(sourceDirectory).use { entries ->
-      entries.forEach { sourceEntry ->
-        val targetEntry =
-            targetDirectory.resolve(sourceDirectory.relativize(sourceEntry).toString())
-
-        if (Files.isDirectory(sourceEntry)) {
-          Files.createDirectories(targetEntry)
-        } else {
-          Files.createDirectories(checkNotNull(targetEntry.parent))
-          Files.copy(sourceEntry, targetEntry)
-        }
-      }
     }
   }
 
