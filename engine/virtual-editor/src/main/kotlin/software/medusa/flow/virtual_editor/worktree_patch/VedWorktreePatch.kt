@@ -1,7 +1,6 @@
 package software.medusa.flow.virtual_editor.worktree_patch
 
 import software.medusa.commons.unix.filesystem.mutation.UfsDirectoryMutation
-import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 
 data class VedWorktreePatch(
@@ -13,11 +12,16 @@ data class VedWorktreePatch(
   )
 
   fun apply(worktree: VedWorktree): PatchApplicationResult {
-    val rootDirectoryResult = rootDirectoryPatch.apply(worktree.rootDirectory)
+    val rootDirectoryResult =
+        rootDirectoryPatch.apply(
+            directory = worktree.rootDirectory,
+        )
 
     return PatchApplicationResult(
         patchedWorktree =
-            VedWorktree(rootDirectory = rootDirectoryResult.patchedEntity as VedExpandedDirectory),
+            VedWorktree(
+                rootDirectory = rootDirectoryResult.patchedEntity,
+            ),
         rootDirectoryMutation = rootDirectoryResult.entityMutation,
     )
   }

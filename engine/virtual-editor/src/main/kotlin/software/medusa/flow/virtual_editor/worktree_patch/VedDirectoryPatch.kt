@@ -11,7 +11,7 @@ data class VedDirectoryPatch(
     val childPatchByName: Map<UfsName.Literal, VedEntityPatch>,
 ) : VedEntityPatch() {
   typealias DirectoryPatchApplicationResult =
-      PatchApplicationResult<VedDirectory, UfsDirectoryMutation>
+      PatchApplicationResult<VedExpandedDirectory, UfsDirectoryMutation>
 
   override fun apply(entity: VedEntity): DirectoryPatchApplicationResult =
       when (entity) {
