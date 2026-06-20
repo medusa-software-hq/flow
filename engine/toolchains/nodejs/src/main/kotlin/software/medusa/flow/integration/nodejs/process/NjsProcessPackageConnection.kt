@@ -35,6 +35,7 @@ internal class NjsProcessPackageConnection(
     return NjsProcessCommand(
         processSpawner = processSpawner,
         executable = SysExecutableHandle.resolve(executablePath = executablePath),
+        workingDirectory = packageManagerConnection.packagePath,
     )
   }
 }

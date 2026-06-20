@@ -4,10 +4,10 @@ import java.nio.file.Path
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
 
-internal class NjsNpmConnector(
+class NjsNpmConnector(
     private val npmExecutableHandle: SysExecutableHandle,
-) : NjsPackageManagerConnector {
-  inner class Connection(
+) : NjsPackageManagerConnector() {
+  internal inner class Connection(
       override val packagePath: Path,
   ) : NjsPackageManagerConnection {
     override suspend fun installDependencies(
