@@ -4,6 +4,7 @@ import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.git.worktree.GitWorktreeFilter
 import software.medusa.commons.markdown.MdBlock
 import software.medusa.commons.markdown.MdChapter
+import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.markdown.MdInlineContent
 import software.medusa.commons.markdown.MdInlineNode
 import software.medusa.commons.unix.path.UfsAbsolutePath
@@ -19,7 +20,7 @@ data object VedWorktree_renderingUtils {
                           MdInlineNode.Text("Worktree"),
                       ),
               ),
-          blocks = emptyList(),
+          element = MdElement.Empty,
           subChapters =
               listOf(
                   renderDirectoryTreeChapter(),
@@ -36,25 +37,27 @@ data object VedWorktree_renderingUtils {
                           MdInlineNode.Text("Directory tree"),
                       ),
               ),
-          blocks =
-              listOf(
-                  MdBlock.ListBlock(
-                      topLevel =
-                          MdBlock.ListBlock.Level(
-                              items =
-                                  listOf(
-                                      MiniItemRenderer.DirectoryRenderer(
-                                              directory = rootDirectory,
-                                          )
-                                          .render(
-                                              entityName = "", // `/` is appended automatically
-                                              entityStatus =
-                                                  GitWorktreeEntity.Status.Considered(
-                                                      GitWorktreeFilter.Classification.Include,
-                                                  ),
-                                          ),
-                                  ),
-                          ),
+          element =
+              MdElement(
+                  listOf(
+                      MdBlock.ListBlock(
+                          topLevel =
+                              MdBlock.ListBlock.Level(
+                                  items =
+                                      listOf(
+                                          MiniItemRenderer.DirectoryRenderer(
+                                                  directory = rootDirectory,
+                                              )
+                                              .render(
+                                                  entityName = "", // `/` is appended automatically
+                                                  entityStatus =
+                                                      GitWorktreeEntity.Status.Considered(
+                                                          GitWorktreeFilter.Classification.Include,
+                                                      ),
+                                              ),
+                                      ),
+                              ),
+                      ),
                   ),
               ),
           subChapters = emptyList(),
@@ -111,9 +114,11 @@ data object VedWorktree_renderingUtils {
                           MdInlineNode.Code(code = filePath.toUnixAbsolutePathString()),
                       ),
               ),
-          blocks =
-              listOf(
-                  MdBlock.CodeBlock(code = content.dump()),
+          element =
+              MdElement(
+                  listOf(
+                      MdBlock.CodeBlock(code = content.dump()),
+                  ),
               ),
       )
 

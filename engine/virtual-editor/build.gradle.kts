@@ -8,4 +8,5 @@ dependencies {
   api(libs.medusa.commons.markdown)
 
   testImplementation(libs.kotlin.test)
+  testImplementation(libs.kotlinx.coroutines.core)
 }

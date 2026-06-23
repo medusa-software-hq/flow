@@ -12,7 +12,7 @@ tasks:
     generates:
       - ./build/install/cli/bin/cli
     cmds:
-      - ../gradlew :engine:cli:installDist
+      - ../gradlew :cli:installDist
 
   bootstrap:
     desc: Bootstrap user-specific cli script
