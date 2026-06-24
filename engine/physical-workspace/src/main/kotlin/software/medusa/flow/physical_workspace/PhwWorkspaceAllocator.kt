@@ -20,3 +20,15 @@ interface PhwWorkspaceAllocator {
 
   suspend fun allocateWorkspace(): PhwWorkspace
 }
+
+suspend fun PhwWorkspaceAllocator.allocateWorkspace(
+    templateDirectory: UfsReadonlyDirectory,
+): PhwWorkspace {
+  val allocatedWorkspace = allocateWorkspace()
+
+  templateDirectory.copyRecursivelyTo(
+      targetDirectory = allocatedWorkspace.rootDirectory,
+  )
+
+  return allocatedWorkspace
+}

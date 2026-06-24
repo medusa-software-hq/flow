@@ -5,7 +5,14 @@ plugins {
 
 val integrationTestSourceSetName = "integrationTest"
 
+repositories {
+  // The Gradle Tooling API is published to Gradle's own repository, not Maven Central.
+  maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
+}
+
 dependencies {
+  api(project(":engine:physical-workspace"))
+  api(project(":engine:universal-project"))
   api(project(":engine:virtual-editor"))
 
   api(libs.kotlinx.coroutines.core)
@@ -48,3 +55,5 @@ tasks.register<Test>(integrationTestSourceSetName) {
 kotlin {
   compilerOptions { freeCompilerArgs.set(listOf("-Xannotation-default-target=param-property")) }
 }
+
+configurations.configureEach { resolutionStrategy { force("org.slf4j:slf4j-api:2.0.17") } }
