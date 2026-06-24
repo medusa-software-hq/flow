@@ -3,21 +3,66 @@ package software.medusa.flow.harness
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.unix.filesystem.copyRecursivelyTo
 import software.medusa.commons.unix.filesystem.mutation.applyMutation
+import software.medusa.flow.harness.HrsTaskCompleter.JointOperationPhase
+import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
+import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
+import software.medusa.flow.physical_workspace.allocateWorkspace
+import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
+import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 
 class HrsProperTaskCompleter(
-    private val temporaryWorkspaceAllocator: HrsProperTemporaryWorkspaceAllocator,
+    private val physicalWorkspaceAllocator: PhwWorkspaceAllocator,
     private val solutionCoder: HrsSolutionCoder,
+    private val projectManifestLoader: UnpProjectManifestLoader,
 ) : HrsTaskCompleter {
+
   override suspend fun completeTask(
       sourceGitWorktree: GitWorktree,
       taskDescription: HrsTaskDescription,
-  ): HrsReadonlyTemporaryWorkspace {
+  ): TaskCompletionResult {
     val sourceRootDirectory = sourceGitWorktree.rootDirectory.asFilesystemEntity
-    val temporaryWorkspace = temporaryWorkspaceAllocator.allocateTemporaryWorkspace()
+
+    val projectManifest = projectManifestLoader.load(projectDirectory = sourceRootDirectory)
+
+    val physicalWorkspace =
+        physicalWorkspaceAllocator.allocateWorkspace(
+            templateDirectory = sourceRootDirectory,
+        )
+
+    val physicalRootDirectory = physicalWorkspace.rootDirectory
+
+    val projectConnection = projectManifest.connect(physicalWorkspace = physicalWorkspace)
+
+    val bootstrapResult = projectConnection.bootstrapAll()
+
+    if (bootstrapResult is JointResult.Failure) {
+      return TaskCompletionResult.Failure.JointOperation(
+          phase = JointOperationPhase.ProjectBootstrapping,
+          operationFailure = bootstrapResult,
+      )
+    }
+
+    val initialAnalyzeResult = projectConnection.analyzeAll()
+
+    if (initialAnalyzeResult is JointResult.Failure) {
+      return TaskCompletionResult.Failure.JointOperation(
+          phase = JointOperationPhase.InitialProjectAnalysis,
+          operationFailure = initialAnalyzeResult,
+      )
+    }
+
+    val initialTestResult = projectConnection.testAll()
+
+    if (initialTestResult is JointResult.Failure) {
+      return TaskCompletionResult.Failure.JointOperation(
+          phase = JointOperationPhase.InitialProjectTesting,
+          operationFailure = initialTestResult,
+      )
+    }
 
     sourceRootDirectory.copyRecursivelyTo(
-        targetDirectory = temporaryWorkspace.rootDirectory,
+        targetDirectory = physicalRootDirectory,
     )
 
     val baseEditorWorktree =
@@ -37,10 +82,33 @@ class HrsProperTaskCompleter(
     // Gradle tasks there.
     val solutionApplicationResult = solutionPatch.apply(worktree = baseEditorWorktree)
 
-    temporaryWorkspace.rootDirectory.applyMutation(
+    physicalRootDirectory.applyMutation(
         mutation = solutionApplicationResult.rootDirectoryMutation,
     )
 
-    return temporaryWorkspace
+    val finalAnalyzeResult = projectConnection.analyzeAll()
+
+    if (finalAnalyzeResult is JointResult.Failure) {
+      return TaskCompletionResult.Failure.JointOperation(
+          phase = JointOperationPhase.FinalProjectAnalysis,
+          operationFailure = finalAnalyzeResult,
+      )
+    }
+
+    val finalTestResult = projectConnection.testAll()
+
+    if (finalTestResult is JointResult.Failure) {
+      return TaskCompletionResult.Failure.JointOperation(
+          phase = JointOperationPhase.FinalProjectTesting,
+          operationFailure = finalTestResult,
+      )
+    }
+
+    return TaskCompletionResult.Success(
+        temporaryWorkspace =
+            HrsPhysicalTemporaryWorkspace(
+                physicalWorkspace = physicalWorkspace,
+            ),
+    )
   }
 }

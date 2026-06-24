@@ -5,8 +5,14 @@ plugins {
   alias(libs.plugins.shadow)
 }
 
+repositories {
+  // The Gradle Tooling API is published to Gradle's own repository, not Maven Central.
+  maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
+}
+
 dependencies {
   implementation(project(":engine:harness"))
+  implementation(project(":engine:universal-project"))
   implementation(project(":engine:virtual-editor"))
 
   implementation(libs.kotlinx.coroutines.core)
@@ -32,3 +38,5 @@ tasks.shadowJar {
   archiveClassifier = ""
   archiveVersion = ""
 }
+
+configurations.configureEach { resolutionStrategy { force("org.slf4j:slf4j-api:2.0.17") } }
