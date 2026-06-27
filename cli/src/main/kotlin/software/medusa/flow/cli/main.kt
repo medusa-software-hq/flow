@@ -65,43 +65,43 @@ suspend fun main(
             connectorHub = connectorHub,
         )
 
-    val openAiClient =
-        OaiProperClient.withTarget(
-                targetBaseUrl = OaiConfiguredClient.openRouterBaseUrl,
-                targetApiKey = openRouterApiKey,
-            )
-            .withModel(
-                model = OaiModel.GptMini,
-            )
-
-    val aiSystem = HrsProperFrontlineAiSystem(openaiClient = openAiClient)
-
-    val projectManifestLoader =
-        UnpYamlProjectManifestLoader(
-            gradleModuleManifestLoader = UnpGradleModuleManifestLoader,
-            nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
+    OaiProperClient.withTarget(
+            targetBaseUrl = OaiConfiguredClient.openRouterBaseUrl,
+            targetApiKey = openRouterApiKey,
         )
-
-    val taskCompleter =
-        HrsProperTaskCompleter(
-            physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-            aiSystem = aiSystem,
-            projectManifestLoader = projectManifestLoader,
+        .withModel(
+            model = OaiModel.DeepSeekFlash,
         )
+        .use { openAiClient ->
+          val aiSystem = HrsProperFrontlineAiSystem(openaiClient = openAiClient)
 
-    val terminal = Terminal()
+          val projectManifestLoader =
+              UnpYamlProjectManifestLoader(
+                  gradleModuleManifestLoader = UnpGradleModuleManifestLoader,
+                  nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
+              )
 
-    RootCommand()
-        .subcommands(
-            ScoutFullyCommand(
-                terminal = terminal,
-                aiSystem = aiSystem,
-            ),
-            CompleteTaskCommand(
-                terminal = terminal,
-                taskCompleter = taskCompleter,
-            ),
-        )
-        .main(args)
+          val taskCompleter =
+              HrsProperTaskCompleter(
+                  physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+                  aiSystem = aiSystem,
+                  projectManifestLoader = projectManifestLoader,
+              )
+
+          val terminal = Terminal()
+
+          RootCommand()
+              .subcommands(
+                  ScoutFullyCommand(
+                      terminal = terminal,
+                      aiSystem = aiSystem,
+                  ),
+                  CompleteTaskCommand(
+                      terminal = terminal,
+                      taskCompleter = taskCompleter,
+                  ),
+              )
+              .main(args)
+        }
   }
 }
