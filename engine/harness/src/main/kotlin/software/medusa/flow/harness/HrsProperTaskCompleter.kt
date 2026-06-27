@@ -3,6 +3,7 @@ package software.medusa.flow.harness
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.unix.filesystem.mutation.applyMutation
 import software.medusa.flow.harness.HrsTaskCompleter.JointOperationPhase
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.scoutFully
@@ -20,6 +21,7 @@ class HrsProperTaskCompleter(
   override suspend fun completeTask(
       sourceGitWorktree: GitWorktree,
       taskDescription: HrsTaskDescription,
+      observer: Observer,
   ): TaskCompletionResult {
     val sourceRootDirectory = sourceGitWorktree.rootDirectory.asFilesystemEntity
 
@@ -46,6 +48,7 @@ class HrsProperTaskCompleter(
             .scoutFully(
                 sourceGitWorktree = sourceGitWorktree,
                 taskDescription = taskDescription,
+                scoutingObserver = observer.observeScouting(),
             )
             .fullyScoutedWorktree
 
@@ -56,6 +59,10 @@ class HrsProperTaskCompleter(
                 editorWorktree = fullyScoutedWorktree,
             )
             .solutionPatch
+
+    observer.observeImplementedSolution(
+        solutionPatch = solutionPatch,
+    )
 
     // Applying the patch yields a filesystem mutation that references only the files the model
     // actually changed. Writing that back touches just those files instead of re-writing every

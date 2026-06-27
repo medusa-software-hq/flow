@@ -32,6 +32,7 @@ class CompleteTaskCommand(
           taskCompleter.completeTask(
               sourceGitWorktree = gitWorktree,
               taskDescription = taskDescription,
+              observer = CliTaskObserver(terminal = terminal),
           )
 
       when (taskCompletionResult) {

@@ -2,6 +2,7 @@ package software.medusa.flow.harness.ai_system
 
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.markdown.MdElement
+import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -57,6 +58,7 @@ interface HrsFrontlineAiSystem {
     suspend fun HrsFrontlineAiSystem.scoutFully(
         sourceGitWorktree: GitWorktree,
         taskDescription: HrsTaskDescription,
+        scoutingObserver: HrsTaskCompleter.ScoutingObserver,
     ): FullScoutingResult {
       val stubEditorWorktree =
           VedWorktree.import(
@@ -71,6 +73,7 @@ interface HrsFrontlineAiSystem {
           baseEditorWorktree = stubEditorWorktree,
           baseScoutingLog = ScoutingLog.empty,
           startTimestamp = initialTimestamp,
+          scoutingObserver = scoutingObserver,
       )
     }
 
@@ -80,8 +83,9 @@ interface HrsFrontlineAiSystem {
         baseEditorWorktree: VedWorktree,
         baseScoutingLog: ScoutingLog,
         startTimestamp: VedTimestamp,
+        scoutingObserver: HrsTaskCompleter.ScoutingObserver,
     ): FullScoutingResult {
-      val continuedScoutingResult =
+      val scoutingResult =
           performScouting(
               taskDescription = taskDescription,
               editorWorktree = baseEditorWorktree,
@@ -89,7 +93,12 @@ interface HrsFrontlineAiSystem {
               timestamp = startTimestamp,
           )
 
-      return when (continuedScoutingResult) {
+      scoutingObserver.observeRound(
+          baseEditorWorktree = baseEditorWorktree,
+          scoutingResult = scoutingResult,
+      )
+
+      return when (scoutingResult) {
         ScoutingResult.Completed ->
             FullScoutingResult(
                 fullyScoutedWorktree = baseEditorWorktree,
@@ -97,7 +106,7 @@ interface HrsFrontlineAiSystem {
             )
 
         is ScoutingResult.Continued -> {
-          val nextCommentedAdjustmentRequest = continuedScoutingResult.scoutRequest
+          val nextCommentedAdjustmentRequest = scoutingResult.scoutRequest
 
           val adjustedWorktree =
               nextCommentedAdjustmentRequest.requestedAdjustment
@@ -121,6 +130,7 @@ interface HrsFrontlineAiSystem {
                           ),
                   ),
               startTimestamp = startTimestamp.next,
+              scoutingObserver = scoutingObserver,
           )
         }
       }

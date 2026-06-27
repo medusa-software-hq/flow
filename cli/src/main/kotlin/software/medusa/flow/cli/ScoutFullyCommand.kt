@@ -28,6 +28,7 @@ class ScoutFullyCommand(
           aiSystem.scoutFully(
               sourceGitWorktree = gitWorktree,
               taskDescription = taskDescription,
+              scoutingObserver = CliScoutingObserver(terminal = terminal),
           )
 
       terminal.println(
