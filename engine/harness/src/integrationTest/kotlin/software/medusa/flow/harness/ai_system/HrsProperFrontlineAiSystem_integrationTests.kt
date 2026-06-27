@@ -1,7 +1,8 @@
-package software.medusa.flow.harness
+package software.medusa.flow.harness.ai_system
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
 import org.luaj.vm2.Globals
@@ -15,8 +16,6 @@ import org.luaj.vm2.lib.TableLib
 import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.markdown.MdBlock
 import software.medusa.commons.markdown.MdElement
-import software.medusa.commons.markdown.MdInlineContent
-import software.medusa.commons.markdown.MdInlineNode
 import software.medusa.commons.openai_client.OaiApiKey
 import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.openai_client.OaiModel
@@ -24,19 +23,31 @@ import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.text.TxtBlock
 import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingLog
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingResult
+import software.medusa.flow.virtual_editor.VedTimestamp
+import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
+import software.medusa.flow.virtual_editor.worktree_adjustment.VedFileAdjustment
 
 /**
- * End-to-end check of [HrsProperSolutionCoder] against a real model: it is given a worktree with a
- * deliberately broken Fibonacci program (the recursion adds `fib(n + 1)` instead of `fib(n - 2)`),
- * asked to fix it, and the patched program is then executed in an embedded Lua interpreter. The fix
- * is considered functional only if the program actually computes `fib(7) == 13`.
+ * End-to-end checks of [HrsProperFrontlineAiSystem] against a real model, exercising its two phases
+ * independently:
+ *
+ * - [HrsProperFrontlineAiSystem.performScouting]: given a worktree whose only file is still closed
+ *   and a task that clearly concerns it, the Scout (interpreted into a structured adjustment) must
+ *   ask for that file to be opened.
+ * - [HrsProperFrontlineAiSystem.implementSolution]: given a worktree with a deliberately broken
+ *   Fibonacci program (the recursion adds `fib(n + 1)` instead of `fib(n - 2)`), the Coder
+ *   (interpreted into a real patch) must fix it; the patched program is then executed in an
+ *   embedded Lua interpreter and is considered functional only if it computes `fib(7) == 13`.
  *
  * Gated on `OPENAI_API_KEY`; skipped when it is not set.
  */
-class HrsProperSolutionCoder_integrationTests {
+class HrsProperFrontlineAiSystem_integrationTests {
   companion object {
     private const val apiKeyEnvVarName = "OPENAI_API_KEY"
 
@@ -51,6 +62,10 @@ class HrsProperSolutionCoder_integrationTests {
           )
           .withModel(model = OaiModel.GptMini)
     }
+
+    private fun buildAiSystem(
+        client: OaiConfiguredClient,
+    ): HrsProperFrontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = client)
 
     private fun buildLuaGlobals(): Globals =
         Globals().apply {
@@ -82,15 +97,7 @@ class HrsProperSolutionCoder_integrationTests {
 
     private fun paragraph(
         text: String,
-    ): MdElement =
-        MdElement(
-            blocks =
-                listOf(
-                    MdBlock.Paragraph(
-                        content = MdInlineContent(listOf(MdInlineNode.Text(text))),
-                    ),
-                ),
-        )
+    ): MdElement = MdElement(blocks = listOf(MdBlock.Paragraph.of(text = text)))
 
     private fun openedWorktreeOf(
         luaSource: String,
@@ -112,28 +119,75 @@ class HrsProperSolutionCoder_integrationTests {
                         ),
                 ),
         )
+
+    private fun closedWorktreeOf(): VedWorktree =
+        VedWorktree(
+            rootDirectory =
+                VedExpandedDirectory(
+                    labeledEntityByName =
+                        mapOf(
+                            fibFileName to
+                                VedExpandedDirectory.LabeledEntity(
+                                    status = GitWorktreeEntity.Status.included,
+                                    entity = VedClosedFile,
+                                ),
+                        ),
+                ),
+        )
   }
 
   @Test
-  fun test_codeSolution_fixesLuaProgram() = runBlocking {
-    val coder = HrsProperSolutionCoder(openaiClient = buildClient())
+  fun test_performScouting_requestsOpeningTheRelevantFile() = runBlocking {
+    val aiSystem = buildAiSystem(buildClient())
 
-    val baseWorktree = openedWorktreeOf(buggyFibLua)
-
-    val solutionPatch =
-        coder.codeSolution(
-            editorWorktree = baseWorktree,
+    val scoutingResult =
+        aiSystem.performScouting(
             taskDescription =
                 HrsTaskDescription(
                     body =
                         paragraph(
-                            "The `fib.lua` program is supposed to compute the 7th Fibonacci number, " +
-                                "but it is broken. Fix it so that it returns the correct value.",
+                            "The `fib.lua` program is supposed to compute the 7th Fibonacci " +
+                                "number, but it is broken. Fix it so that it returns the correct " +
+                                "value.",
                         ),
                 ),
+            editorWorktree = closedWorktreeOf(),
+            scoutingLog = ScoutingLog.empty,
+            timestamp = VedTimestamp.zero,
         )
 
-    val finalWorktree = solutionPatch.apply(worktree = baseWorktree).patchedWorktree
+    val continued = assertIs<ScoutingResult.Continued>(scoutingResult)
+
+    val rootDirectoryAdjustment = continued.scoutRequest.requestedAdjustment.rootDirectoryAdjustment
+
+    assertEquals(
+        expected = VedFileAdjustment.Open,
+        actual = rootDirectoryAdjustment.childAdjustmentByName[fibFileName],
+    )
+  }
+
+  @Test
+  fun test_implementSolution_fixesLuaProgram() = runBlocking {
+    val aiSystem = buildAiSystem(buildClient())
+
+    val baseWorktree = openedWorktreeOf(buggyFibLua)
+
+    val solutionImplementationResult =
+        aiSystem.implementSolution(
+            taskDescription =
+                HrsTaskDescription(
+                    body =
+                        paragraph(
+                            "The `fib.lua` program is supposed to compute the 7th Fibonacci " +
+                                "number, but it is broken. Fix it so that it returns the correct " +
+                                "value.",
+                        ),
+                ),
+            editorWorktree = baseWorktree,
+        )
+
+    val finalWorktree =
+        solutionImplementationResult.solutionPatch.apply(worktree = baseWorktree).patchedWorktree
 
     val fixedFile =
         finalWorktree.rootDirectory.labeledEntityByName.getValue(fibFileName).entity

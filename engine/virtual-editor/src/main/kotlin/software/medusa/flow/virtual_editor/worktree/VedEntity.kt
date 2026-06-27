@@ -17,7 +17,7 @@ sealed class VedEntity {
     ): VedEntity =
         when (sourceEntity) {
           is GitWorktreeDirectory -> VedDirectory.import(sourceDirectory = sourceEntity)
-          is GitWorktreeFile -> VedFile.import(sourceFile = sourceEntity)
+          is GitWorktreeFile -> VedClosedFile
         }
   }
 }

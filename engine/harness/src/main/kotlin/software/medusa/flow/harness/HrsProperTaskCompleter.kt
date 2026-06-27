@@ -1,22 +1,22 @@
 package software.medusa.flow.harness
 
 import software.medusa.commons.git.worktree.GitWorktree
-import software.medusa.commons.unix.filesystem.copyRecursivelyTo
 import software.medusa.commons.unix.filesystem.mutation.applyMutation
 import software.medusa.flow.harness.HrsTaskCompleter.JointOperationPhase
 import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.scoutFully
 import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.allocateWorkspace
+import software.medusa.flow.universal_project.UnpProjectConnection
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.universal_project.UnpProjectManifestLoader
-import software.medusa.flow.virtual_editor.worktree.VedWorktree
 
 class HrsProperTaskCompleter(
     private val physicalWorkspaceAllocator: PhwWorkspaceAllocator,
-    private val solutionCoder: HrsSolutionCoder,
+    private val aiSystem: HrsFrontlineAiSystem,
     private val projectManifestLoader: UnpProjectManifestLoader,
 ) : HrsTaskCompleter {
-
   override suspend fun completeTask(
       sourceGitWorktree: GitWorktree,
       taskDescription: HrsTaskDescription,
@@ -34,6 +34,57 @@ class HrsProperTaskCompleter(
 
     val projectConnection = projectManifest.connect(physicalWorkspace = physicalWorkspace)
 
+    checkHealthInitially(
+            projectConnection = projectConnection,
+        )
+        ?.let { initialHealthCheckFailure ->
+          return initialHealthCheckFailure
+        }
+
+    val fullyScoutedWorktree =
+        aiSystem
+            .scoutFully(
+                sourceGitWorktree = sourceGitWorktree,
+                taskDescription = taskDescription,
+            )
+            .fullyScoutedWorktree
+
+    val solutionPatch =
+        aiSystem
+            .implementSolution(
+                taskDescription = taskDescription,
+                editorWorktree = fullyScoutedWorktree,
+            )
+            .solutionPatch
+
+    // Applying the patch yields a filesystem mutation that references only the files the model
+    // actually changed. Writing that back touches just those files instead of re-writing every
+    // opened file. The full source tree is already materialized above; the next step will run
+    // Gradle tasks there.
+    val solutionApplicationResult = solutionPatch.apply(worktree = fullyScoutedWorktree)
+
+    physicalRootDirectory.applyMutation(
+        mutation = solutionApplicationResult.rootDirectoryMutation,
+    )
+
+    checkHealthFinally(
+            projectConnection = projectConnection,
+        )
+        ?.let { finalHealthCheckFailure ->
+          return finalHealthCheckFailure
+        }
+
+    return TaskCompletionResult.Success(
+        temporaryWorkspace =
+            HrsPhysicalTemporaryWorkspace(
+                physicalWorkspace = physicalWorkspace,
+            ),
+    )
+  }
+
+  private suspend fun checkHealthInitially(
+      projectConnection: UnpProjectConnection,
+  ): TaskCompletionResult.Failure.JointOperation? {
     val bootstrapResult = projectConnection.bootstrapAll()
 
     if (bootstrapResult is JointResult.Failure) {
@@ -61,31 +112,12 @@ class HrsProperTaskCompleter(
       )
     }
 
-    sourceRootDirectory.copyRecursivelyTo(
-        targetDirectory = physicalRootDirectory,
-    )
+    return null
+  }
 
-    val baseEditorWorktree =
-        VedWorktree.import(
-            sourceWorktree = sourceGitWorktree,
-        )
-
-    val solutionPatch =
-        solutionCoder.codeSolution(
-            editorWorktree = baseEditorWorktree,
-            taskDescription = taskDescription,
-        )
-
-    // Applying the patch yields a filesystem mutation that references only the files the model
-    // actually changed. Writing that back touches just those files instead of re-writing every
-    // opened file. The full source tree is already materialized above; the next step will run
-    // Gradle tasks there.
-    val solutionApplicationResult = solutionPatch.apply(worktree = baseEditorWorktree)
-
-    physicalRootDirectory.applyMutation(
-        mutation = solutionApplicationResult.rootDirectoryMutation,
-    )
-
+  private suspend fun checkHealthFinally(
+      projectConnection: UnpProjectConnection,
+  ): TaskCompletionResult.Failure.JointOperation? {
     val finalAnalyzeResult = projectConnection.analyzeAll()
 
     if (finalAnalyzeResult is JointResult.Failure) {
@@ -104,11 +136,6 @@ class HrsProperTaskCompleter(
       )
     }
 
-    return TaskCompletionResult.Success(
-        temporaryWorkspace =
-            HrsPhysicalTemporaryWorkspace(
-                physicalWorkspace = physicalWorkspace,
-            ),
-    )
+    return null
   }
 }
