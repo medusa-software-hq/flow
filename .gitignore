@@ -10,5 +10,11 @@
 # Gradle build output
 build/
 
+# Eclipse / VS Code (redhat.java) per-source-set output directories.
+# Scoped to source-set names so the tracked `cli/bin` launcher is left alone.
+**/bin/main/
+**/bin/test/
+**/bin/integrationTest/
+
 # Claud Code root
 .claude/
