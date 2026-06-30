@@ -3,7 +3,6 @@ package software.medusa.flow.virtual_editor.worktree_adjustment
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.bytestring.encodeToByteString
 import software.medusa.commons.git.worktree.GitWorktree
@@ -82,36 +81,5 @@ class VedWorktreeAdjustment_tests {
     // Expanding reveals the directory's children one level deep, still closed/collapsed.
     assertIs<VedClosedFile>(expandedSrc.labeledEntityByName.getValue(mainName).entity)
     assertEquals(setOf(mainName), expandedSrc.labeledEntityByName.keys)
-  }
-
-  @Test
-  fun `expanding an already-expanded directory fails`() = runBlocking {
-    val editorWorktree =
-        VedWorktree(
-            rootDirectory =
-                VedExpandedDirectory(
-                    labeledEntityByName =
-                        mapOf(
-                            srcName to
-                                included(VedExpandedDirectory(labeledEntityByName = emptyMap()))
-                        ),
-                ),
-        )
-
-    val adjustment =
-        VedWorktreeAdjustment(
-            rootDirectoryAdjustment =
-                VedDirectoryAdjustment.Dive(
-                    childAdjustmentByName = mapOf(srcName to VedDirectoryAdjustment.Expand),
-                ),
-        )
-
-    val failure =
-        runCatching {
-              adjustment.adjust(gitWorktree = gitWorktree(), editorWorktree = editorWorktree)
-            }
-            .exceptionOrNull()
-
-    assertTrue(failure is IllegalStateException, "Expected an IllegalStateException, got: $failure")
   }
 }

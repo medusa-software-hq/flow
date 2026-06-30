@@ -16,8 +16,8 @@ import software.medusa.commons.unix.path.UfsAbsolutePath.Companion.toLiteral
 import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
 import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
-import software.medusa.flow.harness.ai_system.MdInlineContent_utils.asInlineCode
-import software.medusa.flow.harness.ai_system.MdInlineContent_utils.asPlainText
+import software.medusa.flow.harness.ai_system.MdInlineContent_utils.extractInlineCode
+import software.medusa.flow.harness.ai_system.MdInlineContent_utils.extractText
 import software.medusa.flow.virtual_editor.worktree_patch.VedDirectoryPatch
 import software.medusa.flow.virtual_editor.worktree_patch.VedEntityPatch
 import software.medusa.flow.virtual_editor.worktree_patch.VedFilePatch
@@ -77,14 +77,14 @@ internal data object SolutionImplementationResult_utils {
   fun SolutionImplementationResult.Companion.load(
       document: MdDocument,
   ): SolutionImplementationResult {
-    val heading = document.rootChapter.title.asPlainText()
+    val heading = document.rootChapter.title.extractText()
 
     require(heading == patchHeading) { "Expected a `# $patchHeading` document, got `$heading`" }
 
     val fileEdits =
         document.rootChapter.subChapters.map { fileChapter ->
           FileEdit(
-              names = parseFilePath(fileChapter.title.asInlineCode()),
+              names = parseFilePath(fileChapter.title.extractInlineCode()),
               filePatch = VedFilePatch(txtPatch = fileChapter.subChapters.loadTxtPatch()),
           )
         }
@@ -99,7 +99,7 @@ internal data object SolutionImplementationResult_utils {
       TxtPatch(fragmentByOldLineIndexRange = associate { editChapter -> editChapter.loadEdit() })
 
   private fun MdChapter.loadEdit(): Pair<TxtLineIndexRange, TxtPatch.Fragment> {
-    val heading = title.asPlainText()
+    val heading = title.extractText()
 
     insertBeforeRegex.matchEntire(heading)?.let { match ->
       return TxtLineIndexRange.empty(

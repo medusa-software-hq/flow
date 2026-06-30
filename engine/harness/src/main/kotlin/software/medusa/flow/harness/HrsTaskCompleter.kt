@@ -1,18 +1,16 @@
 package software.medusa.flow.harness
 
 import software.medusa.commons.git.worktree.GitWorktree
+import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
-import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 interface HrsTaskCompleter {
   enum class JointOperationPhase {
     ProjectBootstrapping,
     InitialProjectAnalysis,
     InitialProjectTesting,
-    FinalProjectAnalysis,
-    FinalProjectTesting,
   }
 
   sealed class TaskCompletionResult {
@@ -31,15 +29,45 @@ interface HrsTaskCompleter {
   interface Observer {
     fun observeScouting(): ScoutingObserver
 
-    fun observeImplementedSolution(
-        solutionPatch: VedWorktreePatch,
-    )
+    fun observeSolutionImplementation(): SolutionImplementationObserver
   }
 
   interface ScoutingObserver {
     fun observeRound(
         baseEditorWorktree: VedWorktree,
-        scoutingResult: HrsFrontlineAiSystem.ScoutingResult,
+        scoutCommand: HrsFrontlineAiSystem.ScoutCommand,
+    )
+
+    fun observeRawResponse(
+        response: OaiConfiguredClient.UnstructuredCompletionResponse,
+    )
+  }
+
+  interface SolutionImplementationObserver {
+    data object Noop : SolutionImplementationObserver {
+      override fun observeImplementation(
+          solutionImplementationResult: HrsFrontlineAiSystem.SolutionImplementationResult,
+      ) {}
+
+      override fun observeHealthStatus(
+          healthStatus: HrsFrontlineAiSystem.ProjectHealthStatus,
+      ) {}
+
+      override fun observeRawResponse(
+          response: OaiConfiguredClient.UnstructuredCompletionResponse,
+      ) {}
+    }
+
+    fun observeImplementation(
+        solutionImplementationResult: HrsFrontlineAiSystem.SolutionImplementationResult,
+    )
+
+    fun observeHealthStatus(
+        healthStatus: HrsFrontlineAiSystem.ProjectHealthStatus,
+    )
+
+    fun observeRawResponse(
+        response: OaiConfiguredClient.UnstructuredCompletionResponse,
     )
   }
 

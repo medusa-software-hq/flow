@@ -3,17 +3,20 @@ package software.medusa.flow.cli
 import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.rendering.TextStyles
 import com.github.ajalt.mordant.terminal.Terminal
+import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.flow.harness.HrsTaskCompleter
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingResult
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedDirectoryAdjustment
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedEntityAdjustment
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedFileAdjustment
 import software.medusa.flow.virtual_editor.worktree_patch.VedDirectoryPatch
 import software.medusa.flow.virtual_editor.worktree_patch.VedFilePatch
-import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 private fun heading(text: String): String = (TextStyles.bold + TextColors.brightCyan)("── $text ──")
 
@@ -26,14 +29,32 @@ class CliTaskObserver(
   override fun observeScouting(): HrsTaskCompleter.ScoutingObserver =
       CliScoutingObserver(terminal = terminal)
 
-  override fun observeImplementedSolution(
-      solutionPatch: VedWorktreePatch,
+  override fun observeSolutionImplementation(): HrsTaskCompleter.SolutionImplementationObserver =
+      CliSolutionImplementationObserver(terminal = terminal)
+}
+
+/**
+ * A [HrsTaskCompleter.SolutionImplementationObserver] that prints each attempted patch as a
+ * diff-like summary.
+ */
+class CliSolutionImplementationObserver(
+    private val terminal: Terminal,
+) : HrsTaskCompleter.SolutionImplementationObserver {
+  private var attemptNumber = 0
+
+  override fun observeImplementation(
+      solutionImplementationResult: SolutionImplementationResult,
   ) {
+    attemptNumber++
+
     terminal.println()
-    terminal.println(heading("Implemented solution"))
+    terminal.println(heading("Solution · attempt $attemptNumber"))
     terminal.println()
 
-    val fileEdits = solutionPatch.rootDirectoryPatch.collectFileEdits(pathPrefix = "")
+    val fileEdits =
+        solutionImplementationResult.solutionPatch.rootDirectoryPatch.collectFileEdits(
+            pathPrefix = "",
+        )
 
     if (fileEdits.isEmpty()) {
       terminal.println(TextColors.gray(0.5)("(no changes)"))
@@ -49,6 +70,43 @@ class CliTaskObserver(
 
       terminal.println()
     }
+  }
+
+  override fun observeHealthStatus(
+      healthStatus: ProjectHealthStatus,
+  ) {
+    terminal.println()
+
+    when (healthStatus) {
+      ProjectHealthStatus.Healthy -> terminal.println(TextColors.green("✓ Health checks passed"))
+
+      is ProjectHealthStatus.Unhealthy -> {
+        val failureReport = healthStatus.failureReport
+
+        val stageName =
+            when (failureReport.stage) {
+              ProjectFailureReport.Stage.Analysis -> "Analysis"
+              ProjectFailureReport.Stage.Testing -> "Tests"
+            }
+
+        terminal.println(TextColors.red("✗ $stageName failed:"))
+
+        failureReport.failure.failureByModulePath.forEach { (modulePath, moduleFailure) ->
+          terminal.println()
+          terminal.println("Module ${TextColors.yellow(modulePath.toUnixAbsolutePathString())}:")
+          terminal.println()
+          terminal.printCode(moduleFailure.diagnosticOutput)
+        }
+      }
+    }
+  }
+
+  override fun observeRawResponse(
+      response: OaiConfiguredClient.UnstructuredCompletionResponse,
+  ) {
+    terminal.printUnstructuredCompletionResponse(
+        response = response,
+    )
   }
 
   private fun VedDirectoryPatch.collectFileEdits(
@@ -105,7 +163,7 @@ class CliScoutingObserver(
 
   override fun observeRound(
       baseEditorWorktree: VedWorktree,
-      scoutingResult: ScoutingResult,
+      scoutCommand: ScoutCommand,
   ) {
     roundNumber++
 
@@ -113,24 +171,30 @@ class CliScoutingObserver(
     terminal.println(heading("Scouting · round $roundNumber"))
     terminal.println()
 
-    when (scoutingResult) {
-      ScoutingResult.Completed ->
+    when (scoutCommand) {
+      ScoutCommand.Stop ->
           terminal.println(
               TextColors.green("✓ Scouting complete — all relevant files are open"),
           )
 
-      is ScoutingResult.Continued -> {
-        val scoutRequest = scoutingResult.scoutRequest
-
+      is ScoutCommand.Continue -> {
         terminal.println(
-            (TextStyles.italic + TextColors.gray(0.6))(scoutRequest.rationale.render().trim()),
+            (TextStyles.italic + TextColors.gray(0.6))(scoutCommand.rationale.render().trim()),
         )
         terminal.println()
         terminal.println(TextStyles.bold("Requested:"))
 
-        scoutRequest.requestedAdjustment.rootDirectoryAdjustment.printAsTree(name = "", level = 0)
+        scoutCommand.requestedAdjustment.rootDirectoryAdjustment.printAsTree(name = "", level = 0)
       }
     }
+  }
+
+  override fun observeRawResponse(
+      response: OaiConfiguredClient.UnstructuredCompletionResponse,
+  ) {
+    terminal.printUnstructuredCompletionResponse(
+        response = response,
+    )
   }
 
   private fun VedEntityAdjustment.printAsTree(
@@ -159,4 +223,12 @@ class CliScoutingObserver(
           )
     }
   }
+}
+
+private fun Terminal.printUnstructuredCompletionResponse(
+    response: OaiConfiguredClient.UnstructuredCompletionResponse,
+) {
+  println("> Raw response:")
+  println()
+  printCode(response.responseText)
 }

@@ -17,15 +17,10 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
     override suspend fun adjustDirectory(
         gitDirectory: GitWorktreeDirectory,
         editorDirectory: VedDirectory,
-    ): DirectoryAdjustmentApplicationResult {
-      if (editorDirectory is VedExpandedDirectory) {
-        error("Cannot expand an already expanded directory")
-      }
-
-      return expandDirectory(
-          gitDirectory = gitDirectory,
-      )
-    }
+    ): DirectoryAdjustmentApplicationResult =
+        expandDirectory(
+            gitDirectory = gitDirectory,
+        )
 
     private suspend fun expandDirectory(
         gitDirectory: GitWorktreeDirectory,
@@ -56,6 +51,10 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
   data class Dive(
       val childAdjustmentByName: Map<UfsName.Literal, VedEntityAdjustment>,
   ) : VedDirectoryAdjustment() {
+    init {
+      require(childAdjustmentByName.isNotEmpty())
+    }
+
     override suspend fun adjustDirectory(
         gitDirectory: GitWorktreeDirectory,
         editorDirectory: VedDirectory,

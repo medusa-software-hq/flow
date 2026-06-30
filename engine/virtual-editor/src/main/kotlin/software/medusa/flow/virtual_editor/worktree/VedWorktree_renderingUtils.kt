@@ -2,6 +2,7 @@ package software.medusa.flow.virtual_editor.worktree
 
 import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.git.worktree.GitWorktreeFilter
+import software.medusa.commons.markdown.ControlChar
 import software.medusa.commons.markdown.MdBlock
 import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdElement
@@ -11,35 +12,19 @@ import software.medusa.commons.unix.path.UfsAbsolutePath
 import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
 
 data object VedWorktree_renderingUtils {
-  fun VedWorktree.render(): MdChapter =
+  fun VedWorktree.renderDirectoryTree(): MdChapter =
       MdChapter(
           title =
               MdInlineContent(
                   inlineNodes =
                       listOf(
-                          MdInlineNode.Text("Worktree"),
-                      ),
-              ),
-          element = MdElement.Empty,
-          subChapters =
-              listOf(
-                  renderDirectoryTreeChapter(),
-                  renderFileContentChapter(),
-              ),
-      )
-
-  private fun VedWorktree.renderDirectoryTreeChapter(): MdChapter =
-      MdChapter(
-          title =
-              MdInlineContent(
-                  inlineNodes =
-                      listOf(
-                          MdInlineNode.Text("Directory tree"),
+                          MdInlineNode.Text("Worktree state"),
                       ),
               ),
           element =
               MdElement(
                   listOf(
+                      MdBlock.Paragraph.of("This is the most recent state of the worktree."),
                       MdBlock.ListBlock(
                           topLevel =
                               MdBlock.ListBlock.Level(
@@ -63,27 +48,43 @@ data object VedWorktree_renderingUtils {
           subChapters = emptyList(),
       )
 
-  private fun VedWorktree.renderFileContentChapter(): MdChapter =
-      MdChapter.wrapper(
-          title =
-              MdInlineContent(
-                  inlineNodes =
-                      listOf(
-                          MdInlineNode.Text("File content"),
-                      ),
-              ),
-          subChapters =
-              rootDirectory
-                  .visitOpenedFiles(
-                      directoryPath = UfsAbsolutePath.Root,
-                  )
-                  .map { visitedFile ->
-                    visitedFile.openedFile.renderFileContent(
-                        filePath = visitedFile.filePath,
-                    )
-                  }
-                  .toList(),
-      )
+  fun VedWorktree.renderFiles(): MdChapter {
+    val fileContentChapters =
+        rootDirectory
+            .visitOpenedFiles(
+                directoryPath = UfsAbsolutePath.Root,
+            )
+            .map { visitedFile ->
+              visitedFile.openedFile.renderFileContent(
+                  filePath = visitedFile.filePath,
+              )
+            }
+            .toList()
+
+    return MdChapter.wrapper(
+        title =
+            MdInlineContent(
+                inlineNodes =
+                    listOf(
+                        MdInlineNode.Text("Open files"),
+                    ),
+            ),
+        introElement =
+            MdElement(
+                blocks =
+                    listOf(
+                        MdBlock.Paragraph.of(
+                            when {
+                              fileContentChapters.isEmpty() -> "No files are open."
+                              else ->
+                                  "The content of these files is likely relevant to The Task. Line numbers followed by the a RS control character are not a part of the literal file content."
+                            },
+                        ),
+                    ),
+            ),
+        subChapters = fileContentChapters,
+    )
+  }
 
   private fun VedExpandedDirectory.renderMiniTree(): MdBlock.ListBlock.Level? =
       MdBlock.ListBlock.Level.of(
@@ -117,7 +118,12 @@ data object VedWorktree_renderingUtils {
           element =
               MdElement(
                   listOf(
-                      MdBlock.CodeBlock(code = content.dump()),
+                      MdBlock.CodeBlock(
+                          code =
+                              content.indexedLines.joinToString("") { indexedLine ->
+                                "${indexedLine.index.indexOneBased}${ControlChar.RS}${indexedLine.line.content}\n"
+                              },
+                      ),
                   ),
               ),
       )
@@ -133,7 +139,12 @@ data object VedWorktree_renderingUtils {
         get() =
             when (directory) {
               is VedCollapsedDirectory -> listOf("collapsed")
-              is VedExpandedDirectory -> listOf("expanded")
+
+              is VedExpandedDirectory ->
+                  when {
+                    directory.labeledEntityByName.isEmpty() -> listOf("expanded", "empty")
+                    else -> listOf("expanded")
+                  }
             }
 
       override fun renderNested(): MdBlock.ListBlock.Level? {

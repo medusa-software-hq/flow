@@ -5,6 +5,7 @@ import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdDocument
 import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.markdown.MdInlineContent
+import software.medusa.commons.markdown.MdInlineNode
 import software.medusa.commons.openai_client.OaiChat
 import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.openai_client.OaiMessage
@@ -14,19 +15,22 @@ import software.medusa.commons.text.TxtLineIndex
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutRequest
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingLog
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingResult
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationLog
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
-import software.medusa.flow.harness.ai_system.ScoutRequest_utils.dump
-import software.medusa.flow.harness.ai_system.ScoutingResult_utils.dump
-import software.medusa.flow.harness.ai_system.ScoutingResult_utils.load
+import software.medusa.flow.harness.ai_system.ScoutCommand_utils.dump
+import software.medusa.flow.harness.ai_system.ScoutCommand_utils.exploreKeyword
+import software.medusa.flow.harness.ai_system.ScoutCommand_utils.load
+import software.medusa.flow.harness.ai_system.ScoutCommand_utils.readyKeyword
 import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.dump
 import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.load
-import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
-import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.render
+import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.renderDirectoryTree
+import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.renderFiles
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedDirectoryAdjustment
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedFileAdjustment
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedWorktreeAdjustment
@@ -34,49 +38,64 @@ import software.medusa.flow.virtual_editor.worktree_patch.VedDirectoryPatch
 import software.medusa.flow.virtual_editor.worktree_patch.VedFilePatch
 import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
-/**
- * A single "frontline" agent that drives both scouting and solution implementation directly, with
- * no fictional helper roles. Each phase is one LLM turn: the model is taught an ad-hoc Markdown
- * format, replies in it, and we parse that reply deterministically (see [ScoutingResult_utils] and
- * [SolutionImplementationResult_utils]).
- */
 class HrsProperFrontlineAiSystem(
     private val openaiClient: OaiConfiguredClient,
 ) : HrsFrontlineAiSystem {
   companion object {
-    private val scoutingJobIntroductionText =
+    private val introText =
         """
-        You are scouting a worktree to make sure every file relevant to The Task is opened.
+        You are conversing with an automated system. Don't ask questions and follow the requested format literally.
 
-        The worktree above shows the project tree. Some directories are collapsed (their contents
-        are hidden) and some files are closed (their contents are hidden). You uncover them
-        gradually, one turn at a time.
+        Because of cache optimizations, some information in the chat history may seem to appear non-chronologically.
 
-        Reply with exactly one Markdown document in one of these two forms.
-
-        To request more to be uncovered, reply with a `# CONTINUE` document: a short rationale,
-        followed by a single nested bullet list that mirrors the worktree starting from the root
-        `/`. Each entry is an inline-code name; append a trailing `/` to directory names. Mark a
-        closed file you want opened with `OPEN`, and a collapsed directory you want expanded with
-        `EXPAND`. Include only the branches that lead to the entities you are acting on; directories
-        you merely pass through carry no marker and hold the nested list of their children.
-
-        When every relevant file is already open, reply with just `# STOP`.
-
-        The format looks like this:
+        You will now be provided with The Task.
         """
             .trimIndent()
 
-    private val scoutRequestExample =
-        ScoutRequest(
+    private val scoutResponseFormatIntroText =
+        """
+        # Scout Response Format (Markdown-based)
+
+        A Scout Response must start with an ATX heading: either `# $exploreKeyword` or `# $readyKeyword`.
+
+        Use `# $exploreKeyword` while the worktree is not yet fully explored for The Task. Follow the heading with a natural-language rationale, then — as the last Markdown block — a tree of path actions.
+
+        The tree is a nested bullet list. Each item is an absolute path written as inline code (starting with `/`; it may span several directories, e.g. `/dir/sub/file.txt`), optionally followed by a verb:
+
+        - OPEN — open this file.
+        - EXPAND — expand this collapsed directory.
+        - An item with a verb is a leaf and must NOT have a sublist; an item without a verb means "go deeper" and must have a sublist of two or more items.
+
+        Sample $exploreKeyword message:
+        """
+            .trimIndent()
+
+    private val scoutResponseFormatIntermediateText =
+        """
+        A $readyKeyword message should be used when the scouting is completed. It's not followed by any rationale.
+          
+        Proper $readyKeyword message:
+        """
+            .trimIndent()
+
+    private val scoutingIntroText =
+        """
+        Scout the worktree. Open the files that are likely to be relevant to The Task.
+
+        Expand collapsed directories that are likely to be relevant to The Task (note: all of them might be already expanded).
+
+        Respond in the Scout Response Format.
+        """
+            .trimIndent()
+
+    private val scoutContinueCommandExample =
+        ScoutCommand.Continue(
             rationale =
                 MdElement(
                     blocks =
                         listOf(
                             MdBlock.Paragraph.of(
-                                "The Task is about the build setup and the app entry point. I want " +
-                                    "to open the root build script and the main source file, and " +
-                                    "expand the resources directory to see what it holds.",
+                                "Here goes the natural language rationale. In the actual run, explain the reasoning behind the request.",
                             ),
                         ),
                 ),
@@ -86,14 +105,29 @@ class HrsProperFrontlineAiSystem(
                         VedDirectoryAdjustment.Dive(
                             childAdjustmentByName =
                                 mapOf(
-                                    UfsName.Literal("build.gradle.kts") to VedFileAdjustment.Open,
-                                    UfsName.Literal("src") to
+                                    UfsName.Literal("file1.txt") to VedFileAdjustment.Open,
+                                    UfsName.Literal("dir1") to
                                         VedDirectoryAdjustment.Dive(
                                             childAdjustmentByName =
                                                 mapOf(
-                                                    UfsName.Literal("Main.kt") to
-                                                        VedFileAdjustment.Open,
-                                                    UfsName.Literal("resources") to
+                                                    UfsName.Literal("dir2") to
+                                                        VedDirectoryAdjustment.Dive(
+                                                            childAdjustmentByName =
+                                                                mapOf(
+                                                                    UfsName.Literal("dir3") to
+                                                                        VedDirectoryAdjustment.Dive(
+                                                                            childAdjustmentByName =
+                                                                                mapOf(
+                                                                                    UfsName.Literal(
+                                                                                        "file2.cpp",
+                                                                                    ) to
+                                                                                        VedFileAdjustment
+                                                                                            .Open,
+                                                                                ),
+                                                                        ),
+                                                                ),
+                                                        ),
+                                                    UfsName.Literal("collapsedDir1") to
                                                         VedDirectoryAdjustment.Expand,
                                                 ),
                                         ),
@@ -102,27 +136,71 @@ class HrsProperFrontlineAiSystem(
                 ),
         )
 
-    private val solutionImplementationJobIntroductionText =
+    private val solutionResponseFormatIntroText =
         """
-        You are implementing the solution to The Task by editing the opened files shown above.
+        # Patch Response Format (Markdown-based)
 
-        Reply with exactly one `# PATCH` Markdown document. Under it, add one `## ` chapter per file
-        you change, titled with the file's absolute path as inline code (e.g. `` `/src/Main.kt` ``).
-        Under each file, add one `### ` chapter per edit:
+        A Patch Response should start with a `# PATCH` heading. Under it, add one `## ` heading per
+        file you change, titled with the file's absolute path as inline code (e.g. `/src/Main.kt`).
+        For each file, add one `### ` heading per edit:
 
-        - `INSERT BEFORE n` — insert new lines before original line `n`. To append at the end of a
-          file, use one past the last line (e.g. `INSERT BEFORE 21` for a 20-line file).
-        - `DELETE a-b` — delete the inclusive original-line range `a..b`.
-        - `UPDATE a-b` — replace the inclusive original-line range `a..b`.
+        - `INSERT BEFORE n` — insert new lines before original line `n`. To append at the end of
+          a file, use one past the last line (e.g. `INSERT BEFORE 21` for a 20-line file).
+        - `UPDATE a-b` — replace the original-line range a..b (inclusive on both sides).
+        - `DELETE a-b` — delete the original-line range a..b (inclusive on both sides).
 
-        For every edit except `DELETE`, follow the heading with a fenced code block holding the exact
-        new lines. All line numbers are 1-based and refer to the file's original content as shown.
-        Edits must neither overlap nor touch: leave at least one unchanged line between two edits, or
-        combine adjacent changes into a single edit. Only files that are currently open may be edited.
+        Follow every heading except `DELETE` with a fenced code block holding the exact new lines.
+        All line numbers are 1-based and refer to the file's original content as shown. Edits must
+        neither overlap nor touch: leave at least one unchanged line between two edits, or combine
+        adjacent changes into a single edit. Only currently open files may be edited.
 
-        The format looks like this:
+        Sample PATCH message:
         """
             .trimIndent()
+
+    private val solutionImplementationIntroText =
+        """
+        Implement the solution to The Task by editing the opened files shown above.
+
+        Respond in the Patch Response Format.
+        """
+            .trimIndent()
+
+    private val mainKtExamplePatch =
+        VedFilePatch(
+            txtPatch =
+                TxtPatch(
+                    fragmentByOldLineIndexRange =
+                        mapOf(
+                            TxtLineIndexRange.empty(
+                                startIndex =
+                                    TxtLineIndex.ofOneBased(
+                                        1,
+                                    ),
+                            ) to
+                                TxtPatch.Fragment(
+                                    newContent =
+                                        TxtBlock.of(
+                                            "import kotlin.math.max",
+                                        ),
+                                ),
+                            TxtLineIndexRange.of(
+                                startIndex =
+                                    TxtLineIndex.ofOneBased(
+                                        11,
+                                    ),
+                                length = 2,
+                            ) to
+                                TxtPatch.Fragment(
+                                    newContent =
+                                        TxtBlock.of(
+                                            "    val result = max(a, b)",
+                                            "    return result",
+                                        ),
+                                ),
+                        ),
+                ),
+        )
 
     private val solutionImplementationResultExample =
         SolutionImplementationResult(
@@ -137,42 +215,7 @@ class HrsProperFrontlineAiSystem(
                                             childPatchByName =
                                                 mapOf(
                                                     UfsName.Literal("Main.kt") to
-                                                        VedFilePatch(
-                                                            txtPatch =
-                                                                TxtPatch(
-                                                                    fragmentByOldLineIndexRange =
-                                                                        mapOf(
-                                                                            TxtLineIndexRange.empty(
-                                                                                startIndex =
-                                                                                    TxtLineIndex
-                                                                                        .ofOneBased(
-                                                                                            1,
-                                                                                        ),
-                                                                            ) to
-                                                                                TxtPatch.Fragment(
-                                                                                    newContent =
-                                                                                        TxtBlock.of(
-                                                                                            "import kotlin.math.max",
-                                                                                        ),
-                                                                                ),
-                                                                            TxtLineIndexRange.of(
-                                                                                startIndex =
-                                                                                    TxtLineIndex
-                                                                                        .ofOneBased(
-                                                                                            11,
-                                                                                        ),
-                                                                                length = 2,
-                                                                            ) to
-                                                                                TxtPatch.Fragment(
-                                                                                    newContent =
-                                                                                        TxtBlock.of(
-                                                                                            "    val result = max(a, b)",
-                                                                                            "    return result",
-                                                                                        ),
-                                                                                ),
-                                                                        ),
-                                                                ),
-                                                        ),
+                                                        mainKtExamplePatch,
                                                 ),
                                         ),
                                 ),
@@ -191,7 +234,18 @@ class HrsProperFrontlineAiSystem(
               editorWorktree = editorWorktree,
           )
 
-      val chat = OaiChat(messages = prefix + tailMessages)
+      val chat =
+          OaiChat(
+              messages =
+                  prefix +
+                      listOf(
+                          OaiMessage(
+                              role = OaiRole.System,
+                              text = editorWorktree.renderDirectoryTree().render(),
+                          ),
+                      ) +
+                      tailMessages,
+          )
 
       return OaiConfiguredClient.CompletionRequest(
           input = chat,
@@ -202,37 +256,29 @@ class HrsProperFrontlineAiSystem(
     private fun renderPrefix(
         taskDescription: HrsTaskDescription,
         editorWorktree: VedWorktree,
-    ): List<OaiMessage> {
-      val taskDescriptionDocument =
-          MdDocument(
-              rootChapter =
-                  MdChapter.leaf(
-                      title = MdInlineContent.of("The Task"),
-                      element = taskDescription.body,
-                  ),
-          )
-
-      val worktreeDumpDocument = MdDocument(rootChapter = editorWorktree.render())
-
-      return listOf(
-          OaiMessage(
-              role = OaiRole.System,
-              text = taskDescriptionDocument.render(),
-          ),
-          OaiMessage(
-              role = OaiRole.System,
-              text = worktreeDumpDocument.render(),
-          ),
-      )
-    }
+    ): List<OaiMessage> =
+        listOf(
+            OaiMessage(
+                role = OaiRole.System,
+                text = introText,
+            ),
+            OaiMessage(
+                role = OaiRole.User,
+                text = taskDescription.body.render(),
+            ),
+            OaiMessage(
+                role = OaiRole.System,
+                text = editorWorktree.renderFiles().render(),
+            ),
+        )
   }
 
   override suspend fun performScouting(
       taskDescription: HrsTaskDescription,
       editorWorktree: VedWorktree,
       scoutingLog: ScoutingLog,
-      timestamp: VedTimestamp,
-  ): ScoutingResult {
+      scoutingObserver: HrsTaskCompleter.ScoutingObserver,
+  ): ScoutCommand {
     val request =
         renderRequest(
             taskDescription = taskDescription,
@@ -240,25 +286,31 @@ class HrsProperFrontlineAiSystem(
             tailMessages =
                 listOf(
                     OaiMessage(
-                        role = OaiRole.User,
-                        text = scoutingJobIntroductionText,
+                        role = OaiRole.System,
+                        text = scoutResponseFormatIntroText,
+                    ),
+                    OaiMessage(
+                        role = OaiRole.System,
+                        text = scoutContinueCommandExample.dump().render(),
+                    ),
+                    OaiMessage(
+                        role = OaiRole.System,
+                        text = scoutResponseFormatIntermediateText,
+                    ),
+                    OaiMessage(
+                        role = OaiRole.System,
+                        text = ScoutCommand.Stop.dump().render(),
                     ),
                     OaiMessage(
                         role = OaiRole.User,
-                        text =
-                            ScoutingResult.Continued(scoutRequest = scoutRequestExample)
-                                .dump()
-                                .render(),
+                        text = scoutingIntroText,
                     ),
                 ) +
                     scoutingLog.logEntries.flatMap { logEntry ->
                       listOf(
                           OaiMessage(
                               role = OaiRole.Assistant,
-                              text =
-                                  ScoutingResult.Continued(scoutRequest = logEntry.scoutRequest)
-                                      .dump()
-                                      .render(),
+                              text = logEntry.continueCommand.dump().render(),
                           ),
                           OaiMessage(
                               role = OaiRole.System,
@@ -268,14 +320,23 @@ class HrsProperFrontlineAiSystem(
                     },
         )
 
-    val responseText = openaiClient.createUnstructuredCompletion(request = request).responseText
+    val response = openaiClient.createUnstructuredCompletion(request = request)
 
-    return ScoutingResult.load(document = MdDocument.parse(markdownSource = responseText))
+    scoutingObserver.observeRawResponse(response = response)
+
+    val loadedResult =
+        ScoutCommand.load(
+            document = MdDocument.parse(markdownSource = response.responseText),
+        )
+
+    return loadedResult
   }
 
   override suspend fun implementSolution(
       taskDescription: HrsTaskDescription,
       editorWorktree: VedWorktree,
+      solutionImplementationLog: SolutionImplementationLog,
+      solutionImplementationObserver: HrsTaskCompleter.SolutionImplementationObserver,
   ): SolutionImplementationResult {
     val request =
         renderRequest(
@@ -285,19 +346,93 @@ class HrsProperFrontlineAiSystem(
                 listOf(
                     OaiMessage(
                         role = OaiRole.System,
-                        text = solutionImplementationJobIntroductionText,
+                        text = solutionResponseFormatIntroText,
                     ),
                     OaiMessage(
                         role = OaiRole.System,
                         text = solutionImplementationResultExample.dump().render(),
                     ),
-                ),
+                    OaiMessage(
+                        role = OaiRole.User,
+                        text = solutionImplementationIntroText,
+                    ),
+                ) +
+                    solutionImplementationLog.logEntries.flatMap { logEntry ->
+                      listOf(
+                          OaiMessage(
+                              role = OaiRole.Assistant,
+                              text = logEntry.solutionImplementationResult.dump().render(),
+                          ),
+                          OaiMessage(
+                              role = OaiRole.System,
+                              text =
+                                  MdDocument(
+                                          rootChapter =
+                                              renderReport(
+                                                  projectFailureReport = logEntry.failureReport,
+                                              ),
+                                      )
+                                      .render(),
+                          ),
+                          OaiMessage(
+                              role = OaiRole.User,
+                              text =
+                                  "Try to fix the found issues. Respond in the Patch Response Format.",
+                          ),
+                      )
+                    },
         )
 
-    val responseText = openaiClient.createUnstructuredCompletion(request = request).responseText
+    val response = openaiClient.createUnstructuredCompletion(request = request)
+
+    solutionImplementationObserver.observeRawResponse(response = response)
 
     return SolutionImplementationResult.load(
-        document = MdDocument.parse(markdownSource = responseText)
+        document = MdDocument.parse(markdownSource = response.responseText)
+    )
+  }
+
+  private fun renderReport(
+      projectFailureReport: ProjectFailureReport,
+  ): MdChapter {
+    val projectFailure = projectFailureReport.failure
+
+    val stageText =
+        when (projectFailureReport.stage) {
+          ProjectFailureReport.Stage.Analysis -> "Analysis"
+          ProjectFailureReport.Stage.Testing -> "Testing"
+        }
+
+    return MdChapter(
+        title = MdInlineContent.of("Found issues"),
+        element =
+            MdElement(
+                blocks =
+                    listOf(
+                        MdBlock.Paragraph.of("Phase: $stageText"),
+                    ),
+            ),
+        subChapters =
+            projectFailure.failureByModulePath.map { (modulePath, moduleFailure) ->
+              MdChapter.leaf(
+                  title =
+                      MdInlineContent(
+                          inlineNodes =
+                              listOf(
+                                  MdInlineNode.Text("Module "),
+                                  MdInlineNode.Code(modulePath.toUnixAbsolutePathString()),
+                                  MdInlineNode.Text(":"),
+                              ),
+                      ),
+                  element =
+                      MdElement(
+                          blocks =
+                              listOf(
+                                  MdBlock.CodeBlock(code = moduleFailure.diagnosticOutput),
+                              ),
+                      ),
+              )
+            },
     )
   }
 }

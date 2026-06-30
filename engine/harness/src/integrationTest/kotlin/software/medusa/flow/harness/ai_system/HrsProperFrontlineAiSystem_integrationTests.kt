@@ -23,10 +23,12 @@ import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.text.TxtBlock
 import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.harness.HrsTaskCompleter
+import software.medusa.flow.harness.HrsTaskCompleter.SolutionImplementationObserver
 import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingLog
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingResult
-import software.medusa.flow.virtual_editor.VedTimestamp
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationLog
 import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
@@ -66,6 +68,18 @@ class HrsProperFrontlineAiSystem_integrationTests {
     private fun buildAiSystem(
         client: OaiConfiguredClient,
     ): HrsProperFrontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = client)
+
+    private val silentScoutingObserver =
+        object : HrsTaskCompleter.ScoutingObserver {
+          override fun observeRound(
+              baseEditorWorktree: VedWorktree,
+              scoutCommand: ScoutCommand,
+          ) = Unit
+
+          override fun observeRawResponse(
+              response: OaiConfiguredClient.UnstructuredCompletionResponse,
+          ) = Unit
+        }
 
     private fun buildLuaGlobals(): Globals =
         Globals().apply {
@@ -153,12 +167,12 @@ class HrsProperFrontlineAiSystem_integrationTests {
                 ),
             editorWorktree = closedWorktreeOf(),
             scoutingLog = ScoutingLog.empty,
-            timestamp = VedTimestamp.zero,
+            scoutingObserver = silentScoutingObserver,
         )
 
-    val continued = assertIs<ScoutingResult.Continued>(scoutingResult)
+    val continueCommand = assertIs<ScoutCommand.Continue>(scoutingResult)
 
-    val rootDirectoryAdjustment = continued.scoutRequest.requestedAdjustment.rootDirectoryAdjustment
+    val rootDirectoryAdjustment = continueCommand.requestedAdjustment.rootDirectoryAdjustment
 
     assertEquals(
         expected = VedFileAdjustment.Open,
@@ -184,6 +198,8 @@ class HrsProperFrontlineAiSystem_integrationTests {
                         ),
                 ),
             editorWorktree = baseWorktree,
+            solutionImplementationLog = SolutionImplementationLog.empty,
+            solutionImplementationObserver = SolutionImplementationObserver.Noop,
         )
 
     val finalWorktree =

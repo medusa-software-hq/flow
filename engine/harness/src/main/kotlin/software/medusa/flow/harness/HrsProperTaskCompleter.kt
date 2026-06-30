@@ -6,12 +6,15 @@ import software.medusa.flow.harness.HrsTaskCompleter.JointOperationPhase
 import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.implementSolutionFully
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.scoutFully
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.allocateWorkspace
 import software.medusa.flow.universal_project.UnpProjectConnection
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.universal_project.UnpProjectManifestLoader
+import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 class HrsProperTaskCompleter(
     private val physicalWorkspaceAllocator: PhwWorkspaceAllocator,
@@ -43,43 +46,35 @@ class HrsProperTaskCompleter(
           return initialHealthCheckFailure
         }
 
-    val fullyScoutedWorktree =
-        aiSystem
-            .scoutFully(
-                sourceGitWorktree = sourceGitWorktree,
-                taskDescription = taskDescription,
-                scoutingObserver = observer.observeScouting(),
-            )
-            .fullyScoutedWorktree
-
-    val solutionPatch =
-        aiSystem
-            .implementSolution(
-                taskDescription = taskDescription,
-                editorWorktree = fullyScoutedWorktree,
-            )
-            .solutionPatch
-
-    observer.observeImplementedSolution(
-        solutionPatch = solutionPatch,
-    )
-
-    // Applying the patch yields a filesystem mutation that references only the files the model
-    // actually changed. Writing that back touches just those files instead of re-writing every
-    // opened file. The full source tree is already materialized above; the next step will run
-    // Gradle tasks there.
-    val solutionApplicationResult = solutionPatch.apply(worktree = fullyScoutedWorktree)
-
-    physicalRootDirectory.applyMutation(
-        mutation = solutionApplicationResult.rootDirectoryMutation,
-    )
-
-    checkHealthFinally(
-            projectConnection = projectConnection,
+    val fullScoutingResult =
+        aiSystem.scoutFully(
+            sourceGitWorktree = sourceGitWorktree,
+            taskDescription = taskDescription,
+            scoutingObserver = observer.observeScouting(),
         )
-        ?.let { finalHealthCheckFailure ->
-          return finalHealthCheckFailure
-        }
+
+    // Each round the model proposes a patch; we write it into the materialized workspace and run
+    // the
+    // health checks there. Failures are fed back into the next round, so the model keeps revising
+    // until the workspace is healthy.
+    aiSystem.implementSolutionFully(
+        taskDescription = taskDescription,
+        editorWorktree = fullScoutingResult.fullyScoutedWorktree,
+        verifier =
+            object : HrsFrontlineAiSystem.SolutionVerifier {
+              override suspend fun verify(
+                  solutionApplicationResult: VedWorktreePatch.PatchApplicationResult,
+              ): HrsFrontlineAiSystem.ProjectHealthStatus {
+                physicalRootDirectory.applyMutation(
+                    mutation = solutionApplicationResult.rootDirectoryMutation,
+                )
+
+                return verifySolutionHealth(projectConnection = projectConnection)
+              }
+            },
+        startTimestamp = fullScoutingResult.finalTimestamp,
+        solutionImplementationObserver = observer.observeSolutionImplementation(),
+    )
 
     return TaskCompletionResult.Success(
         temporaryWorkspace =
@@ -122,27 +117,33 @@ class HrsProperTaskCompleter(
     return null
   }
 
-  private suspend fun checkHealthFinally(
+  private suspend fun verifySolutionHealth(
       projectConnection: UnpProjectConnection,
-  ): TaskCompletionResult.Failure.JointOperation? {
-    val finalAnalyzeResult = projectConnection.analyzeAll()
+  ): HrsFrontlineAiSystem.ProjectHealthStatus {
+    val analyzeResult = projectConnection.analyzeAll()
 
-    if (finalAnalyzeResult is JointResult.Failure) {
-      return TaskCompletionResult.Failure.JointOperation(
-          phase = JointOperationPhase.FinalProjectAnalysis,
-          operationFailure = finalAnalyzeResult,
+    if (analyzeResult is JointResult.Failure) {
+      return HrsFrontlineAiSystem.ProjectHealthStatus.Unhealthy(
+          failureReport =
+              ProjectFailureReport(
+                  stage = ProjectFailureReport.Stage.Analysis,
+                  failure = analyzeResult,
+              ),
       )
     }
 
-    val finalTestResult = projectConnection.testAll()
+    val testResult = projectConnection.testAll()
 
-    if (finalTestResult is JointResult.Failure) {
-      return TaskCompletionResult.Failure.JointOperation(
-          phase = JointOperationPhase.FinalProjectTesting,
-          operationFailure = finalTestResult,
+    if (testResult is JointResult.Failure) {
+      return HrsFrontlineAiSystem.ProjectHealthStatus.Unhealthy(
+          failureReport =
+              ProjectFailureReport(
+                  stage = ProjectFailureReport.Stage.Testing,
+                  failure = testResult,
+              ),
       )
     }
 
-    return null
+    return HrsFrontlineAiSystem.ProjectHealthStatus.Healthy
   }
 }

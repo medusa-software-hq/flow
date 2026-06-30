@@ -8,7 +8,7 @@ import kotlinx.coroutines.runBlocking
 import software.medusa.commons.markdown.MdDocument
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.scoutFully
-import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.render
+import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.renderDirectoryTree
 
 class ScoutFullyCommand(
     private val terminal: Terminal,
@@ -36,7 +36,8 @@ class ScoutFullyCommand(
       )
       terminal.println()
 
-      val fullyScoutedWorktreeChapter = fullScoutingResult.fullyScoutedWorktree.render()
+      val fullyScoutedWorktreeChapter =
+          fullScoutingResult.fullyScoutedWorktree.renderDirectoryTree()
 
       terminal.println("Fully scouted worktree:")
       terminal.println()

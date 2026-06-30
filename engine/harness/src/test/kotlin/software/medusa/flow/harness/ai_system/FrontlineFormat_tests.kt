@@ -13,11 +13,10 @@ import software.medusa.commons.text.TxtLineIndex
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.path.UfsName
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutRequest
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingResult
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
-import software.medusa.flow.harness.ai_system.ScoutingResult_utils.dump
-import software.medusa.flow.harness.ai_system.ScoutingResult_utils.load
+import software.medusa.flow.harness.ai_system.ScoutCommand_utils.dump
+import software.medusa.flow.harness.ai_system.ScoutCommand_utils.load
 import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.dump
 import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.load
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
@@ -37,30 +36,25 @@ import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
  */
 class FrontlineFormat_tests {
   @Test
-  fun `a CONTINUE scouting result round-trips through Markdown`() {
-    val original: ScoutingResult =
-        ScoutingResult.Continued(
-            scoutRequest =
-                ScoutRequest(
-                    rationale =
-                        MdElement(blocks = listOf(MdBlock.Paragraph.of("Looking at the build."))),
-                    requestedAdjustment =
-                        VedWorktreeAdjustment(
-                            rootDirectoryAdjustment =
-                                VedDirectoryAdjustment.Dive(
-                                    childAdjustmentByName =
-                                        mapOf(
-                                            UfsName.Literal("build.gradle.kts") to
-                                                VedFileAdjustment.Open,
-                                            UfsName.Literal("src") to
-                                                VedDirectoryAdjustment.Dive(
-                                                    childAdjustmentByName =
-                                                        mapOf(
-                                                            UfsName.Literal("Main.kt") to
-                                                                VedFileAdjustment.Open,
-                                                            UfsName.Literal("resources") to
-                                                                VedDirectoryAdjustment.Expand,
-                                                        ),
+  fun `a CONTINUE scout command round-trips through Markdown`() {
+    val original: ScoutCommand =
+        ScoutCommand.Continue(
+            rationale = MdElement(blocks = listOf(MdBlock.Paragraph.of("Looking at the build."))),
+            requestedAdjustment =
+                VedWorktreeAdjustment(
+                    rootDirectoryAdjustment =
+                        VedDirectoryAdjustment.Dive(
+                            childAdjustmentByName =
+                                mapOf(
+                                    UfsName.Literal("build.gradle.kts") to VedFileAdjustment.Open,
+                                    UfsName.Literal("src") to
+                                        VedDirectoryAdjustment.Dive(
+                                            childAdjustmentByName =
+                                                mapOf(
+                                                    UfsName.Literal("Main.kt") to
+                                                        VedFileAdjustment.Open,
+                                                    UfsName.Literal("resources") to
+                                                        VedDirectoryAdjustment.Expand,
                                                 ),
                                         ),
                                 ),
@@ -68,41 +62,40 @@ class FrontlineFormat_tests {
                 ),
         )
 
-    val reparsed = ScoutingResult.load(document = MdDocument.parse(original.dump().render()))
+    val reparsed = ScoutCommand.load(document = MdDocument.parse(original.dump().render()))
 
     assertEquals(expected = original, actual = reparsed)
   }
 
   @Test
-  fun `a STOP scouting result round-trips through Markdown`() {
-    val original: ScoutingResult = ScoutingResult.Completed
+  fun `a STOP scout command round-trips through Markdown`() {
+    val original: ScoutCommand = ScoutCommand.Stop
 
-    val reparsed = ScoutingResult.load(document = MdDocument.parse(original.dump().render()))
+    val reparsed = ScoutCommand.load(document = MdDocument.parse(original.dump().render()))
 
-    assertEquals(expected = ScoutingResult.Completed, actual = reparsed)
+    assertEquals(expected = ScoutCommand.Stop, actual = reparsed)
   }
 
   @Test
   fun `the documented CONTINUE format parses into the expected adjustment`() {
     val markdownSource =
         """
-        # CONTINUE
+        # EXPLORE
 
         I need to read the entry point and look into the source directory.
 
-        - `/`
-            - `Main.kt` OPEN
-            - `src/` EXPAND
+        - `/Main.kt` OPEN
+        - `/src/` EXPAND
         """
             .trimIndent()
 
     val result =
-        assertIs<ScoutingResult.Continued>(
-            ScoutingResult.load(document = MdDocument.parse(markdownSource)),
+        assertIs<ScoutCommand.Continue>(
+            ScoutCommand.load(document = MdDocument.parse(markdownSource)),
         )
 
     val childAdjustmentByName =
-        result.scoutRequest.requestedAdjustment.rootDirectoryAdjustment.childAdjustmentByName
+        result.requestedAdjustment.rootDirectoryAdjustment.childAdjustmentByName
 
     assertEquals(
         expected = VedFileAdjustment.Open,
@@ -112,6 +105,137 @@ class FrontlineFormat_tests {
         expected = VedDirectoryAdjustment.Expand,
         actual = childAdjustmentByName[UfsName.Literal("src")],
     )
+  }
+
+  @Test
+  fun `a deep path in CONTINUE expands into a chain of dives`() {
+    val markdownSource =
+        """
+        # EXPLORE
+
+        Reaching a file several directories down.
+
+        - `/app/src/main/kotlin/org/example/App.kt` OPEN
+        """
+            .trimIndent()
+
+    val result =
+        assertIs<ScoutCommand.Continue>(
+            ScoutCommand.load(document = MdDocument.parse(markdownSource)),
+        )
+
+    var dive = result.requestedAdjustment.rootDirectoryAdjustment
+
+    listOf("app", "src", "main", "kotlin", "org", "example").forEach { segment ->
+      dive =
+          assertIs<VedDirectoryAdjustment.Dive>(
+              dive.childAdjustmentByName.getValue(UfsName.Literal(segment)),
+          )
+    }
+
+    assertEquals(
+        expected = VedFileAdjustment.Open,
+        actual = dive.childAdjustmentByName[UfsName.Literal("App.kt")],
+    )
+  }
+
+  @Test
+  fun `flat absolute paths with shared prefixes are joined into one tree`() {
+    val markdownSource =
+        """
+        # EXPLORE
+
+        Opening the files relevant to the build across the project.
+
+        - `/app/build.gradle.kts` OPEN
+        - `/app/src/main/kotlin/org/example/App.kt` OPEN
+        - `/app/src/test/kotlin/org/example/AppTest.kt` OPEN
+        - `/settings.gradle.kts` OPEN
+        - `/gradle/libs.versions.toml` OPEN
+        """
+            .trimIndent()
+
+    val result =
+        assertIs<ScoutCommand.Continue>(
+            ScoutCommand.load(document = MdDocument.parse(markdownSource)),
+        )
+
+    val root = result.requestedAdjustment.rootDirectoryAdjustment
+
+    assertEquals(
+        expected = setOf("app", "gradle", "settings.gradle.kts"),
+        actual = root.childAdjustmentByName.keys.map { it.content }.toSet(),
+    )
+    assertEquals(
+        expected = VedFileAdjustment.Open,
+        actual = root.childAdjustmentByName[UfsName.Literal("settings.gradle.kts")],
+    )
+
+    // The shared `/app/` and `/app/src/` prefixes joined rather than clobbering each other.
+    val app =
+        assertIs<VedDirectoryAdjustment.Dive>(
+            root.childAdjustmentByName.getValue(UfsName.Literal("app")),
+        )
+    assertEquals(
+        expected = VedFileAdjustment.Open,
+        actual = app.childAdjustmentByName[UfsName.Literal("build.gradle.kts")],
+    )
+
+    val src =
+        assertIs<VedDirectoryAdjustment.Dive>(
+            app.childAdjustmentByName.getValue(UfsName.Literal("src")),
+        )
+    assertEquals(
+        expected = setOf("main", "test"),
+        actual = src.childAdjustmentByName.keys.map { it.content }.toSet(),
+    )
+
+    var dive = src
+    listOf("main", "kotlin", "org", "example").forEach { segment ->
+      dive =
+          assertIs<VedDirectoryAdjustment.Dive>(
+              dive.childAdjustmentByName.getValue(UfsName.Literal(segment)),
+          )
+    }
+    assertEquals(
+        expected = VedFileAdjustment.Open,
+        actual = dive.childAdjustmentByName[UfsName.Literal("App.kt")],
+    )
+  }
+
+  @Test
+  fun `a single-child dive chain round-trips as a deep path`() {
+    val original: ScoutCommand =
+        ScoutCommand.Continue(
+            rationale = MdElement(blocks = listOf(MdBlock.Paragraph.of("Reaching deep."))),
+            requestedAdjustment =
+                VedWorktreeAdjustment(
+                    rootDirectoryAdjustment =
+                        VedDirectoryAdjustment.Dive(
+                            childAdjustmentByName =
+                                mapOf(
+                                    UfsName.Literal("src") to
+                                        VedDirectoryAdjustment.Dive(
+                                            childAdjustmentByName =
+                                                mapOf(
+                                                    UfsName.Literal("main") to
+                                                        VedDirectoryAdjustment.Dive(
+                                                            childAdjustmentByName =
+                                                                mapOf(
+                                                                    UfsName.Literal("App.kt") to
+                                                                        VedFileAdjustment.Open,
+                                                                ),
+                                                        ),
+                                                ),
+                                        ),
+                                ),
+                        ),
+                ),
+        )
+
+    val reparsed = ScoutCommand.load(document = MdDocument.parse(original.dump().render()))
+
+    assertEquals(expected = original, actual = reparsed)
   }
 
   @Test

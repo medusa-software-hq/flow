@@ -56,8 +56,6 @@ class CompleteTaskCommand(
                 HrsTaskCompleter.JointOperationPhase.ProjectBootstrapping -> "Project bootstrap"
                 HrsTaskCompleter.JointOperationPhase.InitialProjectAnalysis -> "Initial analysis"
                 HrsTaskCompleter.JointOperationPhase.InitialProjectTesting -> "Initial tests"
-                HrsTaskCompleter.JointOperationPhase.FinalProjectAnalysis -> "Final analysis"
-                HrsTaskCompleter.JointOperationPhase.FinalProjectTesting -> "Final tests"
               }
 
           terminal.println(TextColors.red("✗ $phaseName failed:"))

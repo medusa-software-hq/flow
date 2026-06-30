@@ -8,7 +8,7 @@ internal data object MdInlineContent_utils {
    * Returns the text of this inline content, requiring it to be a single literal text node — the
    * shape of the ad-hoc format's plain headings (e.g. `STOP`, `UPDATE 11-22`).
    */
-  fun MdInlineContent.asPlainText(): String {
+  fun MdInlineContent.extractText(): String {
     val node =
         inlineNodes.singleOrNull()
             ?: error("Expected a single text node, got ${inlineNodes.size} nodes")
@@ -21,7 +21,7 @@ internal data object MdInlineContent_utils {
    * Returns the literal of this inline content, requiring it to be a single inline-code node — the
    * shape of the ad-hoc format's code headings (e.g. a `` `/src/Main.kt` `` file path).
    */
-  fun MdInlineContent.asInlineCode(): String {
+  fun MdInlineContent.extractInlineCode(): String {
     val node =
         inlineNodes.singleOrNull()
             ?: error("Expected a single inline-code node, got ${inlineNodes.size} nodes")
