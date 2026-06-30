@@ -17,11 +17,11 @@ import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingLog
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationLog
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
 import software.medusa.flow.harness.ai_system.ScoutCommand_utils.dump
 import software.medusa.flow.harness.ai_system.ScoutCommand_utils.exploreKeyword
 import software.medusa.flow.harness.ai_system.ScoutCommand_utils.load
@@ -202,8 +202,8 @@ class HrsProperFrontlineAiSystem(
                 ),
         )
 
-    private val solutionImplementationResultExample =
-        SolutionImplementationResult(
+    private val patchCommandExample =
+        PatchCommand(
             solutionPatch =
                 VedWorktreePatch(
                     rootDirectoryPatch =
@@ -337,7 +337,7 @@ class HrsProperFrontlineAiSystem(
       editorWorktree: VedWorktree,
       solutionImplementationLog: SolutionImplementationLog,
       solutionImplementationObserver: HrsTaskCompleter.SolutionImplementationObserver,
-  ): SolutionImplementationResult {
+  ): PatchCommand {
     val request =
         renderRequest(
             taskDescription = taskDescription,
@@ -350,7 +350,7 @@ class HrsProperFrontlineAiSystem(
                     ),
                     OaiMessage(
                         role = OaiRole.System,
-                        text = solutionImplementationResultExample.dump().render(),
+                        text = patchCommandExample.dump().render(),
                     ),
                     OaiMessage(
                         role = OaiRole.User,
@@ -361,15 +361,15 @@ class HrsProperFrontlineAiSystem(
                       listOf(
                           OaiMessage(
                               role = OaiRole.Assistant,
-                              text = logEntry.solutionImplementationResult.dump().render(),
+                              text = logEntry.patchCommand.dump().render(),
                           ),
                           OaiMessage(
                               role = OaiRole.System,
                               text =
                                   MdDocument(
                                           rootChapter =
-                                              renderReport(
-                                                  projectFailureReport = logEntry.failureReport,
+                                              renderPatchSystemResponse(
+                                                  systemResponse = logEntry.systemResponse,
                                               ),
                                       )
                                       .render(),
@@ -387,52 +387,82 @@ class HrsProperFrontlineAiSystem(
 
     solutionImplementationObserver.observeRawResponse(response = response)
 
-    return SolutionImplementationResult.load(
-        document = MdDocument.parse(markdownSource = response.responseText)
+    return PatchCommand.load(
+        document = MdDocument.parse(markdownSource = response.responseText),
     )
   }
 
-  private fun renderReport(
-      projectFailureReport: ProjectFailureReport,
+  private fun renderPatchSystemResponse(
+      systemResponse: PatchCommand.SystemResponse,
   ): MdChapter {
-    val projectFailure = projectFailureReport.failure
+    val approvalTimestamp = systemResponse.approvalTimestamp
+    val projectFailure = systemResponse.failureReport.failure
 
     val stageText =
-        when (projectFailureReport.stage) {
+        when (systemResponse.failureReport.stage) {
           ProjectFailureReport.Stage.Analysis -> "Analysis"
           ProjectFailureReport.Stage.Testing -> "Testing"
         }
 
     return MdChapter(
-        title = MdInlineContent.of("Found issues"),
+        title = MdInlineContent.of("Patch applied"),
         element =
             MdElement(
                 blocks =
                     listOf(
-                        MdBlock.Paragraph.of("Phase: $stageText"),
+                        MdBlock.Paragraph.of(
+                            "The worktree was patched according to your request.",
+                        ),
+                        MdBlock.Paragraph.of("Timestamp: t = ${approvalTimestamp.t}"),
+                        MdBlock.Paragraph.of(
+                            inlineNodes =
+                                listOf(
+                                    MdInlineNode.Strong.of("NOTE:"),
+                                    MdInlineNode.Text("The freshly patched files are visible "),
+                                    MdInlineNode.Emphasis.of("above"),
+                                    MdInlineNode.Text("this message, in the Worktree section."),
+                                ),
+                        ),
                     ),
             ),
         subChapters =
-            projectFailure.failureByModulePath.map { (modulePath, moduleFailure) ->
-              MdChapter.leaf(
-                  title =
-                      MdInlineContent(
-                          inlineNodes =
-                              listOf(
-                                  MdInlineNode.Text("Module "),
-                                  MdInlineNode.Code(modulePath.toUnixAbsolutePathString()),
-                                  MdInlineNode.Text(":"),
-                              ),
-                      ),
-                  element =
-                      MdElement(
-                          blocks =
-                              listOf(
-                                  MdBlock.CodeBlock(code = moduleFailure.diagnosticOutput),
-                              ),
-                      ),
-              )
-            },
+            listOf(
+                MdChapter(
+                    title = MdInlineContent.of("Found issues"),
+                    element =
+                        MdElement(
+                            blocks =
+                                listOf(
+                                    MdBlock.Paragraph.of("Phase: $stageText"),
+                                ),
+                        ),
+                    subChapters =
+                        projectFailure.failureByModulePath.map { (modulePath, moduleFailure) ->
+                          MdChapter.leaf(
+                              title =
+                                  MdInlineContent(
+                                      inlineNodes =
+                                          listOf(
+                                              MdInlineNode.Text("Module "),
+                                              MdInlineNode.Code(
+                                                  modulePath.toUnixAbsolutePathString()
+                                              ),
+                                              MdInlineNode.Text(":"),
+                                          ),
+                                  ),
+                              element =
+                                  MdElement(
+                                      blocks =
+                                          listOf(
+                                              MdBlock.CodeBlock(
+                                                  code = moduleFailure.diagnosticOutput
+                                              ),
+                                          ),
+                                  ),
+                          )
+                        },
+                ),
+            ),
     )
   }
 }

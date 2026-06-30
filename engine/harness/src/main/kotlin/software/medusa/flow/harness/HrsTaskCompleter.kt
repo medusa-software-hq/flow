@@ -46,7 +46,7 @@ interface HrsTaskCompleter {
   interface SolutionImplementationObserver {
     data object Noop : SolutionImplementationObserver {
       override fun observeImplementation(
-          solutionImplementationResult: HrsFrontlineAiSystem.SolutionImplementationResult,
+          patchCommand: HrsFrontlineAiSystem.PatchCommand,
       ) {}
 
       override fun observeHealthStatus(
@@ -59,7 +59,7 @@ interface HrsTaskCompleter {
     }
 
     fun observeImplementation(
-        solutionImplementationResult: HrsFrontlineAiSystem.SolutionImplementationResult,
+        patchCommand: HrsFrontlineAiSystem.PatchCommand,
     )
 
     fun observeHealthStatus(

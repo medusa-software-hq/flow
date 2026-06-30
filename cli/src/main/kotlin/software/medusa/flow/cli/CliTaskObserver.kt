@@ -7,10 +7,10 @@ import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.flow.harness.HrsTaskCompleter
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedDirectoryAdjustment
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedEntityAdjustment
@@ -43,7 +43,7 @@ class CliSolutionImplementationObserver(
   private var attemptNumber = 0
 
   override fun observeImplementation(
-      solutionImplementationResult: SolutionImplementationResult,
+      patchCommand: PatchCommand,
   ) {
     attemptNumber++
 
@@ -52,7 +52,7 @@ class CliSolutionImplementationObserver(
     terminal.println()
 
     val fileEdits =
-        solutionImplementationResult.solutionPatch.rootDirectoryPatch.collectFileEdits(
+        patchCommand.solutionPatch.rootDirectoryPatch.collectFileEdits(
             pathPrefix = "",
         )
 

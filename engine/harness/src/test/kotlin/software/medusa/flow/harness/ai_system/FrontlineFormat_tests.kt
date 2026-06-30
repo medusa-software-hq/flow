@@ -13,8 +13,8 @@ import software.medusa.commons.text.TxtLineIndex
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
 import software.medusa.flow.harness.ai_system.ScoutCommand_utils.dump
 import software.medusa.flow.harness.ai_system.ScoutCommand_utils.load
 import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.dump
@@ -241,7 +241,7 @@ class FrontlineFormat_tests {
   @Test
   fun `a PATCH result round-trips through Markdown`() {
     val original =
-        SolutionImplementationResult(
+        PatchCommand(
             solutionPatch =
                 worktreePatchOf(
                     fileName = "Main.kt",
@@ -261,8 +261,7 @@ class FrontlineFormat_tests {
                 ),
         )
 
-    val reparsed =
-        SolutionImplementationResult.load(document = MdDocument.parse(original.dump().render()))
+    val reparsed = PatchCommand.load(document = MdDocument.parse(original.dump().render()))
 
     assertEquals(expected = original, actual = reparsed)
   }
@@ -297,7 +296,7 @@ class FrontlineFormat_tests {
         """
             .trimIndent()
 
-    val result = SolutionImplementationResult.load(document = MdDocument.parse(markdownSource))
+    val result = PatchCommand.load(document = MdDocument.parse(markdownSource))
 
     val patchedWorktree = result.solutionPatch.apply(worktree = baseWorktree).patchedWorktree
 

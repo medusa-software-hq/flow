@@ -15,7 +15,7 @@ import software.medusa.commons.unix.path.UfsAbsolutePath.Companion.resolve
 import software.medusa.commons.unix.path.UfsAbsolutePath.Companion.toLiteral
 import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
 import software.medusa.commons.unix.path.UfsName
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchCommand
 import software.medusa.flow.harness.ai_system.MdInlineContent_utils.extractInlineCode
 import software.medusa.flow.harness.ai_system.MdInlineContent_utils.extractText
 import software.medusa.flow.virtual_editor.worktree_patch.VedDirectoryPatch
@@ -24,7 +24,7 @@ import software.medusa.flow.virtual_editor.worktree_patch.VedFilePatch
 import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 /**
- * Codec between a [SolutionImplementationResult] and its ad-hoc Markdown representation.
+ * Codec between a [PatchCommand] and its ad-hoc Markdown representation.
  *
  * The patch is a `# PATCH` document with one `## ` chapter per file (its path as inline code) and
  * one `### ` chapter per edit. Every edit's line numbers are **1-based and refer to the original
@@ -62,7 +62,7 @@ internal data object SolutionImplementationResult_utils {
       val filePatch: VedFilePatch,
   )
 
-  fun SolutionImplementationResult.dump(): MdDocument =
+  fun PatchCommand.dump(): MdDocument =
       MdDocument(
           rootChapter =
               MdChapter.wrapper(
@@ -74,9 +74,9 @@ internal data object SolutionImplementationResult_utils {
               ),
       )
 
-  fun SolutionImplementationResult.Companion.load(
+  fun PatchCommand.Companion.load(
       document: MdDocument,
-  ): SolutionImplementationResult {
+  ): PatchCommand {
     val heading = document.rootChapter.title.extractText()
 
     require(heading == patchHeading) { "Expected a `# $patchHeading` document, got `$heading`" }
@@ -89,7 +89,7 @@ internal data object SolutionImplementationResult_utils {
           )
         }
 
-    return SolutionImplementationResult(
+    return PatchCommand(
         solutionPatch =
             VedWorktreePatch(rootDirectoryPatch = buildDirectoryPatch(edits = fileEdits)),
     )

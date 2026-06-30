@@ -168,7 +168,7 @@ interface HrsFrontlineAiSystem {
           )
 
       solutionImplementationObserver.observeImplementation(
-          solutionImplementationResult = solutionImplementationResult,
+          patchCommand = solutionImplementationResult,
       )
 
       val solutionApplicationResult =
@@ -197,8 +197,12 @@ interface HrsFrontlineAiSystem {
                   baseSolutionImplementationLog.expand(
                       newEntry =
                           SolutionImplementationLog.LogEntry(
-                              solutionImplementationResult = solutionImplementationResult,
-                              failureReport = healthStatus.failureReport,
+                              patchCommand = solutionImplementationResult,
+                              systemResponse =
+                                  PatchCommand.SystemResponse(
+                                      approvalTimestamp = startTimestamp,
+                                      failureReport = healthStatus.failureReport,
+                                  ),
                           ),
                   ),
               startTimestamp = startTimestamp.next,
@@ -240,9 +244,14 @@ interface HrsFrontlineAiSystem {
       scoutingObserver: ScoutingObserver,
   ): ScoutCommand
 
-  data class SolutionImplementationResult(
+  data class PatchCommand(
       val solutionPatch: VedWorktreePatch,
   ) {
+    data class SystemResponse(
+        val approvalTimestamp: VedTimestamp,
+        val failureReport: ProjectFailureReport,
+    )
+
     companion object
   }
 
@@ -281,8 +290,8 @@ interface HrsFrontlineAiSystem {
       val logEntries: List<LogEntry>,
   ) {
     data class LogEntry(
-        val solutionImplementationResult: SolutionImplementationResult,
-        val failureReport: ProjectFailureReport,
+        val patchCommand: PatchCommand,
+        val systemResponse: PatchCommand.SystemResponse,
     )
 
     companion object {
@@ -299,5 +308,5 @@ interface HrsFrontlineAiSystem {
       editorWorktree: VedWorktree,
       solutionImplementationLog: SolutionImplementationLog,
       solutionImplementationObserver: SolutionImplementationObserver,
-  ): SolutionImplementationResult
+  ): PatchCommand
 }
