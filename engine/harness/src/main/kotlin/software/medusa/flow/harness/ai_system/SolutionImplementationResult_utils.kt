@@ -96,7 +96,64 @@ internal data object SolutionImplementationResult_utils {
   }
 
   private fun List<MdChapter>.loadTxtPatch(): TxtPatch =
-      TxtPatch(fragmentByOldLineIndexRange = associate { editChapter -> editChapter.loadEdit() })
+      TxtPatch(
+          fragmentByOldLineIndexRange =
+              mergeAdjacentEdits(edits = map { editChapter -> editChapter.loadEdit() }),
+      )
+
+  /**
+   * Merges edits whose original-line ranges touch or overlap into a single fragment. The model
+   * legitimately anchors several edits at the same spot — e.g. `INSERT BEFORE 13` followed by
+   * `UPDATE 13-15` — which [TxtPatch] rejects as colliding. Concatenating their content in
+   * start-then-end order preserves the intended result: an insert at a range's start lands before
+   * it, an insert at its end lands after.
+   */
+  private fun mergeAdjacentEdits(
+      edits: List<Pair<TxtLineIndexRange, TxtPatch.Fragment>>,
+  ): Map<TxtLineIndexRange, TxtPatch.Fragment> {
+    val sortedEdits =
+        edits.sortedWith(
+            compareBy(
+                { (range, _) -> range.startIndex.indexZeroBased },
+                { (range, _) -> range.endIndexExclusive.indexZeroBased },
+            ),
+        )
+
+    val clusters = mutableListOf<MutableList<Pair<TxtLineIndexRange, TxtPatch.Fragment>>>()
+
+    for (edit in sortedEdits) {
+      val currentCluster = clusters.lastOrNull()
+
+      val clusterEndZeroBased = currentCluster?.maxOf { (range, _) ->
+        range.endIndexExclusive.indexZeroBased
+      }
+
+      // A strictly-greater start means a gap, so the edit begins a new (non-colliding) cluster;
+      // otherwise it touches or overlaps the current one and is merged into it.
+      if (currentCluster == null || edit.first.startIndex.indexZeroBased > clusterEndZeroBased!!) {
+        clusters += mutableListOf(edit)
+      } else {
+        currentCluster += edit
+      }
+    }
+
+    return clusters.associate { cluster ->
+      val range =
+          TxtLineIndexRange(
+              startIndex = cluster.first().first.startIndex,
+              endIndexExclusive =
+                  TxtLineIndex(
+                      indexZeroBased =
+                          cluster.maxOf { (edit, _) -> edit.endIndexExclusive.indexZeroBased },
+                  ),
+          )
+
+      val mergedContent =
+          TxtBlock(lines = cluster.flatMap { (_, fragment) -> fragment.newContent.lines })
+
+      range to TxtPatch.Fragment(newContent = mergedContent)
+    }
+  }
 
   private fun MdChapter.loadEdit(): Pair<TxtLineIndexRange, TxtPatch.Fragment> {
     val heading = title.extractText()

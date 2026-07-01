@@ -315,6 +315,53 @@ class FrontlineFormat_tests {
     )
   }
 
+  @Test
+  fun `an INSERT and an UPDATE anchored at the same line are merged`() {
+    val baseWorktree =
+        worktreeOf(
+            fileName = "App.kt",
+            content = "line1\nline2\nline3\nline4\n",
+        )
+
+    // `INSERT BEFORE 2` touches `UPDATE 2-3`; TxtPatch would reject them as colliding, so they must
+    // be merged: the inserted lines land before the replaced range.
+    val markdownSource =
+        """
+        # PATCH
+
+        ## `/App.kt`
+
+        ### INSERT BEFORE 2
+
+        ```
+        inserted
+        ```
+
+        ### UPDATE 2-3
+
+        ```
+        replacement
+        ```
+        """
+            .trimIndent()
+
+    val result = PatchCommand.load(document = MdDocument.parse(markdownSource))
+
+    val patchedWorktree =
+        result.solutionPatch
+            .patchWorktree(worktree = baseWorktree, timestamp = VedTimestamp.zero.next)
+            .patchedWorktree
+
+    val patchedFile =
+        patchedWorktree.rootDirectory.labeledEntityByName.getValue(UfsName.Literal("App.kt")).entity
+            as VedOpenedFile
+
+    assertEquals(
+        expected = "line1\ninserted\nreplacement\nline4\n",
+        actual = patchedFile.currentContent.content.dump(),
+    )
+  }
+
   private fun worktreePatchOf(
       fileName: String,
       fragmentByOldLineIndexRange: Map<TxtLineIndexRange, TxtPatch.Fragment>,

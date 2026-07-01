@@ -165,7 +165,7 @@ interface HrsFrontlineAiSystem {
               taskDescription = taskDescription,
               editorWorktree = baseEditorWorktree,
               solutionImplementationLog = baseSolutionImplementationLog,
-              solutionImplementationObserver = SolutionImplementationObserver.Noop,
+              solutionImplementationObserver = solutionImplementationObserver,
           )
 
       solutionImplementationObserver.observeImplementation(
