@@ -299,13 +299,13 @@ internal data object ScoutCommand_utils {
                               inlineNodes =
                                   listOf(
                                       MdInlineNode.Strong.of("NOTE:"),
-                                      MdInlineNode.Text("The freshly opened files are visible "),
+                                      MdInlineNode.Text(" The freshly opened files are visible "),
                                       MdInlineNode.Emphasis.of("above"),
                                       MdInlineNode.Text("this message, in the Worktree section."),
                                   ),
                           ),
                           MdBlock.Paragraph.of(
-                              "If the freshly opened files revealed new information, you can continue scouting the worktree. Otherwise, stop."
+                              "If the freshly opened files revealed new information, you can continue exploring ($exploreKeyword). Otherwise, declare readiness ($readyKeyword)."
                           ),
                           MdBlock.Paragraph.of("Respond in the Scout Response Format."),
                       ),
