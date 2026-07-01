@@ -3,7 +3,7 @@ package software.medusa.flow.virtual_editor
 @JvmInline
 value class VedTimestamp(
     val t: Int,
-) {
+) : Comparable<VedTimestamp> {
   companion object {
     val zero = VedTimestamp(t = 0)
   }
@@ -14,4 +14,8 @@ value class VedTimestamp(
 
   val next: VedTimestamp
     get() = VedTimestamp(t + 1)
+
+  override fun compareTo(
+      other: VedTimestamp,
+  ): Int = compareValuesBy(this, other) { it.t }
 }

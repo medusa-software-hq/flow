@@ -40,7 +40,7 @@ val VedExpandedDirectory.asFilesystemEntity: UfsReadonlyDirectory
 val VedOpenedFile.asFilesystemEntity: UfsReadonlyFile
   get() =
       object : UfsReadonlyFile {
-        override suspend fun read(): ByteString = content.dump().encodeToByteString()
+        override suspend fun read(): ByteString = currentContent.dump().encodeToByteString()
       }
 
 /**

@@ -98,6 +98,7 @@ interface HrsFrontlineAiSystem {
                   .adjust(
                       gitWorktree = sourceGitWorktree,
                       editorWorktree = baseEditorWorktree,
+                      timestamp = startTimestamp,
                   )
                   .adjustedWorktree
 
@@ -172,7 +173,10 @@ interface HrsFrontlineAiSystem {
       )
 
       val solutionApplicationResult =
-          solutionImplementationResult.solutionPatch.apply(worktree = baseEditorWorktree)
+          solutionImplementationResult.solutionPatch.patchWorktree(
+              worktree = baseEditorWorktree,
+              timestamp = startTimestamp,
+          )
 
       val healthStatus = verifier.verify(solutionApplicationResult = solutionApplicationResult)
 

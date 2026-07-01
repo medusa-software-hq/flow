@@ -9,6 +9,7 @@ import software.medusa.commons.text.TxtLineIndex
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -27,11 +28,12 @@ class VedWorktreePatch_tests {
                                 VedExpandedDirectory.LabeledEntity(
                                     status = GitWorktreeEntity.Status.included,
                                     entity =
-                                        VedOpenedFile(
+                                        VedOpenedFile.of(
                                             content =
                                                 TxtFileContent(
                                                     content = TxtBlock.of("fun main() {}", "}"),
                                                 ),
+                                            timestamp = VedTimestamp.zero,
                                         ),
                                 ),
                         ),
@@ -67,14 +69,14 @@ class VedWorktreePatch_tests {
                 ),
         )
 
-    val result = patch.apply(worktree)
+    val result = patch.patchWorktree(worktree = worktree, timestamp = VedTimestamp.zero.next)
 
     val patchedFile =
         result.patchedWorktree.rootDirectory.labeledEntityByName.getValue(fileName).entity
             as VedOpenedFile
     assertEquals(
         TxtBlock.of("fun main(args: Array<String>) {", "}"),
-        patchedFile.content.content,
+        patchedFile.currentContent.content,
     )
   }
 }

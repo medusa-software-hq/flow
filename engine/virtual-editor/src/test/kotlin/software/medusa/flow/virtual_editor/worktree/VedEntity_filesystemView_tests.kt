@@ -12,10 +12,14 @@ import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.UfsReadonlyFile
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.virtual_editor.VedTimestamp
 
 class VedEntity_filesystemView_tests {
   private fun openedFile(vararg lines: String): VedOpenedFile =
-      VedOpenedFile(content = TxtFileContent(content = TxtBlock.of(*lines)))
+      VedOpenedFile.of(
+          content = TxtFileContent(content = TxtBlock.of(*lines)),
+          timestamp = VedTimestamp.zero,
+      )
 
   private fun labeled(entity: VedEntity): VedExpandedDirectory.LabeledEntity =
       VedExpandedDirectory.LabeledEntity(

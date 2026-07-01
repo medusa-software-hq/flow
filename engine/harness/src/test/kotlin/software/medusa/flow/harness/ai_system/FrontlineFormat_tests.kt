@@ -19,6 +19,7 @@ import software.medusa.flow.harness.ai_system.ScoutCommand_utils.dump
 import software.medusa.flow.harness.ai_system.ScoutCommand_utils.load
 import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.dump
 import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.load
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -298,7 +299,10 @@ class FrontlineFormat_tests {
 
     val result = PatchCommand.load(document = MdDocument.parse(markdownSource))
 
-    val patchedWorktree = result.solutionPatch.apply(worktree = baseWorktree).patchedWorktree
+    val patchedWorktree =
+        result.solutionPatch
+            .patchWorktree(worktree = baseWorktree, timestamp = VedTimestamp.zero.next)
+            .patchedWorktree
 
     val patchedFile =
         patchedWorktree.rootDirectory.labeledEntityByName
@@ -307,7 +311,7 @@ class FrontlineFormat_tests {
 
     assertEquals(
         expected = "header\nline1\nline3\nlast\n",
-        actual = patchedFile.content.content.dump(),
+        actual = patchedFile.currentContent.content.dump(),
     )
   }
 
@@ -344,9 +348,10 @@ class FrontlineFormat_tests {
                               VedExpandedDirectory.LabeledEntity(
                                   status = GitWorktreeEntity.Status.included,
                                   entity =
-                                      VedOpenedFile(
+                                      VedOpenedFile.of(
                                           content =
                                               TxtFileContent(content = TxtBlock.parse(content)),
+                                          timestamp = VedTimestamp.zero,
                                       ),
                               ),
                       ),

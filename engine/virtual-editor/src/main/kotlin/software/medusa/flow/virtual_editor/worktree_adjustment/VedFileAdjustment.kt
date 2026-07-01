@@ -3,6 +3,7 @@ package software.medusa.flow.virtual_editor.worktree_adjustment
 import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.git.worktree.GitWorktreeFile
 import software.medusa.commons.text.TxtFileContent
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedEntity
 import software.medusa.flow.virtual_editor.worktree.VedFile
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
@@ -13,6 +14,7 @@ sealed class VedFileAdjustment : VedEntityAdjustment() {
   override suspend fun adjustEntity(
       gitEntity: GitWorktreeEntity,
       editorEntity: VedEntity,
+      timestamp: VedTimestamp,
   ): FileAdjustmentApplicationResult {
     val gitFile =
         gitEntity as? GitWorktreeFile
@@ -24,6 +26,7 @@ sealed class VedFileAdjustment : VedEntityAdjustment() {
     return adjustFile(
         gitFile = gitFile,
         editorFile = editorFile,
+        timestamp = timestamp,
     )
   }
 
@@ -31,6 +34,7 @@ sealed class VedFileAdjustment : VedEntityAdjustment() {
     override suspend fun adjustFile(
         gitFile: GitWorktreeFile,
         editorFile: VedFile,
+        timestamp: VedTimestamp,
     ): FileAdjustmentApplicationResult {
       val byteContent = gitFile.asFilesystemEntity.read()
 
@@ -40,8 +44,9 @@ sealed class VedFileAdjustment : VedEntityAdjustment() {
           ) ?: error("Failed to decode file content as text")
 
       val openedFile =
-          VedOpenedFile(
+          VedOpenedFile.of(
               content = textContent,
+              timestamp = timestamp,
           )
 
       return FileAdjustmentApplicationResult(
@@ -53,5 +58,6 @@ sealed class VedFileAdjustment : VedEntityAdjustment() {
   protected abstract suspend fun adjustFile(
       gitFile: GitWorktreeFile,
       editorFile: VedFile,
+      timestamp: VedTimestamp,
   ): FileAdjustmentApplicationResult
 }

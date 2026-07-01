@@ -1,6 +1,7 @@
 package software.medusa.flow.virtual_editor.worktree_adjustment
 
 import software.medusa.commons.git.worktree.GitWorktreeEntity
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedEntity
 
 sealed class VedEntityAdjustment {
@@ -12,5 +13,6 @@ sealed class VedEntityAdjustment {
   abstract suspend fun adjustEntity(
       gitEntity: GitWorktreeEntity,
       editorEntity: VedEntity,
+      timestamp: VedTimestamp,
   ): AdjustmentResult<*>
 }

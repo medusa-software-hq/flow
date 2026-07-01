@@ -29,6 +29,7 @@ import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingLog
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationLog
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
@@ -125,9 +126,10 @@ class HrsProperFrontlineAiSystem_integrationTests {
                                 VedExpandedDirectory.LabeledEntity(
                                     status = GitWorktreeEntity.Status.included,
                                     entity =
-                                        VedOpenedFile(
+                                        VedOpenedFile.of(
                                             content =
                                                 TxtFileContent(content = TxtBlock.parse(luaSource)),
+                                            timestamp = VedTimestamp.zero,
                                         ),
                                 ),
                         ),
@@ -203,13 +205,15 @@ class HrsProperFrontlineAiSystem_integrationTests {
         )
 
     val finalWorktree =
-        solutionImplementationResult.solutionPatch.apply(worktree = baseWorktree).patchedWorktree
+        solutionImplementationResult.solutionPatch
+            .patchWorktree(worktree = baseWorktree, timestamp = VedTimestamp.zero.next)
+            .patchedWorktree
 
     val fixedFile =
         finalWorktree.rootDirectory.labeledEntityByName.getValue(fibFileName).entity
             as VedOpenedFile
 
-    val fixedLuaText = fixedFile.content.content.dump()
+    val fixedLuaText = fixedFile.currentContent.dump()
 
     val result = buildLuaGlobals().load(fixedLuaText).call().toint()
 

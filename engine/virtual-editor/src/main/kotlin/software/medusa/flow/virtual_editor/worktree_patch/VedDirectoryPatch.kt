@@ -2,6 +2,7 @@ package software.medusa.flow.virtual_editor.worktree_patch
 
 import software.medusa.commons.unix.filesystem.mutation.UfsDirectoryMutation
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedEntity
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
@@ -13,25 +14,49 @@ data class VedDirectoryPatch(
   typealias DirectoryPatchApplicationResult =
       PatchApplicationResult<VedExpandedDirectory, UfsDirectoryMutation>
 
-  override fun apply(entity: VedEntity): DirectoryPatchApplicationResult =
+  override fun patchEntity(
+      entity: VedEntity,
+      timestamp: VedTimestamp,
+  ): DirectoryPatchApplicationResult =
       when (entity) {
-        is VedDirectory -> apply(entity)
+        is VedDirectory ->
+            patchDirectory(
+                directory = entity,
+                timestamp = timestamp,
+            )
+
         is VedFile -> error("Expected VedDirectory, got VedFile")
       }
 
-  fun apply(directory: VedDirectory): DirectoryPatchApplicationResult =
+  fun patchDirectory(
+      directory: VedDirectory,
+      timestamp: VedTimestamp,
+  ): DirectoryPatchApplicationResult =
       when (directory) {
-        is VedExpandedDirectory -> apply(directory)
+        is VedExpandedDirectory ->
+            patchExpandedDirectory(
+                directory = directory,
+                timestamp = timestamp,
+            )
+
         else -> error("Cannot patch a collapsed directory")
       }
 
-  fun apply(directory: VedExpandedDirectory): DirectoryPatchApplicationResult {
+  fun patchExpandedDirectory(
+      directory: VedExpandedDirectory,
+      timestamp: VedTimestamp,
+  ): DirectoryPatchApplicationResult {
     // The result of applying the patch to each child that has one (computed once, reused below).
     val childResultByName =
         directory.labeledEntityByName
             .mapNotNull { (name, labeledEntity) ->
               val childPatch = childPatchByName[name] ?: return@mapNotNull null
-              name to childPatch.apply(labeledEntity.entity)
+
+              name to
+                  childPatch.patchEntity(
+                      entity = labeledEntity.entity,
+                      timestamp = timestamp,
+                  )
             }
             .toMap()
 

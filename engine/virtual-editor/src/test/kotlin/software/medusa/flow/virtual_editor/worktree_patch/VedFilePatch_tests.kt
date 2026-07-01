@@ -10,6 +10,7 @@ import software.medusa.commons.text.TxtLineIndex
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.filesystem.mutation.UfsFileMutation
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
 
@@ -17,8 +18,9 @@ class VedFilePatch_tests {
   @Test
   fun `apply patches content of opened file`() {
     val file =
-        VedOpenedFile(
+        VedOpenedFile.of(
             content = TxtFileContent(content = TxtBlock.of("old line", "second line")),
+            timestamp = VedTimestamp.zero,
         )
 
     val patch =
@@ -33,13 +35,13 @@ class VedFilePatch_tests {
                 ),
         )
 
-    val result = patch.apply(file)
+    val result = patch.patchOpenedFile(openedFile = file, timestamp = VedTimestamp.zero.next)
 
     val patchedFile = result.patchedEntity as VedOpenedFile
 
     assertEquals(
         TxtFileContent(content = TxtBlock.of("new line", "second line")),
-        patchedFile.content,
+        patchedFile.currentContent,
     )
 
     assertEquals(
@@ -62,6 +64,8 @@ class VedFilePatch_tests {
                 ),
         )
 
-    assertFailsWith<IllegalStateException> { patch.apply(VedClosedFile) }
+    assertFailsWith<IllegalStateException> {
+      patch.patchFile(file = VedClosedFile, timestamp = VedTimestamp.zero)
+    }
   }
 }

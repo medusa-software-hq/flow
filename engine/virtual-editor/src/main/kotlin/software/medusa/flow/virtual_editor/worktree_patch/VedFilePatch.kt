@@ -1,9 +1,9 @@
 package software.medusa.flow.virtual_editor.worktree_patch
 
 import kotlinx.io.bytestring.encodeToByteString
-import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.filesystem.mutation.UfsFileMutation
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedEntity
 import software.medusa.flow.virtual_editor.worktree.VedFile
@@ -14,28 +14,48 @@ data class VedFilePatch(
 ) : VedEntityPatch() {
   typealias FilePatchApplicationResult = PatchApplicationResult<VedFile, UfsFileMutation>
 
-  override fun apply(entity: VedEntity): FilePatchApplicationResult =
+  override fun patchEntity(
+      entity: VedEntity,
+      timestamp: VedTimestamp,
+  ): FilePatchApplicationResult =
       when (entity) {
-        is VedFile -> apply(entity)
+        is VedFile ->
+            patchFile(
+                file = entity,
+                timestamp = timestamp,
+            )
+
         is VedDirectory -> error("Expected VedFile, got VedDirectory")
       }
 
-  fun apply(file: VedFile): FilePatchApplicationResult =
+  fun patchFile(
+      file: VedFile,
+      timestamp: VedTimestamp,
+  ): FilePatchApplicationResult =
       when (file) {
-        is VedOpenedFile -> apply(file)
+        is VedOpenedFile ->
+            patchOpenedFile(
+                openedFile = file,
+                timestamp = timestamp,
+            )
+
         else -> error("Cannot patch a closed file")
       }
 
-  fun apply(file: VedOpenedFile): FilePatchApplicationResult {
+  fun patchOpenedFile(
+      openedFile: VedOpenedFile,
+      timestamp: VedTimestamp,
+  ): FilePatchApplicationResult {
     val newContent =
-        TxtFileContent(
-            content = file.content.content.applyPatch(patch = txtPatch),
+        openedFile.currentContent.applyPatch(
+            patch = txtPatch,
         )
 
     return FilePatchApplicationResult(
         patchedEntity =
-            VedOpenedFile(
-                content = newContent,
+            openedFile.update(
+                newContent = newContent,
+                timestamp = timestamp,
             ),
         entityMutation =
             UfsFileMutation.Update(

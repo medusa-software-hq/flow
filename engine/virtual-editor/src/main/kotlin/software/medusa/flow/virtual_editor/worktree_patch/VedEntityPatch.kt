@@ -1,6 +1,7 @@
 package software.medusa.flow.virtual_editor.worktree_patch
 
 import software.medusa.commons.unix.filesystem.mutation.UfsEntityMutation
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedEntity
 
 sealed class VedEntityPatch {
@@ -9,5 +10,8 @@ sealed class VedEntityPatch {
       val entityMutation: MutationT,
   )
 
-  abstract fun apply(entity: VedEntity): PatchApplicationResult<*, *>
+  abstract fun patchEntity(
+      entity: VedEntity,
+      timestamp: VedTimestamp,
+  ): PatchApplicationResult<*, *>
 }

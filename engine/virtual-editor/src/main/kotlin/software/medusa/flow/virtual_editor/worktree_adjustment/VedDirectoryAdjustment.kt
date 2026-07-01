@@ -4,6 +4,7 @@ import software.medusa.commons.git.worktree.GitWorktreeDirectory
 import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.git.worktree.GitWorktreeFile
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedCollapsedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedDirectory
@@ -17,6 +18,7 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
     override suspend fun adjustDirectory(
         gitDirectory: GitWorktreeDirectory,
         editorDirectory: VedDirectory,
+        timestamp: VedTimestamp,
     ): DirectoryAdjustmentApplicationResult =
         expandDirectory(
             gitDirectory = gitDirectory,
@@ -58,12 +60,14 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
     override suspend fun adjustDirectory(
         gitDirectory: GitWorktreeDirectory,
         editorDirectory: VedDirectory,
+        timestamp: VedTimestamp,
     ): DirectoryAdjustmentApplicationResult =
         when (editorDirectory) {
           is VedExpandedDirectory ->
               diveIntoDirectory(
                   gitDirectory = gitDirectory,
                   expandedDirectory = editorDirectory,
+                  timestamp = timestamp,
               )
 
           else -> error("Cannot dive into a collapsed directory")
@@ -72,6 +76,7 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
     private suspend fun diveIntoDirectory(
         gitDirectory: GitWorktreeDirectory,
         expandedDirectory: VedExpandedDirectory,
+        timestamp: VedTimestamp,
     ): DirectoryAdjustmentApplicationResult {
       val adjustedLabeledEntityByName =
           expandedDirectory.labeledEntityByName.mapValues { (name, labeledEntity) ->
@@ -86,6 +91,7 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
                     .adjustEntity(
                         gitEntity = gitChildEntity,
                         editorEntity = labeledEntity.entity,
+                        timestamp = timestamp,
                     )
                     .adjustedEntity
 
@@ -104,6 +110,7 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
   final override suspend fun adjustEntity(
       gitEntity: GitWorktreeEntity,
       editorEntity: VedEntity,
+      timestamp: VedTimestamp,
   ): DirectoryAdjustmentApplicationResult {
     val gitDirectory =
         gitEntity as? GitWorktreeDirectory
@@ -116,11 +123,13 @@ sealed class VedDirectoryAdjustment : VedEntityAdjustment() {
     return adjustDirectory(
         gitDirectory = gitDirectory,
         editorDirectory = editorDirectory,
+        timestamp = timestamp,
     )
   }
 
   abstract suspend fun adjustDirectory(
       gitDirectory: GitWorktreeDirectory,
       editorDirectory: VedDirectory,
+      timestamp: VedTimestamp,
   ): DirectoryAdjustmentApplicationResult
 }
