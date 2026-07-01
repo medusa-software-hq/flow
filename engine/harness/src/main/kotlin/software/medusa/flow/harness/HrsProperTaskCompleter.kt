@@ -18,7 +18,7 @@ import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 class HrsProperTaskCompleter(
     private val physicalWorkspaceAllocator: PhwWorkspaceAllocator,
-    private val aiSystem: HrsFrontlineAiSystem,
+    private val frontlineAiSystem: HrsFrontlineAiSystem,
     private val projectManifestLoader: UnpProjectManifestLoader,
 ) : HrsTaskCompleter {
   override suspend fun completeTask(
@@ -47,7 +47,7 @@ class HrsProperTaskCompleter(
         }
 
     val fullScoutingResult =
-        aiSystem.scoutFully(
+        frontlineAiSystem.scoutFully(
             sourceGitWorktree = sourceGitWorktree,
             taskDescription = taskDescription,
             scoutingObserver = observer.observeScouting(),
@@ -57,7 +57,7 @@ class HrsProperTaskCompleter(
     // the
     // health checks there. Failures are fed back into the next round, so the model keeps revising
     // until the workspace is healthy.
-    aiSystem.implementSolutionFully(
+    frontlineAiSystem.implementSolutionFully(
         taskDescription = taskDescription,
         editorWorktree = fullScoutingResult.fullyScoutedWorktree,
         verifier =

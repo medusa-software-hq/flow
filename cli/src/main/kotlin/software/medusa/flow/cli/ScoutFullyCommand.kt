@@ -12,7 +12,7 @@ import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.r
 
 class ScoutFullyCommand(
     private val terminal: Terminal,
-    private val aiSystem: HrsFrontlineAiSystem,
+    private val frontlineAiSystem: HrsFrontlineAiSystem,
 ) :
     CliktCommand(
         name = "scout-fully",
@@ -25,7 +25,7 @@ class ScoutFullyCommand(
       val taskDescription = globalState.taskDescription
 
       val fullScoutingResult =
-          aiSystem.scoutFully(
+          frontlineAiSystem.scoutFully(
               sourceGitWorktree = gitWorktree,
               taskDescription = taskDescription,
               scoutingObserver = CliScoutingObserver(terminal = terminal),

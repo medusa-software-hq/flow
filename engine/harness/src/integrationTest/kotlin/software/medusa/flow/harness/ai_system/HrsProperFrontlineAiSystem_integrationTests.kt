@@ -154,10 +154,10 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
   @Test
   fun test_performScouting_requestsOpeningTheRelevantFile() = runBlocking {
-    val aiSystem = buildAiSystem(buildClient())
+    val frontlineAiSystem = buildAiSystem(buildClient())
 
     val scoutingResult =
-        aiSystem.performScouting(
+        frontlineAiSystem.performScouting(
             taskDescription =
                 HrsTaskDescription(
                     body =
@@ -184,12 +184,12 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
   @Test
   fun test_implementSolution_fixesLuaProgram() = runBlocking {
-    val aiSystem = buildAiSystem(buildClient())
+    val frontlineAiSystem = buildAiSystem(buildClient())
 
     val baseWorktree = openedWorktreeOf(buggyFibLua)
 
     val solutionImplementationResult =
-        aiSystem.implementSolution(
+        frontlineAiSystem.implementSolution(
             taskDescription =
                 HrsTaskDescription(
                     body =

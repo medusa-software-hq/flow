@@ -73,7 +73,7 @@ suspend fun main(
             model = OaiModel.DeepSeekFlash,
         )
         .use { openAiClient ->
-          val aiSystem = HrsProperFrontlineAiSystem(openaiClient = openAiClient)
+          val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = openAiClient)
 
           val projectManifestLoader =
               UnpYamlProjectManifestLoader(
@@ -84,7 +84,7 @@ suspend fun main(
           val taskCompleter =
               HrsProperTaskCompleter(
                   physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-                  aiSystem = aiSystem,
+                  frontlineAiSystem = frontlineAiSystem,
                   projectManifestLoader = projectManifestLoader,
               )
 
@@ -94,7 +94,7 @@ suspend fun main(
               .subcommands(
                   ScoutFullyCommand(
                       terminal = terminal,
-                      aiSystem = aiSystem,
+                      frontlineAiSystem = frontlineAiSystem,
                   ),
                   CompleteTaskCommand(
                       terminal = terminal,
