@@ -17,6 +17,7 @@ import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.ai_system.HrsExpertAiSystem.ImplementationPlan
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
@@ -51,6 +52,8 @@ class HrsProperFrontlineAiSystem(
         You will now be provided with The Task.
         """
             .trimIndent()
+
+    // region Scouting prompts
 
     private val scoutResponseFormatIntroText =
         """
@@ -136,6 +139,49 @@ class HrsProperFrontlineAiSystem(
                 ),
         )
 
+    // endregion
+
+    // region Planning brief prompts
+
+    private val planningBriefFormatIntroText =
+        """
+        # Workspace Briefing Format
+
+        A separate, more capable expert engineer will design the implementation plan for The Task.
+        That expert will NOT see this worktree — only the brief you write now. So the brief must
+        carry everything the expert needs to plan the solution, and nothing it doesn't.
+
+        Write a Markdown document that starts with a `# WORKSPACE BRIEFING` heading and captures the
+        essence of the worktree in the context of The Task:
+
+        - Summarise the project's layout, conventions, and the parts relevant to The Task.
+        - Where the expert must see exact code (signatures, the specific lines to change, tricky
+          details), quote focused code snippets — never whole files.
+        - Where prose suffices (what a file does, how modules relate, where things live), summarise
+          instead of pasting.
+
+        Avoid both extremes: don't be laconic — the expert cannot ask follow-up questions; and don't
+        dump irrelevant content or full file bodies — that wastes the expert's limited budget.
+        """
+            .trimIndent()
+
+    private val planningBriefIntroText =
+        """
+        Prepare the brief for the expert. Respond in the Workspace Briefing Format.
+        """
+            .trimIndent()
+
+    // endregion
+
+    // region Solution implementation prompts
+
+    private val implementationPlanFramingText =
+        """
+        A more capable expert engineer prepared the following Implementation Plan for The Task.
+        Follow it closely; it may contain ready-to-use sample code. Turn it into concrete edits.
+        """
+            .trimIndent()
+
     private val solutionResponseFormatIntroText =
         """
         # Patch Response Format (Markdown-based)
@@ -160,7 +206,8 @@ class HrsProperFrontlineAiSystem(
 
     private val solutionImplementationIntroText =
         """
-        Implement the solution to The Task by editing the opened files shown above.
+        Implement the solution to The Task by editing the opened files shown above, following the
+        Implementation Plan.
 
         Respond in the Patch Response Format.
         """
@@ -223,6 +270,8 @@ class HrsProperFrontlineAiSystem(
                 ),
         )
 
+    // endregion
+
     private fun renderRequest(
         taskDescription: HrsTaskDescription,
         editorWorktree: VedWorktree,
@@ -271,6 +320,80 @@ class HrsProperFrontlineAiSystem(
                 text = editorWorktree.renderFiles().render(),
             ),
         )
+
+    private fun renderPatchSystemResponse(
+        systemResponse: PatchCommand.SystemResponse,
+    ): MdChapter {
+      val approvalTimestamp = systemResponse.approvalTimestamp
+      val projectFailure = systemResponse.failureReport.failure
+
+      val stageText =
+          when (systemResponse.failureReport.stage) {
+            ProjectFailureReport.Stage.Analysis -> "Analysis"
+            ProjectFailureReport.Stage.Testing -> "Testing"
+          }
+
+      return MdChapter(
+          title = MdInlineContent.of("Patch applied"),
+          element =
+              MdElement(
+                  blocks =
+                      listOf(
+                          MdBlock.Paragraph.of(
+                              "The worktree was patched according to your request.",
+                          ),
+                          MdBlock.Paragraph.of("Timestamp: t = ${approvalTimestamp.t}"),
+                          MdBlock.Paragraph.of(
+                              inlineNodes =
+                                  listOf(
+                                      MdInlineNode.Strong.of("NOTE:"),
+                                      MdInlineNode.Text("The freshly patched files are visible "),
+                                      MdInlineNode.Emphasis.of("above"),
+                                      MdInlineNode.Text("this message, in the Worktree section."),
+                                  ),
+                          ),
+                      ),
+              ),
+          subChapters =
+              listOf(
+                  MdChapter(
+                      title = MdInlineContent.of("Found issues"),
+                      element =
+                          MdElement(
+                              blocks =
+                                  listOf(
+                                      MdBlock.Paragraph.of("Phase: $stageText"),
+                                  ),
+                          ),
+                      subChapters =
+                          projectFailure.failureByModulePath.map { (modulePath, moduleFailure) ->
+                            MdChapter.leaf(
+                                title =
+                                    MdInlineContent(
+                                        inlineNodes =
+                                            listOf(
+                                                MdInlineNode.Text("Module "),
+                                                MdInlineNode.Code(
+                                                    modulePath.toUnixAbsolutePathString(),
+                                                ),
+                                                MdInlineNode.Text(":"),
+                                            ),
+                                    ),
+                                element =
+                                    MdElement(
+                                        blocks =
+                                            listOf(
+                                                MdBlock.CodeBlock(
+                                                    code = moduleFailure.diagnosticOutput,
+                                                ),
+                                            ),
+                                    ),
+                            )
+                          },
+                  ),
+              ),
+      )
+    }
   }
 
   override suspend fun performScouting(
@@ -324,17 +447,54 @@ class HrsProperFrontlineAiSystem(
 
     scoutingObserver.observeRawResponse(response = response)
 
-    val loadedResult =
+    val scoutCommand =
         ScoutCommand.load(
             document = MdDocument.parse(markdownSource = response.responseText),
         )
 
-    return loadedResult
+    return scoutCommand
+  }
+
+  override suspend fun prepareWorkspaceBrief(
+      taskDescription: HrsTaskDescription,
+      editorWorktree: VedWorktree,
+      workspaceBriefingObserver: HrsTaskCompleter.WorkspaceBriefingObserver,
+  ): HrsExpertAiSystem.WorkspaceBrief {
+    val request =
+        renderRequest(
+            taskDescription = taskDescription,
+            editorWorktree = editorWorktree,
+            tailMessages =
+                listOf(
+                    OaiMessage(
+                        role = OaiRole.System,
+                        text = planningBriefFormatIntroText,
+                    ),
+                    OaiMessage(
+                        role = OaiRole.User,
+                        text = planningBriefIntroText,
+                    ),
+                ),
+        )
+
+    val response = openaiClient.createUnstructuredCompletion(request = request)
+
+    workspaceBriefingObserver.observeRawResponse(response = response)
+
+    val document = MdDocument.parse(markdownSource = response.responseText)
+
+    val workspaceBrief =
+        HrsExpertAiSystem.WorkspaceBrief(
+            body = document.rootChapter,
+        )
+
+    return workspaceBrief
   }
 
   override suspend fun implementSolution(
       taskDescription: HrsTaskDescription,
       editorWorktree: VedWorktree,
+      implementationPlan: ImplementationPlan,
       solutionImplementationLog: SolutionImplementationLog,
       solutionImplementationObserver: HrsTaskCompleter.SolutionImplementationObserver,
   ): PatchCommand {
@@ -351,6 +511,14 @@ class HrsProperFrontlineAiSystem(
                     OaiMessage(
                         role = OaiRole.System,
                         text = patchCommandExample.dump().render(),
+                    ),
+                    OaiMessage(
+                        role = OaiRole.System,
+                        text = implementationPlanFramingText,
+                    ),
+                    OaiMessage(
+                        role = OaiRole.System,
+                        text = implementationPlan.body.render(),
                     ),
                     OaiMessage(
                         role = OaiRole.User,
@@ -389,80 +557,6 @@ class HrsProperFrontlineAiSystem(
 
     return PatchCommand.load(
         document = MdDocument.parse(markdownSource = response.responseText),
-    )
-  }
-
-  private fun renderPatchSystemResponse(
-      systemResponse: PatchCommand.SystemResponse,
-  ): MdChapter {
-    val approvalTimestamp = systemResponse.approvalTimestamp
-    val projectFailure = systemResponse.failureReport.failure
-
-    val stageText =
-        when (systemResponse.failureReport.stage) {
-          ProjectFailureReport.Stage.Analysis -> "Analysis"
-          ProjectFailureReport.Stage.Testing -> "Testing"
-        }
-
-    return MdChapter(
-        title = MdInlineContent.of("Patch applied"),
-        element =
-            MdElement(
-                blocks =
-                    listOf(
-                        MdBlock.Paragraph.of(
-                            "The worktree was patched according to your request.",
-                        ),
-                        MdBlock.Paragraph.of("Timestamp: t = ${approvalTimestamp.t}"),
-                        MdBlock.Paragraph.of(
-                            inlineNodes =
-                                listOf(
-                                    MdInlineNode.Strong.of("NOTE:"),
-                                    MdInlineNode.Text("The freshly patched files are visible "),
-                                    MdInlineNode.Emphasis.of("above"),
-                                    MdInlineNode.Text("this message, in the Worktree section."),
-                                ),
-                        ),
-                    ),
-            ),
-        subChapters =
-            listOf(
-                MdChapter(
-                    title = MdInlineContent.of("Found issues"),
-                    element =
-                        MdElement(
-                            blocks =
-                                listOf(
-                                    MdBlock.Paragraph.of("Phase: $stageText"),
-                                ),
-                        ),
-                    subChapters =
-                        projectFailure.failureByModulePath.map { (modulePath, moduleFailure) ->
-                          MdChapter.leaf(
-                              title =
-                                  MdInlineContent(
-                                      inlineNodes =
-                                          listOf(
-                                              MdInlineNode.Text("Module "),
-                                              MdInlineNode.Code(
-                                                  modulePath.toUnixAbsolutePathString()
-                                              ),
-                                              MdInlineNode.Text(":"),
-                                          ),
-                                  ),
-                              element =
-                                  MdElement(
-                                      blocks =
-                                          listOf(
-                                              MdBlock.CodeBlock(
-                                                  code = moduleFailure.diagnosticOutput
-                                              ),
-                                          ),
-                                  ),
-                          )
-                        },
-                ),
-            ),
     )
   }
 }

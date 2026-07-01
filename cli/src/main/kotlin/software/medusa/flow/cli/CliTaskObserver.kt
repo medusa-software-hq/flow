@@ -7,6 +7,7 @@ import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.flow.harness.HrsTaskCompleter
+import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchCommand
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
@@ -31,6 +32,27 @@ class CliTaskObserver(
 
   override fun observeSolutionImplementation(): HrsTaskCompleter.SolutionImplementationObserver =
       CliSolutionImplementationObserver(terminal = terminal)
+
+  override fun observeWorkspaceBriefing(): HrsTaskCompleter.WorkspaceBriefingObserver =
+      CliWorkspaceBriefingObserver(terminal = terminal)
+
+  override fun observeImplementationPlan(
+      implementationPlan: HrsExpertAiSystem.ImplementationPlan,
+  ) {
+    terminal.println("> Implementation plan:")
+    terminal.println()
+    terminal.printCode(implementationPlan.body.render())
+  }
+}
+
+class CliWorkspaceBriefingObserver(
+    private val terminal: Terminal,
+) : HrsTaskCompleter.WorkspaceBriefingObserver {
+  override fun observeRawResponse(
+      response: OaiConfiguredClient.UnstructuredCompletionResponse,
+  ) {
+    terminal.printUnstructuredCompletionResponse(response = response)
+  }
 }
 
 /**

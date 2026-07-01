@@ -11,6 +11,7 @@ import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
 import software.medusa.flow.harness.HrsProperTaskCompleter
+import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem
 import software.medusa.flow.integration.gradle.GrdProperProjectConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsNpmConnector
@@ -65,43 +66,61 @@ suspend fun main(
             connectorHub = connectorHub,
         )
 
-    OaiProperClient.withTarget(
+    val openRouterClient =
+        OaiProperClient.withTarget(
             targetBaseUrl = OaiConfiguredClient.openRouterBaseUrl,
             targetApiKey = openRouterApiKey,
         )
-        .withModel(
-            model = OaiModel.DeepSeekFlash,
+
+    openRouterClient.withModel(model = OaiModel.DeepSeekFlash).use { frontlineOpenAiClient ->
+      openRouterClient.withModel(model = OaiModel.DeepSeekPro).use { expertOpenAiClient ->
+        runMainCommand(
+            args = args,
+            physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+            frontlineOpenAiClient = frontlineOpenAiClient,
+            expertOpenAiClient = expertOpenAiClient,
         )
-        .use { openAiClient ->
-          val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = openAiClient)
-
-          val projectManifestLoader =
-              UnpYamlProjectManifestLoader(
-                  gradleModuleManifestLoader = UnpGradleModuleManifestLoader,
-                  nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
-              )
-
-          val taskCompleter =
-              HrsProperTaskCompleter(
-                  physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-                  frontlineAiSystem = frontlineAiSystem,
-                  projectManifestLoader = projectManifestLoader,
-              )
-
-          val terminal = Terminal()
-
-          RootCommand()
-              .subcommands(
-                  ScoutFullyCommand(
-                      terminal = terminal,
-                      frontlineAiSystem = frontlineAiSystem,
-                  ),
-                  CompleteTaskCommand(
-                      terminal = terminal,
-                      taskCompleter = taskCompleter,
-                  ),
-              )
-              .main(args)
-        }
+      }
+    }
   }
+}
+
+private fun runMainCommand(
+    args: Array<String>,
+    physicalWorkspaceAllocator: PhwTempWorkspaceAllocator,
+    frontlineOpenAiClient: OaiConfiguredClient,
+    expertOpenAiClient: OaiConfiguredClient,
+) {
+  val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineOpenAiClient)
+
+  val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertOpenAiClient)
+
+  val projectManifestLoader =
+      UnpYamlProjectManifestLoader(
+          gradleModuleManifestLoader = UnpGradleModuleManifestLoader,
+          nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
+      )
+
+  val taskCompleter =
+      HrsProperTaskCompleter(
+          physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+          frontlineAiSystem = frontlineAiSystem,
+          expertAiSystem = expertAiSystem,
+          projectManifestLoader = projectManifestLoader,
+      )
+
+  val terminal = Terminal()
+
+  RootCommand()
+      .subcommands(
+          ScoutFullyCommand(
+              terminal = terminal,
+              frontlineAiSystem = frontlineAiSystem,
+          ),
+          CompleteTaskCommand(
+              terminal = terminal,
+              taskCompleter = taskCompleter,
+          ),
+      )
+      .main(args)
 }

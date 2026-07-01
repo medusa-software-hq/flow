@@ -4,7 +4,9 @@ import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.markdown.MdElement
 import software.medusa.flow.harness.HrsTaskCompleter.ScoutingObserver
 import software.medusa.flow.harness.HrsTaskCompleter.SolutionImplementationObserver
+import software.medusa.flow.harness.HrsTaskCompleter.WorkspaceBriefingObserver
 import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.ai_system.HrsExpertAiSystem.ImplementationPlan
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.maxImplementationAttempts
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.virtual_editor.VedTimestamp
@@ -139,6 +141,7 @@ interface HrsFrontlineAiSystem {
     suspend fun HrsFrontlineAiSystem.implementSolutionFully(
         taskDescription: HrsTaskDescription,
         editorWorktree: VedWorktree,
+        implementationPlan: ImplementationPlan,
         verifier: SolutionVerifier,
         startTimestamp: VedTimestamp,
         solutionImplementationObserver: SolutionImplementationObserver,
@@ -146,6 +149,7 @@ interface HrsFrontlineAiSystem {
         continueImplementingRecursively(
             taskDescription = taskDescription,
             baseEditorWorktree = editorWorktree,
+            implementationPlan = implementationPlan,
             baseSolutionImplementationLog = SolutionImplementationLog.empty,
             startTimestamp = startTimestamp,
             verifier = verifier,
@@ -155,6 +159,7 @@ interface HrsFrontlineAiSystem {
     private tailrec suspend fun HrsFrontlineAiSystem.continueImplementingRecursively(
         taskDescription: HrsTaskDescription,
         baseEditorWorktree: VedWorktree,
+        implementationPlan: ImplementationPlan,
         baseSolutionImplementationLog: SolutionImplementationLog,
         startTimestamp: VedTimestamp,
         verifier: SolutionVerifier,
@@ -164,6 +169,7 @@ interface HrsFrontlineAiSystem {
           implementSolution(
               taskDescription = taskDescription,
               editorWorktree = baseEditorWorktree,
+              implementationPlan = implementationPlan,
               solutionImplementationLog = baseSolutionImplementationLog,
               solutionImplementationObserver = solutionImplementationObserver,
           )
@@ -197,6 +203,7 @@ interface HrsFrontlineAiSystem {
           continueImplementingRecursively(
               taskDescription = taskDescription,
               baseEditorWorktree = solutionApplicationResult.patchedWorktree,
+              implementationPlan = implementationPlan,
               baseSolutionImplementationLog =
                   baseSolutionImplementationLog.expand(
                       newEntry =
@@ -310,7 +317,14 @@ interface HrsFrontlineAiSystem {
   suspend fun implementSolution(
       taskDescription: HrsTaskDescription,
       editorWorktree: VedWorktree,
+      implementationPlan: ImplementationPlan,
       solutionImplementationLog: SolutionImplementationLog,
       solutionImplementationObserver: SolutionImplementationObserver,
   ): PatchCommand
+
+  suspend fun prepareWorkspaceBrief(
+      taskDescription: HrsTaskDescription,
+      editorWorktree: VedWorktree,
+      workspaceBriefingObserver: WorkspaceBriefingObserver,
+  ): HrsExpertAiSystem.WorkspaceBrief
 }

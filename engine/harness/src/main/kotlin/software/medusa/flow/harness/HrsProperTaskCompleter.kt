@@ -5,6 +5,7 @@ import software.medusa.commons.unix.filesystem.mutation.applyMutation
 import software.medusa.flow.harness.HrsTaskCompleter.JointOperationPhase
 import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
+import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.implementSolutionFully
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.scoutFully
@@ -19,6 +20,7 @@ import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 class HrsProperTaskCompleter(
     private val physicalWorkspaceAllocator: PhwWorkspaceAllocator,
     private val frontlineAiSystem: HrsFrontlineAiSystem,
+    private val expertAiSystem: HrsExpertAiSystem,
     private val projectManifestLoader: UnpProjectManifestLoader,
 ) : HrsTaskCompleter {
   override suspend fun completeTask(
@@ -53,13 +55,33 @@ class HrsProperTaskCompleter(
             scoutingObserver = observer.observeScouting(),
         )
 
+    val fullyScoutedWorktree = fullScoutingResult.fullyScoutedWorktree
+
+    val implementationPlanRequest =
+        frontlineAiSystem.prepareWorkspaceBrief(
+            taskDescription = taskDescription,
+            editorWorktree = fullyScoutedWorktree,
+            workspaceBriefingObserver = observer.observeWorkspaceBriefing(),
+        )
+
+    val implementationPlan =
+        expertAiSystem.planImplementation(
+            taskDescription = taskDescription,
+            workspaceBrief = implementationPlanRequest,
+        )
+
+    observer.observeImplementationPlan(
+        implementationPlan = implementationPlan,
+    )
+
     // Each round the model proposes a patch; we write it into the materialized workspace and run
     // the
     // health checks there. Failures are fed back into the next round, so the model keeps revising
     // until the workspace is healthy.
     frontlineAiSystem.implementSolutionFully(
         taskDescription = taskDescription,
-        editorWorktree = fullScoutingResult.fullyScoutedWorktree,
+        editorWorktree = fullyScoutedWorktree,
+        implementationPlan = implementationPlan,
         verifier =
             object : HrsFrontlineAiSystem.SolutionVerifier {
               override suspend fun verify(
