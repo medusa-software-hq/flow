@@ -147,27 +147,19 @@ class HrsProperFrontlineAiSystem(
         """
         # Workspace Briefing Format
 
-        A separate, more capable expert engineer will design the implementation plan for The Task.
-        That expert will NOT see this worktree — only the brief you write now. So the brief must
-        carry everything the expert needs to plan the solution, and nothing it doesn't.
-
-        Write a Markdown document that starts with a `# WORKSPACE BRIEFING` heading and captures the
-        essence of the worktree in the context of The Task:
-
-        - Summarise the project's layout, conventions, and the parts relevant to The Task.
-        - Where the expert must see exact code (signatures, the specific lines to change, tricky
-          details), quote focused code snippets — never whole files.
-        - Where prose suffices (what a file does, how modules relate, where things live), summarise
-          instead of pasting.
-
-        Avoid both extremes: don't be laconic — the expert cannot ask follow-up questions; and don't
-        dump irrelevant content or full file bodies — that wastes the expert's limited budget.
+        A Markdown document starting with `# WORKSPACE BRIEFING`.
         """
             .trimIndent()
 
     private val planningBriefIntroText =
         """
-        Prepare the brief for the expert. Respond in the Workspace Briefing Format.
+        A separate AI system will design the implementation plan for The Task. It will NOT see this
+        worktree — only The Task description and the brief you write now. So the brief must carry
+        all the information from the workspace that's relevant to planning the solution.
+
+        It's totally fine to include larger code snippets _if_ they are relevant enough.
+          
+        Respond in the Workspace Briefing Format.
         """
             .trimIndent()
 
@@ -177,8 +169,8 @@ class HrsProperFrontlineAiSystem(
 
     private val implementationPlanFramingText =
         """
-        A more capable expert engineer prepared the following Implementation Plan for The Task.
-        Follow it closely; it may contain ready-to-use sample code. Turn it into concrete edits.
+        An expert engineer prepared the following Implementation Plan for The Task. Follow it
+        closely; it may contain ready-to-use sample code. Turn it into concrete edits.
         """
             .trimIndent()
 
@@ -518,7 +510,7 @@ class HrsProperFrontlineAiSystem(
                     ),
                     OaiMessage(
                         role = OaiRole.System,
-                        text = implementationPlan.body.render(),
+                        text = implementationPlan.body,
                     ),
                     OaiMessage(
                         role = OaiRole.User,

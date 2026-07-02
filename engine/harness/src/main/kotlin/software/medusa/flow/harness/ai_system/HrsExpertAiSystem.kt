@@ -1,7 +1,6 @@
 package software.medusa.flow.harness.ai_system
 
 import software.medusa.commons.markdown.MdChapter
-import software.medusa.commons.markdown.MdDocument
 import software.medusa.flow.harness.HrsTaskDescription
 
 interface HrsExpertAiSystem {
@@ -12,7 +11,7 @@ interface HrsExpertAiSystem {
 
   @JvmInline
   value class ImplementationPlan(
-      val body: MdDocument,
+      val body: String,
   )
 
   suspend fun planImplementation(

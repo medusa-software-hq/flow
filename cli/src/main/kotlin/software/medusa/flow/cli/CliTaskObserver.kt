@@ -41,7 +41,7 @@ class CliTaskObserver(
   ) {
     terminal.println("> Implementation plan:")
     terminal.println()
-    terminal.printCode(implementationPlan.body.render())
+    terminal.printCode(implementationPlan.body)
   }
 }
 

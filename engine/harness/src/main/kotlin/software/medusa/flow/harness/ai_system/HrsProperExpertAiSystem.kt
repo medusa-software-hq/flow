@@ -92,7 +92,7 @@ class HrsProperExpertAiSystem(
 
     val implementationPlan =
         ImplementationPlan(
-            body = MdDocument.parse(markdownSource = response.responseText),
+            body = response.responseText,
         )
 
     return implementationPlan
