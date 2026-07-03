@@ -6,6 +6,9 @@ plugins {
 rootProject.name = "flow"
 
 include(
+    ":backend:api:impl:gcp",
+    ":backend:api:impl:local",
+    ":backend:api:impl:shared",
     ":cli",
     ":engine:harness",
     ":engine:physical-workspace",

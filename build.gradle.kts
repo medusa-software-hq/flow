@@ -1,5 +1,8 @@
 plugins {
+  alias(libs.plugins.jib) apply false
   alias(libs.plugins.kotlin.jvm) apply false
+  alias(libs.plugins.protobuf) apply false
+  alias(libs.plugins.sqldelight) apply false
   alias(libs.plugins.versionCatalogUpdate)
   alias(libs.plugins.ktfmt) apply false
   alias(libs.plugins.detekt) apply false
@@ -46,5 +49,9 @@ subprojects {
       // Preserve parameter names in bytecode for runtime reflection.
       options.compilerArgs.add("-parameters")
     }
+  }
+
+  tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
   }
 }

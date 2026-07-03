@@ -39,7 +39,7 @@ includes:
   - '**/*.kts'
 
 tasks:
-  checkFormatting-all:
+  all:checkFormatting:
     desc: Check formatting for the entire codebase
     deps:
       - github:workflows:lint
@@ -48,10 +48,10 @@ tasks:
       - web:app:checkFormatting
       - web:infra:checkFormatting
       - web:domain-mapping:checkFormatting
-      - api:impl:checkFormatting
+      - gradleRoot:checkFormatting
       - api:infra:checkFormatting
 
-  fixFormatting-all:
+  all:fixFormatting:
     desc: Fix formatting for the entire codebase
     deps:
       - github:workflows:fixLint
@@ -60,11 +60,10 @@ tasks:
       - web:app:fixFormatting
       - web:infra:fixFormatting
       - web:domain-mapping:fixFormatting
-      - api:impl:fixFormatting
       - api:infra:fixFormatting
       - gradleRoot:fixFormatting
 
-  lint-all:
+  all:lint:
     desc: Lint the entire codebase
     deps:
       - github:workflows:lint
@@ -73,11 +72,10 @@ tasks:
       - web:app:lint
       - web:infra:lint
       - web:domain-mapping:lint
-      - api:impl:lint
       - api:infra:lint
       - gradleRoot:analyzeStatically
 
-  analyze-all:
+  all:analyze:
     desc: Analyze the entire codebase
     deps:
       - github:config:validate
@@ -87,17 +85,25 @@ tasks:
       - web:domain-mapping:validate
       - api:infra:validate
 
-  run:
-    desc: Run the frontend and the API locally
-    deps:
-      - web:app:run
-      - api:impl:run
+  gradleRoot:checkFormatting:
+    desc: Check Kotlin formatting
+    sources: *kotlinSources
+    cmds:
+      - ./gradlew ktfmtCheck
+    interactive: true
 
   gradleRoot:fixFormatting:
     desc: Fix Kotlin formatting
     sources: *kotlinSources
     cmds:
       - ./gradlew ktfmtFormat
+    interactive: true
+
+  gradleRoot:compile:
+    desc: Compile the Kotlin sources
+    sources: *kotlinSources
+    cmds:
+      - ./gradlew compileKotlin
     interactive: true
 
   gradleRoot:analyzeStatically:
@@ -107,3 +113,9 @@ tasks:
       - ./gradlew assemble
       - ./gradlew detekt
     interactive: true
+
+  run:
+    desc: Run the frontend and the API locally
+    deps:
+      - web:app:run
+      - api:impl:run
