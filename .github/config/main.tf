@@ -1,10 +1,5 @@
 # Configuration
 
-locals {
-  gh_organization_name = "medusa-software-hq"
-  gh_repo_name         = "flow"
-}
-
 terraform {
   required_version = ">= 1.14"
 
@@ -14,15 +9,17 @@ terraform {
   }
 
   required_providers {
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.8"
-    }
     github = {
       source  = "integrations/github"
       version = "~> 6.12.1"
     }
   }
+}
+
+# Module imports
+
+module "common" {
+  source = "../../infra/common"
 }
 
 # GitHub provider
@@ -34,6 +31,6 @@ variable "gh_token" {
 }
 
 provider "github" {
-  owner = local.gh_organization_name
+  owner = module.common.gh_organization_name
   token = var.gh_token
 }
