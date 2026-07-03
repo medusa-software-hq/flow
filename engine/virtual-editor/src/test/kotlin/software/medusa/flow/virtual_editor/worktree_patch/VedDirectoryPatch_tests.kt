@@ -11,6 +11,7 @@ import software.medusa.commons.text.TxtLineIndexRange
 import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.filesystem.mutation.UfsDirectoryMutation
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedCollapsedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
@@ -18,8 +19,13 @@ import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
 class VedDirectoryPatch_tests {
   private val includedStatus = GitWorktreeEntity.Status.included
 
+  private val patchTimestamp = VedTimestamp.zero.next
+
   private fun openedFile(vararg lines: String) =
-      VedOpenedFile(content = TxtFileContent(content = TxtBlock.of(*lines)))
+      VedOpenedFile.of(
+          content = TxtFileContent(content = TxtBlock.of(*lines)),
+          timestamp = VedTimestamp.zero,
+      )
 
   private fun labeledFile(vararg lines: String) =
       VedExpandedDirectory.LabeledEntity(status = includedStatus, entity = openedFile(*lines))
@@ -46,10 +52,13 @@ class VedDirectoryPatch_tests {
 
     val patch = VedDirectoryPatch(childPatchByName = mapOf(name to singleLinePatch("new line")))
 
-    val result = patch.apply(directory).patchedEntity as VedExpandedDirectory
+    val result =
+        patch
+            .patchExpandedDirectory(directory = directory, timestamp = patchTimestamp)
+            .patchedEntity
 
     val patchedEntity = result.labeledEntityByName.getValue(name).entity as VedOpenedFile
-    assertEquals(TxtBlock.of("new line"), patchedEntity.content.content)
+    assertEquals(TxtBlock.of("new line"), patchedEntity.currentContent.content)
   }
 
   @Test
@@ -73,7 +82,10 @@ class VedDirectoryPatch_tests {
     val patch =
         VedDirectoryPatch(childPatchByName = mapOf(patchedName to singleLinePatch("new line")))
 
-    val result = patch.apply(directory).patchedEntity as VedExpandedDirectory
+    val result =
+        patch
+            .patchExpandedDirectory(directory = directory, timestamp = patchTimestamp)
+            .patchedEntity
 
     assertEquals(untouchedFile, result.labeledEntityByName.getValue(untouchedName).entity)
   }
@@ -109,12 +121,15 @@ class VedDirectoryPatch_tests {
                 ),
         )
 
-    val result = patch.apply(outerDirectory).patchedEntity as VedExpandedDirectory
+    val result =
+        patch
+            .patchExpandedDirectory(directory = outerDirectory, timestamp = patchTimestamp)
+            .patchedEntity
 
     val resultInner =
         result.labeledEntityByName.getValue(childDirName).entity as VedExpandedDirectory
     val patchedFile = resultInner.labeledEntityByName.getValue(fileName).entity as VedOpenedFile
-    assertEquals(TxtBlock.of("new line"), patchedFile.content.content)
+    assertEquals(TxtBlock.of("new line"), patchedFile.currentContent.content)
   }
 
   @Test
@@ -133,7 +148,10 @@ class VedDirectoryPatch_tests {
     val patch =
         VedDirectoryPatch(childPatchByName = mapOf(patchedName to singleLinePatch("new line")))
 
-    val mutation = patch.apply(directory).entityMutation as UfsDirectoryMutation.Dive
+    val mutation =
+        patch
+            .patchExpandedDirectory(directory = directory, timestamp = patchTimestamp)
+            .entityMutation as UfsDirectoryMutation.Dive
 
     assertEquals(setOf(patchedName), mutation.operationByName.keys)
   }
@@ -142,6 +160,8 @@ class VedDirectoryPatch_tests {
   fun `apply throws on collapsed directory`() {
     val patch = VedDirectoryPatch(childPatchByName = emptyMap())
 
-    assertFailsWith<IllegalStateException> { patch.apply(VedCollapsedDirectory) }
+    assertFailsWith<IllegalStateException> {
+      patch.patchDirectory(directory = VedCollapsedDirectory, timestamp = patchTimestamp)
+    }
   }
 }

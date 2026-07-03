@@ -10,6 +10,7 @@ import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.text.TxtBlock
 import software.medusa.commons.unix.filesystem.impl.memory.UfsMemoryDirectory
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedCollapsedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedEntity
@@ -68,13 +69,17 @@ class VedWorktreeAdjustment_tests {
 
     val adjustedRoot =
         adjustment
-            .adjust(gitWorktree = gitWorktree(), editorWorktree = editorWorktree)
+            .adjust(
+                gitWorktree = gitWorktree(),
+                editorWorktree = editorWorktree,
+                timestamp = VedTimestamp.zero,
+            )
             .adjustedWorktree
             .rootDirectory
 
     val openedReadme =
         assertIs<VedOpenedFile>(adjustedRoot.labeledEntityByName.getValue(readmeName).entity)
-    assertEquals(TxtBlock.of("hello"), openedReadme.content.content)
+    assertEquals(TxtBlock.of("hello"), openedReadme.currentContent.content)
 
     val expandedSrc =
         assertIs<VedExpandedDirectory>(adjustedRoot.labeledEntityByName.getValue(srcName).entity)

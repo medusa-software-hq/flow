@@ -2,14 +2,12 @@ package software.medusa.flow.virtual_editor.worktree
 
 import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.git.worktree.GitWorktreeFilter
-import software.medusa.commons.markdown.ControlChar
 import software.medusa.commons.markdown.MdBlock
 import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.markdown.MdInlineContent
 import software.medusa.commons.markdown.MdInlineNode
-import software.medusa.commons.unix.path.UfsAbsolutePath
-import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
+import software.medusa.flow.virtual_editor.flat_worktree.VedFlatWorktree_renderingUtils.renderFiles
 
 data object VedWorktree_renderingUtils {
   fun VedWorktree.renderDirectoryTree(): MdChapter =
@@ -25,6 +23,9 @@ data object VedWorktree_renderingUtils {
               MdElement(
                   listOf(
                       MdBlock.Paragraph.of("This is the most recent state of the worktree."),
+                      MdBlock.Paragraph.of(
+                          "Paths here are absolute and rooted at the worktree root: the worktree root is '/', so every entity's path starts with '/' and lists the directories down to it, e.g. /app/src/main/kotlin/org/example/App.kt. Don't hesitate to use these absolute paths.",
+                      ),
                       MdBlock.ListBlock(
                           topLevel =
                               MdBlock.ListBlock.Level(
@@ -48,43 +49,9 @@ data object VedWorktree_renderingUtils {
           subChapters = emptyList(),
       )
 
-  fun VedWorktree.renderFiles(): MdChapter {
-    val fileContentChapters =
-        rootDirectory
-            .visitOpenedFiles(
-                directoryPath = UfsAbsolutePath.Root,
-            )
-            .map { visitedFile ->
-              visitedFile.openedFile.renderFileContent(
-                  filePath = visitedFile.filePath,
-              )
-            }
-            .toList()
-
-    return MdChapter.wrapper(
-        title =
-            MdInlineContent(
-                inlineNodes =
-                    listOf(
-                        MdInlineNode.Text("Open files"),
-                    ),
-            ),
-        introElement =
-            MdElement(
-                blocks =
-                    listOf(
-                        MdBlock.Paragraph.of(
-                            when {
-                              fileContentChapters.isEmpty() -> "No files are open."
-                              else ->
-                                  "The content of these files is likely relevant to The Task. Line numbers followed by the a RS control character are not a part of the literal file content."
-                            },
-                        ),
-                    ),
-            ),
-        subChapters = fileContentChapters,
-    )
-  }
+  // Rendering the file content works on the flattened, timestamp-ordered worktree so the prompt is
+  // prompt-cache friendly; see [VedFlatWorktree_renderingUtils].
+  fun VedWorktree.renderFiles(): MdChapter = flatten().renderFiles()
 
   private fun VedExpandedDirectory.renderMiniTree(): MdBlock.ListBlock.Level? =
       MdBlock.ListBlock.Level.of(
@@ -102,30 +69,6 @@ data object VedWorktree_renderingUtils {
                             entityStatus = childStatus,
                         )
                   },
-      )
-
-  private fun VedOpenedFile.renderFileContent(
-      filePath: UfsLiteralAbsolutePath,
-  ): MdChapter =
-      MdChapter.leaf(
-          title =
-              MdInlineContent(
-                  inlineNodes =
-                      listOf(
-                          MdInlineNode.Code(code = filePath.toUnixAbsolutePathString()),
-                      ),
-              ),
-          element =
-              MdElement(
-                  listOf(
-                      MdBlock.CodeBlock(
-                          code =
-                              content.indexedLines.joinToString("") { indexedLine ->
-                                "${indexedLine.index.indexOneBased}${ControlChar.RS}${indexedLine.line.content}\n"
-                              },
-                      ),
-                  ),
-              ),
       )
 
   private sealed class MiniItemRenderer {

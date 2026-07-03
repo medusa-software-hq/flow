@@ -10,218 +10,200 @@ import software.medusa.commons.openai_client.OaiChat
 import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.openai_client.OaiMessage
 import software.medusa.commons.openai_client.OaiRole
-import software.medusa.commons.text.TxtBlock
-import software.medusa.commons.text.TxtLineIndex
-import software.medusa.commons.text.TxtLineIndexRange
-import software.medusa.commons.text.TxtPatch
-import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.ai_system.HrsExpertAiSystem.ImplementationPlan
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchMessage
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutMessage
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingLog
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationLog
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationResult
-import software.medusa.flow.harness.ai_system.ScoutCommand_utils.dump
-import software.medusa.flow.harness.ai_system.ScoutCommand_utils.exploreKeyword
-import software.medusa.flow.harness.ai_system.ScoutCommand_utils.load
-import software.medusa.flow.harness.ai_system.ScoutCommand_utils.readyKeyword
-import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.dump
-import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.load
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.renderDirectoryTree
 import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.renderFiles
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedDirectoryAdjustment
+import software.medusa.flow.virtual_editor.worktree_adjustment.VedEntityAdjustment
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedFileAdjustment
-import software.medusa.flow.virtual_editor.worktree_adjustment.VedWorktreeAdjustment
-import software.medusa.flow.virtual_editor.worktree_patch.VedDirectoryPatch
-import software.medusa.flow.virtual_editor.worktree_patch.VedFilePatch
-import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 class HrsProperFrontlineAiSystem(
     private val openaiClient: OaiConfiguredClient,
 ) : HrsFrontlineAiSystem {
   companion object {
-    private val introText =
+    private val simpleAiName = "ai"
+
+    private val systemIntroText =
         """
-        You are conversing with an automated system. Don't ask questions and follow the requested format literally.
-
-        Because of cache optimizations, some information in the chat history may seem to appear non-chronologically.
-
-        You will now be provided with The Task.
+        You are conversing with a very simple AI agent. Cooperate. Respond in a direct tone, in the imperative mood. Don't ask questions. Don't do more than requested. Use Markdown.
         """
             .trimIndent()
 
-    private val scoutResponseFormatIntroText =
-        """
-        # Scout Response Format (Markdown-based)
-
-        A Scout Response must start with an ATX heading: either `# $exploreKeyword` or `# $readyKeyword`.
-
-        Use `# $exploreKeyword` while the worktree is not yet fully explored for The Task. Follow the heading with a natural-language rationale, then — as the last Markdown block — a tree of path actions.
-
-        The tree is a nested bullet list. Each item is an absolute path written as inline code (starting with `/`; it may span several directories, e.g. `/dir/sub/file.txt`), optionally followed by a verb:
-
-        - OPEN — open this file.
-        - EXPAND — expand this collapsed directory.
-        - An item with a verb is a leaf and must NOT have a sublist; an item without a verb means "go deeper" and must have a sublist of two or more items.
-
-        Sample $exploreKeyword message:
-        """
-            .trimIndent()
-
-    private val scoutResponseFormatIntermediateText =
-        """
-        A $readyKeyword message should be used when the scouting is completed. It's not followed by any rationale.
-          
-        Proper $readyKeyword message:
-        """
-            .trimIndent()
+    // region Scouting prompts
 
     private val scoutingIntroText =
         """
-        Scout the worktree. Open the files that are likely to be relevant to The Task.
+        We're now ready to scout the worktree. I have direct worktree access.
 
-        Expand collapsed directories that are likely to be relevant to The Task (note: all of them might be already expanded).
+        Most directories should already be expanded, but _if_ a relevant directory is collapsed, I can expand it.
 
-        Respond in the Scout Response Format.
+        Currently, all files are closed. We have to open the files that are likely to be relevant to The Task. I can open files.
+
+        Which directories should I expand, if any? Which files should I open?
+
+        (Quite often, a single round is enough, but we can make more rounds if necessary)
         """
             .trimIndent()
 
-    private val scoutContinueCommandExample =
-        ScoutCommand.Continue(
-            rationale =
-                MdElement(
-                    blocks =
-                        listOf(
-                            MdBlock.Paragraph.of(
-                                "Here goes the natural language rationale. In the actual run, explain the reasoning behind the request.",
-                            ),
+    private fun renderScoutingFollowupDocument(
+        systemResponse: ScoutMessage.SystemResponse,
+    ): MdDocument {
+      val openedFilePaths = mutableListOf<String>()
+      val expandedDirectoryPaths = mutableListOf<String>()
+
+      collectAdjustmentPaths(
+          entityAdjustment = systemResponse.performedAdjustment.rootDirectoryAdjustment,
+          pathPrefix = "",
+          openedFilePaths = openedFilePaths,
+          expandedDirectoryPaths = expandedDirectoryPaths,
+      )
+
+      val blocks = buildList {
+        if (expandedDirectoryPaths.isNotEmpty()) {
+          add(MdBlock.Paragraph.of("I expanded these directories:"))
+          add(
+              MdBlock.ListBlock.of(
+                  items = expandedDirectoryPaths.map { path -> pathListItem(path = path) }
+              )
+          )
+        }
+
+        if (openedFilePaths.isNotEmpty()) {
+          add(MdBlock.Paragraph.of("I opened these files:"))
+          add(
+              MdBlock.ListBlock.of(
+                  items = openedFilePaths.map { path -> pathListItem(path = path) }
+              )
+          )
+        }
+
+        add(
+            MdBlock.Paragraph.of(
+                inlineNodes =
+                    listOf(
+                        MdInlineNode.Text("The freshly opened files are visible "),
+                        MdInlineNode.Emphasis.of("above"),
+                        MdInlineNode.Text(
+                            " this message, in the Worktree section, with timestamp [t = ${systemResponse.adjustmentTimestamp.t}].",
                         ),
-                ),
-            requestedAdjustment =
-                VedWorktreeAdjustment(
-                    rootDirectoryAdjustment =
-                        VedDirectoryAdjustment.Dive(
-                            childAdjustmentByName =
-                                mapOf(
-                                    UfsName.Literal("file1.txt") to VedFileAdjustment.Open,
-                                    UfsName.Literal("dir1") to
-                                        VedDirectoryAdjustment.Dive(
-                                            childAdjustmentByName =
-                                                mapOf(
-                                                    UfsName.Literal("dir2") to
-                                                        VedDirectoryAdjustment.Dive(
-                                                            childAdjustmentByName =
-                                                                mapOf(
-                                                                    UfsName.Literal("dir3") to
-                                                                        VedDirectoryAdjustment.Dive(
-                                                                            childAdjustmentByName =
-                                                                                mapOf(
-                                                                                    UfsName.Literal(
-                                                                                        "file2.cpp",
-                                                                                    ) to
-                                                                                        VedFileAdjustment
-                                                                                            .Open,
-                                                                                ),
-                                                                        ),
-                                                                ),
-                                                        ),
-                                                    UfsName.Literal("collapsedDir1") to
-                                                        VedDirectoryAdjustment.Expand,
-                                                ),
-                                        ),
-                                ),
-                        ),
-                ),
+                    ),
+            ),
+        )
+        add(
+            MdBlock.Paragraph.of(
+                "If the opened files revealed some new information or references relevant to The Task, we can go on.",
+            ),
+        )
+        add(
+            MdBlock.Paragraph.of(
+                "Should I expand any directories or open any more files, or do you consider scouting finished?"
+            ),
+        )
+        add(
+            MdBlock.Paragraph.of(
+                inlineNodes =
+                    listOf(
+                        MdInlineNode.Strong.of("NOTE:"),
+                        MdInlineNode.Text(" It's not time to start completing The Task yet"),
+                    ),
+            ),
+        )
+      }
+
+      return MdDocument(
+          rootChapter =
+              MdChapter.leaf(
+                  title = MdInlineContent.of("Scouting round"),
+                  element = MdElement(blocks = blocks),
+              ),
+      )
+    }
+
+    private fun pathListItem(
+        path: String,
+    ): MdBlock.ListBlock.Item =
+        MdBlock.ListBlock.Item(
+            content = MdInlineContent(inlineNodes = listOf(MdInlineNode.Code(path))),
+            nestedLevel = null,
         )
 
-    private val solutionResponseFormatIntroText =
+    private fun collectAdjustmentPaths(
+        entityAdjustment: VedEntityAdjustment,
+        pathPrefix: String,
+        openedFilePaths: MutableList<String>,
+        expandedDirectoryPaths: MutableList<String>,
+    ) {
+      when (entityAdjustment) {
+        VedFileAdjustment.Open -> openedFilePaths += pathPrefix
+
+        VedDirectoryAdjustment.Expand -> expandedDirectoryPaths += pathPrefix
+
+        is VedDirectoryAdjustment.Dive ->
+            entityAdjustment.childAdjustmentByName.entries
+                .sortedBy { (name, _) -> name.content }
+                .forEach { (name, childAdjustment) ->
+                  collectAdjustmentPaths(
+                      entityAdjustment = childAdjustment,
+                      pathPrefix = "$pathPrefix/${name.content}",
+                      openedFilePaths = openedFilePaths,
+                      expandedDirectoryPaths = expandedDirectoryPaths,
+                  )
+                }
+      }
+    }
+
+    // endregion
+
+    // region Workspace brief prompts
+
+    private val workspaceBriefIntroText =
         """
-        # Patch Response Format (Markdown-based)
+        I'll now consult another expert AI system, which will prepare the implementation plan.
 
-        A Patch Response should start with a `# PATCH` heading. Under it, add one `## ` heading per
-        file you change, titled with the file's absolute path as inline code (e.g. `/src/Main.kt`).
-        For each file, add one `### ` heading per edit:
+        The expert AI system will be provided with The Task description, but will NOT see the full workspace.
 
-        - `INSERT BEFORE n` — insert new lines before original line `n`. To append at the end of
-          a file, use one past the last line (e.g. `INSERT BEFORE 21` for a 20-line file).
-        - `UPDATE a-b` — replace the original-line range a..b (inclusive on both sides).
-        - `DELETE a-b` — delete the original-line range a..b (inclusive on both sides).
+        Be the expert's eyes. Describe the workspace's content in the context of The Task.
 
-        Follow every heading except `DELETE` with a fenced code block holding the exact new lines.
-        All line numbers are 1-based and refer to the file's original content as shown. Edits must
-        neither overlap nor touch: leave at least one unchanged line between two edits, or combine
-        adjacent changes into a single edit. Only currently open files may be edited.
+        Present the important parts of the files as code snippets. In some cases, including the full file content might be appropriate.
 
-        Sample PATCH message:
+        Summarize the parts that are too lengthy or repetitive to include them directly, yet still relevant.
+
+        **IMPORTANT:** Restrain from _completing_ The Task and including a partial/full solution in your response. Do not include instructions or requirements.
         """
             .trimIndent()
 
-    private val solutionImplementationIntroText =
-        """
-        Implement the solution to The Task by editing the opened files shown above.
+    // endregion
 
-        Respond in the Patch Response Format.
+    // region Solution implementation prompts
+
+    private const val implementationPlanFramingText =
+        "An expert AI system prepared this Implementation Plan:"
+
+    private val implementationPhaseIntroText =
+        """
+        We're now ready to start editing the files, according to the Implementation Plan. I have direct worktree access.
+
+        Which files should I edit and how, specifically?
+
+        Start your response with a `# Patch` heading.
+
+        When referring the files, mention their absolute path, as presented in the Workspace. Use inline code for paths.
+
+        **NOTE:** I'll assume that all inline code nodes (e.g. `/foo/bar/baz`) starting with `/` are paths.
+
+        For created or replaced fragments, provide code snippets with the literal new content.
         """
             .trimIndent()
 
-    private val mainKtExamplePatch =
-        VedFilePatch(
-            txtPatch =
-                TxtPatch(
-                    fragmentByOldLineIndexRange =
-                        mapOf(
-                            TxtLineIndexRange.empty(
-                                startIndex =
-                                    TxtLineIndex.ofOneBased(
-                                        1,
-                                    ),
-                            ) to
-                                TxtPatch.Fragment(
-                                    newContent =
-                                        TxtBlock.of(
-                                            "import kotlin.math.max",
-                                        ),
-                                ),
-                            TxtLineIndexRange.of(
-                                startIndex =
-                                    TxtLineIndex.ofOneBased(
-                                        11,
-                                    ),
-                                length = 2,
-                            ) to
-                                TxtPatch.Fragment(
-                                    newContent =
-                                        TxtBlock.of(
-                                            "    val result = max(a, b)",
-                                            "    return result",
-                                        ),
-                                ),
-                        ),
-                ),
-        )
-
-    private val solutionImplementationResultExample =
-        SolutionImplementationResult(
-            solutionPatch =
-                VedWorktreePatch(
-                    rootDirectoryPatch =
-                        VedDirectoryPatch(
-                            childPatchByName =
-                                mapOf(
-                                    UfsName.Literal("src") to
-                                        VedDirectoryPatch(
-                                            childPatchByName =
-                                                mapOf(
-                                                    UfsName.Literal("Main.kt") to
-                                                        mainKtExamplePatch,
-                                                ),
-                                        ),
-                                ),
-                        ),
-                ),
-        )
+    // endregion
 
     private fun renderRequest(
         taskDescription: HrsTaskDescription,
@@ -260,17 +242,95 @@ class HrsProperFrontlineAiSystem(
         listOf(
             OaiMessage(
                 role = OaiRole.System,
-                text = introText,
+                text = systemIntroText,
             ),
             OaiMessage(
                 role = OaiRole.User,
                 text = taskDescription.body.render(),
+                name = simpleAiName,
             ),
             OaiMessage(
                 role = OaiRole.System,
                 text = editorWorktree.renderFiles().render(),
             ),
         )
+
+    private fun renderPatchSystemResponse(
+        systemResponse: PatchMessage.SystemResponse,
+    ): MdChapter {
+      val approvalTimestamp = systemResponse.patchTimestamp
+      val projectFailure = systemResponse.failureReport.failure
+
+      val stageText =
+          when (systemResponse.failureReport.stage) {
+            ProjectFailureReport.Stage.Analysis -> "Analysis"
+            ProjectFailureReport.Stage.Testing -> "Testing"
+          }
+
+      return MdChapter(
+          title = MdInlineContent.of("Patch applied"),
+          element =
+              MdElement(
+                  blocks =
+                      listOf(
+                          MdBlock.Paragraph.of(
+                              "I patched the files according to your request.",
+                          ),
+                          MdBlock.Paragraph.of("Timestamp: [t = ${approvalTimestamp.t}]"),
+                          MdBlock.Paragraph.of(
+                              inlineNodes =
+                                  listOf(
+                                      MdInlineNode.Strong.of("NOTE:"),
+                                      MdInlineNode.Text("The freshly patched files are visible "),
+                                      MdInlineNode.Emphasis.of("above"),
+                                      MdInlineNode.Text("this message, in the Worktree section."),
+                                  ),
+                          ),
+                      ),
+              ),
+          subChapters =
+              listOf(
+                  MdChapter(
+                      title = MdInlineContent.of("Found issues"),
+                      element =
+                          MdElement(
+                              blocks =
+                                  listOf(
+                                      MdBlock.Paragraph.of(
+                                          "I've run checks after editing the files. Some issues were found."
+                                      ),
+                                      MdBlock.Paragraph.of("Phase: $stageText"),
+                                  ),
+                          ),
+                      subChapters =
+                          projectFailure.failureByModulePath.map { (modulePath, moduleFailure) ->
+                            MdChapter.leaf(
+                                title =
+                                    MdInlineContent(
+                                        inlineNodes =
+                                            listOf(
+                                                MdInlineNode.Text("Module "),
+                                                MdInlineNode.Code(
+                                                    modulePath.toUnixAbsolutePathString(),
+                                                ),
+                                                MdInlineNode.Text(":"),
+                                            ),
+                                    ),
+                                element =
+                                    MdElement(
+                                        blocks =
+                                            listOf(
+                                                MdBlock.CodeBlock(
+                                                    code = moduleFailure.diagnosticOutput,
+                                                ),
+                                            ),
+                                    ),
+                            )
+                          },
+                  ),
+              ),
+      )
+    }
   }
 
   override suspend fun performScouting(
@@ -278,7 +338,7 @@ class HrsProperFrontlineAiSystem(
       editorWorktree: VedWorktree,
       scoutingLog: ScoutingLog,
       scoutingObserver: HrsTaskCompleter.ScoutingObserver,
-  ): ScoutCommand {
+  ): ScoutMessage {
     val request =
         renderRequest(
             taskDescription = taskDescription,
@@ -286,35 +346,24 @@ class HrsProperFrontlineAiSystem(
             tailMessages =
                 listOf(
                     OaiMessage(
-                        role = OaiRole.System,
-                        text = scoutResponseFormatIntroText,
-                    ),
-                    OaiMessage(
-                        role = OaiRole.System,
-                        text = scoutContinueCommandExample.dump().render(),
-                    ),
-                    OaiMessage(
-                        role = OaiRole.System,
-                        text = scoutResponseFormatIntermediateText,
-                    ),
-                    OaiMessage(
-                        role = OaiRole.System,
-                        text = ScoutCommand.Stop.dump().render(),
-                    ),
-                    OaiMessage(
                         role = OaiRole.User,
                         text = scoutingIntroText,
+                        name = simpleAiName,
                     ),
                 ) +
                     scoutingLog.logEntries.flatMap { logEntry ->
                       listOf(
                           OaiMessage(
                               role = OaiRole.Assistant,
-                              text = logEntry.continueCommand.dump().render(),
+                              text = logEntry.scoutMessage.body,
                           ),
                           OaiMessage(
-                              role = OaiRole.System,
-                              text = logEntry.systemResponse.dump().render(),
+                              role = OaiRole.User,
+                              text =
+                                  renderScoutingFollowupDocument(
+                                          systemResponse = logEntry.systemResponse,
+                                      )
+                                      .render(),
                           ),
                       )
                     },
@@ -324,20 +373,16 @@ class HrsProperFrontlineAiSystem(
 
     scoutingObserver.observeRawResponse(response = response)
 
-    val loadedResult =
-        ScoutCommand.load(
-            document = MdDocument.parse(markdownSource = response.responseText),
-        )
-
-    return loadedResult
+    return ScoutMessage(
+        body = response.responseText,
+    )
   }
 
-  override suspend fun implementSolution(
+  override suspend fun prepareWorkspaceBrief(
       taskDescription: HrsTaskDescription,
       editorWorktree: VedWorktree,
-      solutionImplementationLog: SolutionImplementationLog,
-      solutionImplementationObserver: HrsTaskCompleter.SolutionImplementationObserver,
-  ): SolutionImplementationResult {
+      workspaceBriefingObserver: HrsTaskCompleter.WorkspaceBriefingObserver,
+  ): HrsExpertAiSystem.WorkspaceBrief {
     val request =
         renderRequest(
             taskDescription = taskDescription,
@@ -345,31 +390,63 @@ class HrsProperFrontlineAiSystem(
             tailMessages =
                 listOf(
                     OaiMessage(
-                        role = OaiRole.System,
-                        text = solutionResponseFormatIntroText,
+                        role = OaiRole.User,
+                        text = workspaceBriefIntroText,
                     ),
+                ),
+        )
+
+    val response = openaiClient.createUnstructuredCompletion(request = request)
+
+    workspaceBriefingObserver.observeRawResponse(response = response)
+
+    return HrsExpertAiSystem.WorkspaceBrief(
+        body = response.responseText,
+    )
+  }
+
+  override suspend fun implementSolution(
+      taskDescription: HrsTaskDescription,
+      editorWorktree: VedWorktree,
+      implementationPlan: ImplementationPlan,
+      solutionImplementationLog: SolutionImplementationLog,
+      solutionImplementationObserver: HrsTaskCompleter.SolutionImplementationObserver,
+  ): PatchMessage {
+    val request =
+        renderRequest(
+            taskDescription = taskDescription,
+            editorWorktree = editorWorktree,
+            tailMessages =
+                listOf(
                     OaiMessage(
-                        role = OaiRole.System,
-                        text = solutionImplementationResultExample.dump().render(),
+                        role = OaiRole.User,
+                        text = implementationPlanFramingText,
+                        name = simpleAiName,
                     ),
                     OaiMessage(
                         role = OaiRole.User,
-                        text = solutionImplementationIntroText,
+                        text = implementationPlan.body,
+                        name = simpleAiName,
+                    ),
+                    OaiMessage(
+                        role = OaiRole.User,
+                        text = implementationPhaseIntroText,
+                        name = simpleAiName,
                     ),
                 ) +
                     solutionImplementationLog.logEntries.flatMap { logEntry ->
                       listOf(
                           OaiMessage(
                               role = OaiRole.Assistant,
-                              text = logEntry.solutionImplementationResult.dump().render(),
+                              text = logEntry.patchMessage.body,
                           ),
                           OaiMessage(
-                              role = OaiRole.System,
+                              role = OaiRole.User,
                               text =
                                   MdDocument(
                                           rootChapter =
-                                              renderReport(
-                                                  projectFailureReport = logEntry.failureReport,
+                                              renderPatchSystemResponse(
+                                                  systemResponse = logEntry.systemResponse,
                                               ),
                                       )
                                       .render(),
@@ -377,7 +454,8 @@ class HrsProperFrontlineAiSystem(
                           OaiMessage(
                               role = OaiRole.User,
                               text =
-                                  "Try to fix the found issues. Respond in the Patch Response Format.",
+                                  "Let's fix the issues found above. Which edits should I make? Start your response with a `# Patch` heading.",
+                              name = simpleAiName,
                           ),
                       )
                     },
@@ -387,52 +465,8 @@ class HrsProperFrontlineAiSystem(
 
     solutionImplementationObserver.observeRawResponse(response = response)
 
-    return SolutionImplementationResult.load(
-        document = MdDocument.parse(markdownSource = response.responseText)
-    )
-  }
-
-  private fun renderReport(
-      projectFailureReport: ProjectFailureReport,
-  ): MdChapter {
-    val projectFailure = projectFailureReport.failure
-
-    val stageText =
-        when (projectFailureReport.stage) {
-          ProjectFailureReport.Stage.Analysis -> "Analysis"
-          ProjectFailureReport.Stage.Testing -> "Testing"
-        }
-
-    return MdChapter(
-        title = MdInlineContent.of("Found issues"),
-        element =
-            MdElement(
-                blocks =
-                    listOf(
-                        MdBlock.Paragraph.of("Phase: $stageText"),
-                    ),
-            ),
-        subChapters =
-            projectFailure.failureByModulePath.map { (modulePath, moduleFailure) ->
-              MdChapter.leaf(
-                  title =
-                      MdInlineContent(
-                          inlineNodes =
-                              listOf(
-                                  MdInlineNode.Text("Module "),
-                                  MdInlineNode.Code(modulePath.toUnixAbsolutePathString()),
-                                  MdInlineNode.Text(":"),
-                              ),
-                      ),
-                  element =
-                      MdElement(
-                          blocks =
-                              listOf(
-                                  MdBlock.CodeBlock(code = moduleFailure.diagnosticOutput),
-                              ),
-                      ),
-              )
-            },
+    return PatchMessage(
+        body = response.responseText,
     )
   }
 }

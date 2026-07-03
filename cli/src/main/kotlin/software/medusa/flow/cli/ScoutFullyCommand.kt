@@ -6,13 +6,15 @@ import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.terminal.Terminal
 import kotlinx.coroutines.runBlocking
 import software.medusa.commons.markdown.MdDocument
+import software.medusa.flow.harness.HrsScoutingDriver
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.Companion.scoutFully
+import software.medusa.flow.harness.ai_system.HrsScoutDecisionInterpreter
 import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.renderDirectoryTree
 
 class ScoutFullyCommand(
     private val terminal: Terminal,
-    private val aiSystem: HrsFrontlineAiSystem,
+    private val frontlineAiSystem: HrsFrontlineAiSystem,
+    private val scoutDecisionInterpreter: HrsScoutDecisionInterpreter,
 ) :
     CliktCommand(
         name = "scout-fully",
@@ -25,7 +27,9 @@ class ScoutFullyCommand(
       val taskDescription = globalState.taskDescription
 
       val fullScoutingResult =
-          aiSystem.scoutFully(
+          HrsScoutingDriver.scoutFully(
+              frontlineAiSystem = frontlineAiSystem,
+              scoutDecisionInterpreter = scoutDecisionInterpreter,
               sourceGitWorktree = gitWorktree,
               taskDescription = taskDescription,
               scoutingObserver = CliScoutingObserver(terminal = terminal),

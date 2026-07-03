@@ -11,6 +11,9 @@ import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
 import software.medusa.flow.harness.HrsProperTaskCompleter
+import software.medusa.flow.harness.ai_system.HrsAiPatchInterpreter
+import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
+import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem
 import software.medusa.flow.integration.gradle.GrdProperProjectConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsNpmConnector
@@ -65,43 +68,73 @@ suspend fun main(
             connectorHub = connectorHub,
         )
 
-    OaiProperClient.withTarget(
+    val openRouterClient =
+        OaiProperClient.withTarget(
             targetBaseUrl = OaiConfiguredClient.openRouterBaseUrl,
             targetApiKey = openRouterApiKey,
         )
-        .withModel(
-            model = OaiModel.DeepSeekFlash,
-        )
-        .use { openAiClient ->
-          val aiSystem = HrsProperFrontlineAiSystem(openaiClient = openAiClient)
 
-          val projectManifestLoader =
-              UnpYamlProjectManifestLoader(
-                  gradleModuleManifestLoader = UnpGradleModuleManifestLoader,
-                  nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
-              )
-
-          val taskCompleter =
-              HrsProperTaskCompleter(
-                  physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-                  aiSystem = aiSystem,
-                  projectManifestLoader = projectManifestLoader,
-              )
-
-          val terminal = Terminal()
-
-          RootCommand()
-              .subcommands(
-                  ScoutFullyCommand(
-                      terminal = terminal,
-                      aiSystem = aiSystem,
-                  ),
-                  CompleteTaskCommand(
-                      terminal = terminal,
-                      taskCompleter = taskCompleter,
-                  ),
-              )
-              .main(args)
+    openRouterClient.withModel(model = OaiModel.DeepSeekFlash).use { frontlineOpenAiClient ->
+      openRouterClient.withModel(model = OaiModel.GptMidi).use { expertOpenAiClient ->
+        openRouterClient.withModel(model = OaiModel.DeepSeekFlash).use { interpreterOpenAiClient ->
+          runMainCommand(
+              args = args,
+              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+              frontlineOpenAiClient = frontlineOpenAiClient,
+              expertOpenAiClient = expertOpenAiClient,
+              interpreterOpenAiClient = interpreterOpenAiClient,
+          )
         }
+      }
+    }
   }
+}
+
+private fun runMainCommand(
+    args: Array<String>,
+    physicalWorkspaceAllocator: PhwTempWorkspaceAllocator,
+    frontlineOpenAiClient: OaiConfiguredClient,
+    expertOpenAiClient: OaiConfiguredClient,
+    interpreterOpenAiClient: OaiConfiguredClient,
+) {
+  val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineOpenAiClient)
+
+  val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertOpenAiClient)
+
+  val scoutDecisionInterpreter =
+      HrsAiScoutDecisionInterpreter(openaiClient = interpreterOpenAiClient)
+
+  val patchInterpreter = HrsAiPatchInterpreter(openaiClient = interpreterOpenAiClient)
+
+  val projectManifestLoader =
+      UnpYamlProjectManifestLoader(
+          gradleModuleManifestLoader = UnpGradleModuleManifestLoader,
+          nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
+      )
+
+  val taskCompleter =
+      HrsProperTaskCompleter(
+          physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+          projectManifestLoader = projectManifestLoader,
+          frontlineAiSystem = frontlineAiSystem,
+          scoutDecisionInterpreter = scoutDecisionInterpreter,
+          patchInterpreter = patchInterpreter,
+          expertAiSystem = expertAiSystem,
+      )
+
+  val terminal = Terminal()
+
+  RootCommand()
+      .subcommands(
+          ScoutFullyCommand(
+              terminal = terminal,
+              frontlineAiSystem = frontlineAiSystem,
+              scoutDecisionInterpreter = scoutDecisionInterpreter,
+          ),
+          CompleteTaskCommand(
+              terminal = terminal,
+              taskCompleter = taskCompleter,
+          ),
+      )
+      .main(args)
 }

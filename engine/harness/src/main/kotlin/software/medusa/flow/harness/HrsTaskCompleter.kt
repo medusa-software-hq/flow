@@ -2,6 +2,7 @@ package software.medusa.flow.harness
 
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.openai_client.OaiConfiguredClient
+import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -30,12 +31,18 @@ interface HrsTaskCompleter {
     fun observeScouting(): ScoutingObserver
 
     fun observeSolutionImplementation(): SolutionImplementationObserver
+
+    fun observeWorkspaceBriefing(): WorkspaceBriefingObserver
+
+    fun observeImplementationPlan(
+        implementationPlan: HrsExpertAiSystem.ImplementationPlan,
+    )
   }
 
   interface ScoutingObserver {
     fun observeRound(
         baseEditorWorktree: VedWorktree,
-        scoutCommand: HrsFrontlineAiSystem.ScoutCommand,
+        scoutMessage: HrsFrontlineAiSystem.ScoutMessage,
     )
 
     fun observeRawResponse(
@@ -46,7 +53,7 @@ interface HrsTaskCompleter {
   interface SolutionImplementationObserver {
     data object Noop : SolutionImplementationObserver {
       override fun observeImplementation(
-          solutionImplementationResult: HrsFrontlineAiSystem.SolutionImplementationResult,
+          patchMessage: HrsFrontlineAiSystem.PatchMessage,
       ) {}
 
       override fun observeHealthStatus(
@@ -59,12 +66,24 @@ interface HrsTaskCompleter {
     }
 
     fun observeImplementation(
-        solutionImplementationResult: HrsFrontlineAiSystem.SolutionImplementationResult,
+        patchMessage: HrsFrontlineAiSystem.PatchMessage,
     )
 
     fun observeHealthStatus(
         healthStatus: HrsFrontlineAiSystem.ProjectHealthStatus,
     )
+
+    fun observeRawResponse(
+        response: OaiConfiguredClient.UnstructuredCompletionResponse,
+    )
+  }
+
+  interface WorkspaceBriefingObserver {
+    data object Noop : WorkspaceBriefingObserver {
+      override fun observeRawResponse(
+          response: OaiConfiguredClient.UnstructuredCompletionResponse,
+      ) {}
+    }
 
     fun observeRawResponse(
         response: OaiConfiguredClient.UnstructuredCompletionResponse,
