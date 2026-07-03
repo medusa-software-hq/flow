@@ -25,10 +25,6 @@ includes:
     taskfile: apps/web/infra/domain-mapping/Taskfile.yml
     dir: apps/web/infra/domain-mapping
 
-  api:impl:
-    taskfile: backend/api/impl/Taskfile.yml
-    dir: backend/api/impl
-
   api:infra:
     taskfile: backend/api/infra/Taskfile.yml
     dir: backend/api/infra
@@ -48,7 +44,7 @@ tasks:
       - web:app:checkFormatting
       - web:infra:checkFormatting
       - web:domain-mapping:checkFormatting
-      - api:impl:checkFormatting
+      - gradleRoot:checkFormatting
       - api:infra:checkFormatting
 
   fixFormatting-all:
@@ -60,7 +56,6 @@ tasks:
       - web:app:fixFormatting
       - web:infra:fixFormatting
       - web:domain-mapping:fixFormatting
-      - api:impl:fixFormatting
       - api:infra:fixFormatting
       - gradleRoot:fixFormatting
 
@@ -73,7 +68,6 @@ tasks:
       - web:app:lint
       - web:infra:lint
       - web:domain-mapping:lint
-      - api:impl:lint
       - api:infra:lint
       - gradleRoot:analyzeStatically
 
@@ -91,7 +85,14 @@ tasks:
     desc: Run the frontend and the API locally
     deps:
       - web:app:run
-      - api:impl:run
+      - gradleRoot:run
+
+  gradleRoot:checkFormatting:
+    desc: Check Kotlin formatting
+    sources: *kotlinSources
+    cmds:
+      - ./gradlew ktfmtCheck
+    interactive: true
 
   gradleRoot:fixFormatting:
     desc: Fix Kotlin formatting
@@ -100,10 +101,23 @@ tasks:
       - ./gradlew ktfmtFormat
     interactive: true
 
+  gradleRoot:compile:
+    desc: Compile the Kotlin sources
+    sources: *kotlinSources
+    cmds:
+      - ./gradlew compileKotlin
+    interactive: true
+
   gradleRoot:analyzeStatically:
     desc: Lint the Kotlin sources
     sources: *kotlinSources
     cmds:
       - ./gradlew assemble
       - ./gradlew detekt
+    interactive: true
+
+  gradleRoot:run:
+    desc: Run the service locally (no auth, localhost CORS)
+    cmds:
+      - ./gradlew :backend:api:impl:local:run
     interactive: true
