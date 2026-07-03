@@ -1,10 +1,12 @@
 package software.medusa.flow.virtual_editor.worktree_patch
 
 import kotlinx.io.bytestring.encodeToByteString
+import software.medusa.commons.text.TxtBlock
+import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.text.TxtPatch
+import software.medusa.commons.unix.filesystem.impl.immutable.UfsImmutableFile
 import software.medusa.commons.unix.filesystem.mutation.UfsFileMutation
 import software.medusa.flow.virtual_editor.VedTimestamp
-import software.medusa.flow.virtual_editor.worktree.VedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedEntity
 import software.medusa.flow.virtual_editor.worktree.VedFile
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
@@ -14,18 +16,30 @@ data class VedFilePatch(
 ) : VedEntityPatch() {
   typealias FilePatchApplicationResult = PatchApplicationResult<VedFile, UfsFileMutation>
 
-  override fun patchEntity(
-      entity: VedEntity,
+  // An existing opened file is rewritten; an absent name is created; anything else (a closed file
+  // or a directory) is a mismatch.
+  override fun resolveInParent(
+      existingEntity: VedEntity?,
       timestamp: VedTimestamp,
-  ): FilePatchApplicationResult =
-      when (entity) {
-        is VedFile ->
-            patchFile(
-                file = entity,
-                timestamp = timestamp,
-            )
+  ): ChildResolution =
+      when (existingEntity) {
+        is VedOpenedFile -> {
+          val result = patchOpenedFile(openedFile = existingEntity, timestamp = timestamp)
+          ChildResolution.Mutated(
+              patchedEntity = result.patchedEntity,
+              mutation = result.entityMutation,
+          )
+        }
 
-        is VedDirectory -> error("Expected VedFile, got VedDirectory")
+        null -> {
+          val creation = createEntity(timestamp = timestamp)
+          ChildResolution.Created(
+              createdEntity = creation.createdEntity,
+              templateEntity = creation.templateEntity,
+          )
+        }
+
+        else -> error("Cannot apply a file patch to a ${existingEntity::class.simpleName}")
       }
 
   fun patchFile(
@@ -61,6 +75,19 @@ data class VedFilePatch(
             UfsFileMutation.Update(
                 newContent = newContent.dump().encodeToByteString(),
             ),
+    )
+  }
+
+  // Creating a file means applying the patch to empty content, so a whole-file "replacement" of a
+  // zero-length file yields exactly the new content. The freshly created file is opened.
+  override fun createEntity(
+      timestamp: VedTimestamp,
+  ): CreationResult {
+    val newContent = TxtFileContent(content = TxtBlock.Empty).applyPatch(patch = txtPatch)
+
+    return CreationResult(
+        createdEntity = VedOpenedFile.of(content = newContent, timestamp = timestamp),
+        templateEntity = UfsImmutableFile(content = newContent.dump().encodeToByteString()),
     )
   }
 }

@@ -11,6 +11,8 @@ import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
 import software.medusa.flow.harness.HrsProperTaskCompleter
+import software.medusa.flow.harness.ai_system.HrsAiPatchInterpreter
+import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
 import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem
 import software.medusa.flow.integration.gradle.GrdProperProjectConnector
@@ -73,13 +75,16 @@ suspend fun main(
         )
 
     openRouterClient.withModel(model = OaiModel.DeepSeekFlash).use { frontlineOpenAiClient ->
-      openRouterClient.withModel(model = OaiModel.DeepSeekPro).use { expertOpenAiClient ->
-        runMainCommand(
-            args = args,
-            physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-            frontlineOpenAiClient = frontlineOpenAiClient,
-            expertOpenAiClient = expertOpenAiClient,
-        )
+      openRouterClient.withModel(model = OaiModel.GptMidi).use { expertOpenAiClient ->
+        openRouterClient.withModel(model = OaiModel.DeepSeekFlash).use { interpreterOpenAiClient ->
+          runMainCommand(
+              args = args,
+              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+              frontlineOpenAiClient = frontlineOpenAiClient,
+              expertOpenAiClient = expertOpenAiClient,
+              interpreterOpenAiClient = interpreterOpenAiClient,
+          )
+        }
       }
     }
   }
@@ -90,10 +95,16 @@ private fun runMainCommand(
     physicalWorkspaceAllocator: PhwTempWorkspaceAllocator,
     frontlineOpenAiClient: OaiConfiguredClient,
     expertOpenAiClient: OaiConfiguredClient,
+    interpreterOpenAiClient: OaiConfiguredClient,
 ) {
   val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineOpenAiClient)
 
   val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertOpenAiClient)
+
+  val scoutDecisionInterpreter =
+      HrsAiScoutDecisionInterpreter(openaiClient = interpreterOpenAiClient)
+
+  val patchInterpreter = HrsAiPatchInterpreter(openaiClient = interpreterOpenAiClient)
 
   val projectManifestLoader =
       UnpYamlProjectManifestLoader(
@@ -104,9 +115,11 @@ private fun runMainCommand(
   val taskCompleter =
       HrsProperTaskCompleter(
           physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-          frontlineAiSystem = frontlineAiSystem,
-          expertAiSystem = expertAiSystem,
           projectManifestLoader = projectManifestLoader,
+          frontlineAiSystem = frontlineAiSystem,
+          scoutDecisionInterpreter = scoutDecisionInterpreter,
+          patchInterpreter = patchInterpreter,
+          expertAiSystem = expertAiSystem,
       )
 
   val terminal = Terminal()
@@ -116,6 +129,7 @@ private fun runMainCommand(
           ScoutFullyCommand(
               terminal = terminal,
               frontlineAiSystem = frontlineAiSystem,
+              scoutDecisionInterpreter = scoutDecisionInterpreter,
           ),
           CompleteTaskCommand(
               terminal = terminal,

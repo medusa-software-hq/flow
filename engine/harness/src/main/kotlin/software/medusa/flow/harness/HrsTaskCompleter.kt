@@ -42,7 +42,7 @@ interface HrsTaskCompleter {
   interface ScoutingObserver {
     fun observeRound(
         baseEditorWorktree: VedWorktree,
-        scoutCommand: HrsFrontlineAiSystem.ScoutCommand,
+        scoutMessage: HrsFrontlineAiSystem.ScoutMessage,
     )
 
     fun observeRawResponse(
@@ -53,7 +53,7 @@ interface HrsTaskCompleter {
   interface SolutionImplementationObserver {
     data object Noop : SolutionImplementationObserver {
       override fun observeImplementation(
-          patchCommand: HrsFrontlineAiSystem.PatchCommand,
+          patchMessage: HrsFrontlineAiSystem.PatchMessage,
       ) {}
 
       override fun observeHealthStatus(
@@ -66,7 +66,7 @@ interface HrsTaskCompleter {
     }
 
     fun observeImplementation(
-        patchCommand: HrsFrontlineAiSystem.PatchCommand,
+        patchMessage: HrsFrontlineAiSystem.PatchMessage,
     )
 
     fun observeHealthStatus(

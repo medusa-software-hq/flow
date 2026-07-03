@@ -2,385 +2,187 @@ package software.medusa.flow.harness.ai_system
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import software.medusa.commons.git.worktree.GitWorktreeEntity
-import software.medusa.commons.markdown.MdBlock
-import software.medusa.commons.markdown.MdDocument
-import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.text.TxtBlock
 import software.medusa.commons.text.TxtFileContent
-import software.medusa.commons.text.TxtLineIndex
-import software.medusa.commons.text.TxtLineIndexRange
-import software.medusa.commons.text.TxtPatch
 import software.medusa.commons.unix.path.UfsName
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchCommand
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
-import software.medusa.flow.harness.ai_system.ScoutCommand_utils.dump
-import software.medusa.flow.harness.ai_system.ScoutCommand_utils.load
-import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.dump
-import software.medusa.flow.harness.ai_system.SolutionImplementationResult_utils.load
+import software.medusa.flow.harness.ai_system.HrsRawWorktreePatch.FilePath
+import software.medusa.flow.harness.ai_system.HrsRawWorktreePatch.FileWrite
+import software.medusa.flow.harness.ai_system.HrsScoutDecisionInterpreter.Decision
 import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedOpenedFile
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedDirectoryAdjustment
 import software.medusa.flow.virtual_editor.worktree_adjustment.VedFileAdjustment
-import software.medusa.flow.virtual_editor.worktree_adjustment.VedWorktreeAdjustment
-import software.medusa.flow.virtual_editor.worktree_patch.VedDirectoryPatch
-import software.medusa.flow.virtual_editor.worktree_patch.VedFilePatch
-import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 /**
- * Deterministic checks of the ad-hoc Markdown codecs that the frontline AI system relies on. They
- * render a model to Markdown, parse it back, and assert the round-trip is lossless — and that the
- * exact format documented to the model parses as intended.
+ * Deterministic checks of the raw, LLM-facing shapes the interpreters decode: [HrsRawScoutDecision]
+ * and [HrsRawWorktreePatch]. They assert that a raw structured response maps onto the domain model
+ * the driver acts on — without hitting a model.
  */
 class FrontlineFormat_tests {
   @Test
-  fun `a CONTINUE scout command round-trips through Markdown`() {
-    val original: ScoutCommand =
-        ScoutCommand.Continue(
-            rationale = MdElement(blocks = listOf(MdBlock.Paragraph.of("Looking at the build."))),
-            requestedAdjustment =
-                VedWorktreeAdjustment(
-                    rootDirectoryAdjustment =
-                        VedDirectoryAdjustment.Dive(
-                            childAdjustmentByName =
-                                mapOf(
-                                    UfsName.Literal("build.gradle.kts") to VedFileAdjustment.Open,
-                                    UfsName.Literal("src") to
-                                        VedDirectoryAdjustment.Dive(
-                                            childAdjustmentByName =
-                                                mapOf(
-                                                    UfsName.Literal("Main.kt") to
-                                                        VedFileAdjustment.Open,
-                                                    UfsName.Literal("resources") to
-                                                        VedDirectoryAdjustment.Expand,
-                                                ),
-                                        ),
-                                ),
-                        ),
-                ),
+  fun `a raw scout decision with paths builds a merged adjustment tree`() {
+    val rawDecision =
+        HrsRawScoutDecision(
+            scoutingComplete = false,
+            filesToOpen = listOf("/build.gradle.kts", "/src/Main.kt"),
+            directoriesToExpand = listOf("/src/resources"),
         )
 
-    val reparsed = ScoutCommand.load(document = MdDocument.parse(original.dump().render()))
+    val continueDecision = assertIs<Decision.Continue>(rawDecision.toDecision())
 
-    assertEquals(expected = original, actual = reparsed)
-  }
-
-  @Test
-  fun `a STOP scout command round-trips through Markdown`() {
-    val original: ScoutCommand = ScoutCommand.Stop
-
-    val reparsed = ScoutCommand.load(document = MdDocument.parse(original.dump().render()))
-
-    assertEquals(expected = ScoutCommand.Stop, actual = reparsed)
-  }
-
-  @Test
-  fun `the documented CONTINUE format parses into the expected adjustment`() {
-    val markdownSource =
-        """
-        # EXPLORE
-
-        I need to read the entry point and look into the source directory.
-
-        - `/Main.kt` OPEN
-        - `/src/` EXPAND
-        """
-            .trimIndent()
-
-    val result =
-        assertIs<ScoutCommand.Continue>(
-            ScoutCommand.load(document = MdDocument.parse(markdownSource)),
-        )
-
-    val childAdjustmentByName =
-        result.requestedAdjustment.rootDirectoryAdjustment.childAdjustmentByName
+    val rootChildren =
+        continueDecision.requestedAdjustment.rootDirectoryAdjustment.childAdjustmentByName
 
     assertEquals(
         expected = VedFileAdjustment.Open,
-        actual = childAdjustmentByName[UfsName.Literal("Main.kt")],
+        actual = rootChildren[UfsName.Literal("build.gradle.kts")],
+    )
+
+    // `/src/Main.kt` and `/src/resources` join under a single `/src` dive.
+    val srcDive = assertIs<VedDirectoryAdjustment.Dive>(rootChildren[UfsName.Literal("src")])
+
+    assertEquals(
+        expected = VedFileAdjustment.Open,
+        actual = srcDive.childAdjustmentByName[UfsName.Literal("Main.kt")],
     )
     assertEquals(
         expected = VedDirectoryAdjustment.Expand,
-        actual = childAdjustmentByName[UfsName.Literal("src")],
+        actual = srcDive.childAdjustmentByName[UfsName.Literal("resources")],
     )
   }
 
   @Test
-  fun `a deep path in CONTINUE expands into a chain of dives`() {
-    val markdownSource =
-        """
-        # EXPLORE
-
-        Reaching a file several directories down.
-
-        - `/app/src/main/kotlin/org/example/App.kt` OPEN
-        """
-            .trimIndent()
-
-    val result =
-        assertIs<ScoutCommand.Continue>(
-            ScoutCommand.load(document = MdDocument.parse(markdownSource)),
+  fun `a raw scout decision marked complete stops scouting`() {
+    val rawDecision =
+        HrsRawScoutDecision(
+            scoutingComplete = true,
+            filesToOpen = emptyList(),
+            directoriesToExpand = emptyList(),
         )
 
-    var dive = result.requestedAdjustment.rootDirectoryAdjustment
-
-    listOf("app", "src", "main", "kotlin", "org", "example").forEach { segment ->
-      dive =
-          assertIs<VedDirectoryAdjustment.Dive>(
-              dive.childAdjustmentByName.getValue(UfsName.Literal(segment)),
-          )
-    }
-
-    assertEquals(
-        expected = VedFileAdjustment.Open,
-        actual = dive.childAdjustmentByName[UfsName.Literal("App.kt")],
-    )
+    assertEquals(expected = Decision.Stop, actual = rawDecision.toDecision())
   }
 
   @Test
-  fun `flat absolute paths with shared prefixes are joined into one tree`() {
-    val markdownSource =
-        """
-        # EXPLORE
-
-        Opening the files relevant to the build across the project.
-
-        - `/app/build.gradle.kts` OPEN
-        - `/app/src/main/kotlin/org/example/App.kt` OPEN
-        - `/app/src/test/kotlin/org/example/AppTest.kt` OPEN
-        - `/settings.gradle.kts` OPEN
-        - `/gradle/libs.versions.toml` OPEN
-        """
-            .trimIndent()
-
-    val result =
-        assertIs<ScoutCommand.Continue>(
-            ScoutCommand.load(document = MdDocument.parse(markdownSource)),
+  fun `an empty raw scout decision stops scouting even when not marked complete`() {
+    val rawDecision =
+        HrsRawScoutDecision(
+            scoutingComplete = false,
+            filesToOpen = emptyList(),
+            directoriesToExpand = emptyList(),
         )
 
-    val root = result.requestedAdjustment.rootDirectoryAdjustment
-
-    assertEquals(
-        expected = setOf("app", "gradle", "settings.gradle.kts"),
-        actual = root.childAdjustmentByName.keys.map { it.content }.toSet(),
-    )
-    assertEquals(
-        expected = VedFileAdjustment.Open,
-        actual = root.childAdjustmentByName[UfsName.Literal("settings.gradle.kts")],
-    )
-
-    // The shared `/app/` and `/app/src/` prefixes joined rather than clobbering each other.
-    val app =
-        assertIs<VedDirectoryAdjustment.Dive>(
-            root.childAdjustmentByName.getValue(UfsName.Literal("app")),
-        )
-    assertEquals(
-        expected = VedFileAdjustment.Open,
-        actual = app.childAdjustmentByName[UfsName.Literal("build.gradle.kts")],
-    )
-
-    val src =
-        assertIs<VedDirectoryAdjustment.Dive>(
-            app.childAdjustmentByName.getValue(UfsName.Literal("src")),
-        )
-    assertEquals(
-        expected = setOf("main", "test"),
-        actual = src.childAdjustmentByName.keys.map { it.content }.toSet(),
-    )
-
-    var dive = src
-    listOf("main", "kotlin", "org", "example").forEach { segment ->
-      dive =
-          assertIs<VedDirectoryAdjustment.Dive>(
-              dive.childAdjustmentByName.getValue(UfsName.Literal(segment)),
-          )
-    }
-    assertEquals(
-        expected = VedFileAdjustment.Open,
-        actual = dive.childAdjustmentByName[UfsName.Literal("App.kt")],
-    )
+    assertEquals(expected = Decision.Stop, actual = rawDecision.toDecision())
   }
 
   @Test
-  fun `a single-child dive chain round-trips as a deep path`() {
-    val original: ScoutCommand =
-        ScoutCommand.Continue(
-            rationale = MdElement(blocks = listOf(MdBlock.Paragraph.of("Reaching deep."))),
-            requestedAdjustment =
-                VedWorktreeAdjustment(
-                    rootDirectoryAdjustment =
-                        VedDirectoryAdjustment.Dive(
-                            childAdjustmentByName =
-                                mapOf(
-                                    UfsName.Literal("src") to
-                                        VedDirectoryAdjustment.Dive(
-                                            childAdjustmentByName =
-                                                mapOf(
-                                                    UfsName.Literal("main") to
-                                                        VedDirectoryAdjustment.Dive(
-                                                            childAdjustmentByName =
-                                                                mapOf(
-                                                                    UfsName.Literal("App.kt") to
-                                                                        VedFileAdjustment.Open,
-                                                                ),
-                                                        ),
-                                                ),
-                                        ),
-                                ),
-                        ),
-                ),
-        )
-
-    val reparsed = ScoutCommand.load(document = MdDocument.parse(original.dump().render()))
-
-    assertEquals(expected = original, actual = reparsed)
-  }
-
-  @Test
-  fun `a PATCH result round-trips through Markdown`() {
-    val original =
-        PatchCommand(
-            solutionPatch =
-                worktreePatchOf(
-                    fileName = "Main.kt",
-                    fragmentByOldLineIndexRange =
-                        mapOf(
-                            TxtLineIndexRange.empty(startIndex = TxtLineIndex.ofOneBased(1)) to
-                                TxtPatch.Fragment(newContent = TxtBlock.of("import a.b.C")),
-                            TxtLineIndexRange.of(
-                                startIndex = TxtLineIndex.ofOneBased(4),
-                                length = 2,
-                            ) to TxtPatch.Fragment.Empty,
-                            TxtLineIndexRange.of(
-                                startIndex = TxtLineIndex.ofOneBased(8),
-                                length = 1,
-                            ) to TxtPatch.Fragment(newContent = TxtBlock.of("    return 13")),
-                        ),
-                ),
-        )
-
-    val reparsed = PatchCommand.load(document = MdDocument.parse(original.dump().render()))
-
-    assertEquals(expected = original, actual = reparsed)
-  }
-
-  @Test
-  fun `the documented PATCH format parses and applies onto the original file`() {
-    val baseWorktree =
-        worktreeOf(
-            fileName = "fib.lua",
-            content = "line1\nline2\nline3\nline4\n",
-        )
-
-    val markdownSource =
-        """
-        # PATCH
-
-        ## `/fib.lua`
-
-        ### INSERT BEFORE 1
-
-        ```
-        header
-        ```
-
-        ### DELETE 2-2
-
-        ### UPDATE 4-4
-
-        ```
-        last
-        ```
-        """
-            .trimIndent()
-
-    val result = PatchCommand.load(document = MdDocument.parse(markdownSource))
+  fun `an edit replaces the full content of an existing opened file`() {
+    val baseWorktree = worktreeOf(fileName = "fib.lua", content = "line1\nline2\nline3\n")
 
     val patchedWorktree =
-        result.solutionPatch
-            .patchWorktree(worktree = baseWorktree, timestamp = VedTimestamp.zero.next)
-            .patchedWorktree
+        rawPatch(edited = listOf(fileWrite("/fib.lua", "fixed1\nfixed2\n"))).applyTo(baseWorktree)
 
     val patchedFile =
         patchedWorktree.rootDirectory.labeledEntityByName
             .getValue(UfsName.Literal("fib.lua"))
             .entity as VedOpenedFile
 
+    assertEquals(expected = "fixed1\nfixed2\n", actual = patchedFile.currentContent.content.dump())
+  }
+
+  @Test
+  fun `a creation writes a new file that does not exist yet`() {
+    val baseWorktree = worktreeOf(fileName = "Existing.kt", content = "existing\n")
+
+    val patchedWorktree =
+        rawPatch(
+                created =
+                    listOf(fileWrite("/src/test/NewTest.kt", "package test\n\nclass NewTest\n"))
+            )
+            .applyTo(baseWorktree)
+
+    val createdFile =
+        patchedWorktree.rootDirectory.labeledEntityByName
+            .getValue(UfsName.Literal("src"))
+            .let { it.entity as VedExpandedDirectory }
+            .labeledEntityByName
+            .getValue(UfsName.Literal("test"))
+            .let { it.entity as VedExpandedDirectory }
+            .labeledEntityByName
+            .getValue(UfsName.Literal("NewTest.kt"))
+            .entity as VedOpenedFile
+
     assertEquals(
-        expected = "header\nline1\nline3\nlast\n",
-        actual = patchedFile.currentContent.content.dump(),
+        expected = "package test\n\nclass NewTest\n",
+        actual = createdFile.currentContent.content.dump(),
     )
   }
 
   @Test
-  fun `an INSERT and an UPDATE anchored at the same line are merged`() {
-    val baseWorktree =
-        worktreeOf(
-            fileName = "App.kt",
-            content = "line1\nline2\nline3\nline4\n",
-        )
+  fun `a deletion removes an existing file`() {
+    val baseWorktree = worktreeOf(fileName = "Obsolete.kt", content = "obsolete\n")
 
-    // `INSERT BEFORE 2` touches `UPDATE 2-3`; TxtPatch would reject them as colliding, so they must
-    // be merged: the inserted lines land before the replaced range.
-    val markdownSource =
-        """
-        # PATCH
-
-        ## `/App.kt`
-
-        ### INSERT BEFORE 2
-
-        ```
-        inserted
-        ```
-
-        ### UPDATE 2-3
-
-        ```
-        replacement
-        ```
-        """
-            .trimIndent()
-
-    val result = PatchCommand.load(document = MdDocument.parse(markdownSource))
-
-    val patchedWorktree =
-        result.solutionPatch
-            .patchWorktree(worktree = baseWorktree, timestamp = VedTimestamp.zero.next)
-            .patchedWorktree
-
-    val patchedFile =
-        patchedWorktree.rootDirectory.labeledEntityByName.getValue(UfsName.Literal("App.kt")).entity
-            as VedOpenedFile
+    val patchedWorktree = rawPatch(deleted = listOf(FilePath("/Obsolete.kt"))).applyTo(baseWorktree)
 
     assertEquals(
-        expected = "line1\ninserted\nreplacement\nline4\n",
-        actual = patchedFile.currentContent.content.dump(),
+        expected = false,
+        actual =
+            patchedWorktree.rootDirectory.labeledEntityByName.containsKey(
+                UfsName.Literal("Obsolete.kt"),
+            ),
     )
   }
 
-  private fun worktreePatchOf(
-      fileName: String,
-      fragmentByOldLineIndexRange: Map<TxtLineIndexRange, TxtPatch.Fragment>,
-  ) =
-      VedWorktreePatch(
-          rootDirectoryPatch =
-              VedDirectoryPatch(
-                  childPatchByName =
-                      mapOf(
-                          UfsName.Literal(fileName) to
-                              VedFilePatch(
-                                  txtPatch =
-                                      TxtPatch(
-                                          fragmentByOldLineIndexRange = fragmentByOldLineIndexRange,
-                                      ),
-                              ),
-                      ),
-              ),
-      )
+  @Test
+  fun `editing a file that does not exist is rejected`() {
+    val baseWorktree = worktreeOf(fileName = "Existing.kt", content = "existing\n")
+
+    assertFailsWith<IllegalArgumentException> {
+      rawPatch(edited = listOf(fileWrite("/Missing.kt", "x\n"))).toFullWorktreePatch(baseWorktree)
+    }
+  }
+
+  @Test
+  fun `creating a file that already exists is rejected`() {
+    val baseWorktree = worktreeOf(fileName = "Existing.kt", content = "existing\n")
+
+    assertFailsWith<IllegalArgumentException> {
+      rawPatch(created = listOf(fileWrite("/Existing.kt", "x\n"))).toFullWorktreePatch(baseWorktree)
+    }
+  }
+
+  @Test
+  fun `deleting a file that does not exist is rejected`() {
+    val baseWorktree = worktreeOf(fileName = "Existing.kt", content = "existing\n")
+
+    assertFailsWith<IllegalArgumentException> {
+      rawPatch(deleted = listOf(FilePath("/Missing.kt"))).toFullWorktreePatch(baseWorktree)
+    }
+  }
+
+  private fun fileWrite(
+      path: String,
+      newContent: String,
+  ): FileWrite = FileWrite(path = path, newContent = newContent)
+
+  private fun rawPatch(
+      edited: List<FileWrite> = emptyList(),
+      created: List<FileWrite> = emptyList(),
+      deleted: List<FilePath> = emptyList(),
+  ): HrsRawWorktreePatch =
+      HrsRawWorktreePatch(editedFiles = edited, createdFiles = created, deletedFiles = deleted)
+
+  private fun HrsRawWorktreePatch.applyTo(
+      baseWorktree: VedWorktree,
+  ): VedWorktree =
+      toFullWorktreePatch(baseWorktree = baseWorktree)
+          .patchWorktree(worktree = baseWorktree, timestamp = VedTimestamp.zero.next)
+          .patchedWorktree
 
   private fun worktreeOf(
       fileName: String,

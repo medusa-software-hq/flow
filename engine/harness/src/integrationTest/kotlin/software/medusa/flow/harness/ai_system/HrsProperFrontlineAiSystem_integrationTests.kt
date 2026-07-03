@@ -26,9 +26,10 @@ import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskCompleter.SolutionImplementationObserver
 import software.medusa.flow.harness.HrsTaskDescription
-import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutCommand
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutMessage
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutingLog
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationLog
+import software.medusa.flow.harness.ai_system.HrsScoutDecisionInterpreter.Decision
 import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedClosedFile
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
@@ -74,7 +75,7 @@ class HrsProperFrontlineAiSystem_integrationTests {
         object : HrsTaskCompleter.ScoutingObserver {
           override fun observeRound(
               baseEditorWorktree: VedWorktree,
-              scoutCommand: ScoutCommand,
+              scoutMessage: ScoutMessage,
           ) = Unit
 
           override fun observeRawResponse(
@@ -154,9 +155,12 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
   @Test
   fun test_performScouting_requestsOpeningTheRelevantFile() = runBlocking {
-    val frontlineAiSystem = buildAiSystem(buildClient())
+    val client = buildClient()
+    val frontlineAiSystem = buildAiSystem(client)
 
-    val scoutingResult =
+    val closedWorktree = closedWorktreeOf()
+
+    val scoutMessage =
         frontlineAiSystem.performScouting(
             taskDescription =
                 HrsTaskDescription(
@@ -167,14 +171,18 @@ class HrsProperFrontlineAiSystem_integrationTests {
                                 "value.",
                         ),
                 ),
-            editorWorktree = closedWorktreeOf(),
+            editorWorktree = closedWorktree,
             scoutingLog = ScoutingLog.empty,
             scoutingObserver = silentScoutingObserver,
         )
 
-    val continueCommand = assertIs<ScoutCommand.Continue>(scoutingResult)
+    val decision =
+        HrsAiScoutDecisionInterpreter(openaiClient = client)
+            .interpretDecision(scoutMessage = scoutMessage, editorWorktree = closedWorktree)
 
-    val rootDirectoryAdjustment = continueCommand.requestedAdjustment.rootDirectoryAdjustment
+    val continueDecision = assertIs<Decision.Continue>(decision)
+
+    val rootDirectoryAdjustment = continueDecision.requestedAdjustment.rootDirectoryAdjustment
 
     assertEquals(
         expected = VedFileAdjustment.Open,
@@ -184,11 +192,12 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
   @Test
   fun test_implementSolution_fixesLuaProgram() = runBlocking {
-    val frontlineAiSystem = buildAiSystem(buildClient())
+    val client = buildClient()
+    val frontlineAiSystem = buildAiSystem(client)
 
     val baseWorktree = openedWorktreeOf(buggyFibLua)
 
-    val solutionImplementationResult =
+    val patchMessage =
         frontlineAiSystem.implementSolution(
             taskDescription =
                 HrsTaskDescription(
@@ -200,12 +209,17 @@ class HrsProperFrontlineAiSystem_integrationTests {
                         ),
                 ),
             editorWorktree = baseWorktree,
+            implementationPlan = HrsExpertAiSystem.ImplementationPlan(body = ""),
             solutionImplementationLog = SolutionImplementationLog.empty,
             solutionImplementationObserver = SolutionImplementationObserver.Noop,
         )
 
+    val solutionPatch =
+        HrsAiPatchInterpreter(openaiClient = client)
+            .interpretPatch(patchMessage = patchMessage, editorWorktree = baseWorktree)
+
     val finalWorktree =
-        solutionImplementationResult.solutionPatch
+        solutionPatch
             .patchWorktree(worktree = baseWorktree, timestamp = VedTimestamp.zero.next)
             .patchedWorktree
 

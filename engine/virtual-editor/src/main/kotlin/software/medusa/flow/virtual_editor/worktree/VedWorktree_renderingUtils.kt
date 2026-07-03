@@ -23,6 +23,9 @@ data object VedWorktree_renderingUtils {
               MdElement(
                   listOf(
                       MdBlock.Paragraph.of("This is the most recent state of the worktree."),
+                      MdBlock.Paragraph.of(
+                          "Paths here are absolute and rooted at the worktree root: the worktree root is '/', so every entity's path starts with '/' and lists the directories down to it, e.g. /app/src/main/kotlin/org/example/App.kt. Don't hesitate to use these absolute paths.",
+                      ),
                       MdBlock.ListBlock(
                           topLevel =
                               MdBlock.ListBlock.Level(

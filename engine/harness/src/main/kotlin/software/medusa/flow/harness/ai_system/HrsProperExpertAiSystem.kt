@@ -1,10 +1,13 @@
 package software.medusa.flow.harness.ai_system
 
+import software.medusa.commons.markdown.MdBlock
 import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdDocument
+import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.markdown.MdInlineContent
 import software.medusa.commons.openai_client.OaiChat
 import software.medusa.commons.openai_client.OaiConfiguredClient
+import software.medusa.commons.openai_client.OaiConfiguredClient.ReasoningEffort
 import software.medusa.commons.openai_client.OaiMessage
 import software.medusa.commons.openai_client.OaiRole
 import software.medusa.flow.harness.HrsTaskDescription
@@ -14,29 +17,25 @@ class HrsProperExpertAiSystem(
     private val openaiClient: OaiConfiguredClient,
 ) : HrsExpertAiSystem {
   companion object {
+    private const val simpleAiName = "ai"
+
     private val introText =
         """
-        You are an expert software architect. Given **The Task**, produce a compact **Implementation Plan** for a weaker coding AI model.
+        You are an expert software engineer. You're conversing with a lower-tier AI.
         """
             .trimIndent()
 
-    private val outroText =
+    private val userOutroText = "What should I do to complete The Task?"
+
+    private val systemOutroText =
         """
-        The weaker model is good at boilerplate and following explicit instructions, but bad at ambiguity, architecture, and tricky logic. Your job is to solve as much of the hard part as possible and compress that into a plan the weaker model can implement reliably.
+        You are responsible for completing The Task.
 
-        Focus on maximum **decision density per token**:
-        - make important design decisions up front
-        - define the actual system shape (modules, entities, relations, methods, data flow)
-        - use analogy/compression for low-risk repeated code
-        - spell out anything subtle, error-prone, or easy to misinterpret
+        If possible, solve the problem yourself and present ready-to-use code.
 
-        Prefer top-down structure: architecture, files/modules, core entities/contracts, critical logic, implementation order.
+        If spelling out the full solution would involve generating unacceptably high volume of text, solve the crucial parts of the task yourself and provide guidance on how to solve the remaining part.
 
-        Write the output as a Markdown document starting with heading `# Implementation Plan`.
-
-        Write the entire plan in the **imperative mood**: direct, simple, instruction-like sentences.
-
-        Be concise, specific, and implementation-oriented. Avoid vague placeholders and avoid pushing important design choices onto the weaker model.
+        Use direct tone and imperative mood.
         """
             .trimIndent()
   }
@@ -60,8 +59,9 @@ class HrsProperExpertAiSystem(
                                 text =
                                     MdDocument(
                                             rootChapter =
-                                                MdChapter.wrapper(
-                                                    title = MdInlineContent.of("Context"),
+                                                MdChapter(
+                                                    title = MdInlineContent.of("Problem"),
+                                                    element = MdElement.Empty,
                                                     subChapters =
                                                         listOf(
                                                             MdChapter.leaf(
@@ -69,23 +69,41 @@ class HrsProperExpertAiSystem(
                                                                     MdInlineContent.of("The Task"),
                                                                 element = taskDescription.body,
                                                             ),
-                                                            workspaceBrief.body.replaceTitle(
-                                                                newTitle =
+                                                            MdChapter.leaf(
+                                                                title =
                                                                     MdInlineContent.of(
                                                                         "Workspace brief"
+                                                                    ),
+                                                                element =
+                                                                    MdElement(
+                                                                        blocks =
+                                                                            listOf(
+                                                                                MdBlock.CodeBlock(
+                                                                                    code =
+                                                                                        workspaceBrief
+                                                                                            .body,
+                                                                                ),
+                                                                            ),
                                                                     ),
                                                             ),
                                                         ),
                                                 ),
                                         )
                                         .render(),
+                                name = simpleAiName,
+                            ),
+                            OaiMessage(
+                                role = OaiRole.User,
+                                text = userOutroText,
+                                name = simpleAiName,
                             ),
                             OaiMessage(
                                 role = OaiRole.System,
-                                text = outroText,
+                                text = systemOutroText,
                             ),
                         ),
                 ),
+            reasoningEffort = ReasoningEffort.High,
         )
 
     val response = openaiClient.createUnstructuredCompletion(request = request)
