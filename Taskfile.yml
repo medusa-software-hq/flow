@@ -9,24 +9,89 @@ includes:
     taskfile: cli/Taskfile.yml
     dir: cli
 
+  infra:
+    taskfile: infra/Taskfile.yml
+    dir: infra
+
+  web:app:
+    taskfile: apps/web/spa/Taskfile.yml
+    dir: apps/web/spa
+
+  web:infra:
+    taskfile: apps/web/infra/foundation/Taskfile.yml
+    dir: apps/web/infra/foundation
+
+  web:domain-mapping:
+    taskfile: apps/web/infra/domain-mapping/Taskfile.yml
+    dir: apps/web/infra/domain-mapping
+
+  api:impl:
+    taskfile: backend/api/impl/Taskfile.yml
+    dir: backend/api/impl
+
+  api:infra:
+    taskfile: backend/api/infra/Taskfile.yml
+    dir: backend/api/infra
+
 # noinspection YAMLSchemaValidation
 .kotlinSources: &kotlinSources
   - '**/*.kt'
   - '**/*.kts'
 
 tasks:
-  all:fixFormatting:
+  checkFormatting-all:
+    desc: Check formatting for the entire codebase
+    deps:
+      - github:workflows:lint
+      - github:config:lint
+      - infra:lint
+      - web:app:checkFormatting
+      - web:infra:checkFormatting
+      - web:domain-mapping:checkFormatting
+      - api:impl:checkFormatting
+      - api:infra:checkFormatting
+
+  fixFormatting-all:
     desc: Fix formatting for the entire codebase
     deps:
+      - github:workflows:fixLint
       - github:config:fixFormatting
+      - infra:fixFormatting
+      - web:app:fixFormatting
+      - web:infra:fixFormatting
+      - web:domain-mapping:fixFormatting
+      - api:impl:fixFormatting
+      - api:infra:fixFormatting
       - gradleRoot:fixFormatting
 
-  all:analyzeStatically:
+  lint-all:
     desc: Lint the entire codebase
     deps:
       - github:workflows:lint
       - github:config:lint
+      - infra:lint
+      - web:app:lint
+      - web:infra:lint
+      - web:domain-mapping:lint
+      - api:impl:lint
+      - api:infra:lint
       - gradleRoot:analyzeStatically
+
+  analyze-all:
+    desc: Analyze the entire codebase
+    deps:
+      - github:config:validate
+      - infra:validate
+      - web:app:analyze
+      - web:infra:validate
+      - web:domain-mapping:validate
+      - api:infra:validate
+
+  run:
+    desc: Run the frontend and the API locally
+    deps:
+      - web:app:run
+      - api:impl:run
 
   gradleRoot:fixFormatting:
     desc: Fix Kotlin formatting

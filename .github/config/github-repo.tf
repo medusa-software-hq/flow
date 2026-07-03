@@ -3,13 +3,20 @@
 locals {
   # GitHub Actions integration ID (discovered manually)
   gh_actions_integration_id = 15368
+
+  check_infra_job_name              = "infra"
+  check_web_infra_job_name          = "web (infra)"
+  check_web_domain_mapping_job_name = "web (domain mapping)"
+  check_web_spa_job_name            = "web (SPA)"
+  check_api_infra_job_name          = "api (infra)"
+  check_api_impl_job_name           = "api (implementation)"
 }
 
 # Resources
 
 # This repository
 resource "github_repository" "this" {
-  name       = local.gh_repo_name
+  name       = module.common.gh_repo_name
   visibility = "private"
 
   is_template = false
@@ -65,6 +72,46 @@ resource "github_repository_ruleset" "default_branch" {
 
       required_check {
         context        = "Check repo Terraform configuration"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_infra_job_name} / Check Terraform formatting"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_web_infra_job_name} / Check Terraform configuration"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_web_domain_mapping_job_name} / Check Terraform configuration"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_web_spa_job_name} / Build frontend"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_web_spa_job_name} / Check Caddyfile"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_web_spa_job_name} / Build Docker image"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_api_infra_job_name} / Check Terraform configuration"
+        integration_id = local.gh_actions_integration_id
+      }
+
+      required_check {
+        context        = "${local.check_api_impl_job_name} / Check service"
         integration_id = local.gh_actions_integration_id
       }
 
