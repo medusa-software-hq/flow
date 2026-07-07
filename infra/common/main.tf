@@ -22,7 +22,7 @@ locals {
 
   # Google OAuth 2.0 client ID
   # https://console.cloud.google.com/auth/clients/852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com?project=ms-auth-284371d2
-  google_client_id = "852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com "
+  google_client_id = "852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com"
 }
 
 output "organization_domain" {
