@@ -67,3 +67,22 @@ resource "github_actions_variable" "google_allowed_domain" {
   variable_name = "GOOGLE_ALLOWED_DOMAIN"
   value         = module.common.organization_domain
 }
+
+# GitHub App client ID, consumed when reading repository issues.
+resource "github_actions_variable" "gh_app_client_id" {
+  repository    = data.github_repository.this.name
+  variable_name = module.common.gh_app_client_id_var_name
+  value         = module.common.github_app_client_id
+}
+
+# GitHub App private key (PEM). Populated manually via the repository settings:
+# https://github.com/medusa-software-hq/flow/settings/secrets/actions/GITHUB_APP_PEM_CONTENT
+resource "github_actions_secret" "gh_app_pem_content" {
+  repository      = data.github_repository.this.name
+  secret_name     = module.common.gh_app_pem_content_secret_name
+  plaintext_value = "placeholder"
+
+  lifecycle {
+    ignore_changes = [plaintext_value]
+  }
+}
