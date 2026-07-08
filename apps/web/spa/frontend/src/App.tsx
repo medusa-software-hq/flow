@@ -6,6 +6,8 @@ import heroImg from './assets/hero.png';
 import reactLogo from './assets/react.svg';
 import viteLogo from './assets/vite.svg';
 import { CounterService } from './gen/medusa/counter/v1/counter_service_pb.ts';
+import { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
+import { GitHubIssues } from './GitHubIssues.tsx';
 import { SignInWall } from './SignInWall.tsx';
 import { useAuth } from './useAuth.tsx';
 import classes from './App.module.css';
@@ -21,6 +23,7 @@ const transport = createGrpcWebTransport({
 });
 
 const client = createClient(CounterService, transport);
+const gitHubClient = createClient(GitHubService, transport);
 
 const socialLinks = [
   { label: 'GitHub', href: 'https://github.com/vitejs/vite', icon: 'github-icon' },
@@ -126,6 +129,10 @@ function AppContent({ token }: { token: string }) {
             </Text>
           )}
         </Stack>
+      </Box>
+
+      <Box className={classes.section}>
+        <GitHubIssues client={gitHubClient} headers={headers} onError={handleError} />
       </Box>
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={0} className={classes.nextSteps}>
