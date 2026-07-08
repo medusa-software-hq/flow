@@ -104,10 +104,38 @@ resource "google_cloud_run_v2_service" "primary" {
           }
         }
       }
+
+      env {
+        name  = "GITHUB_APP_CLIENT_ID"
+        value = module.common.github_app_client_id
+      }
+
+      env {
+        name  = "GITHUB_REPO_OWNER"
+        value = module.common.gh_organization_name
+      }
+
+      env {
+        name  = "GITHUB_REPO_NAME"
+        value = module.common.gh_repo_name
+      }
+
+      env {
+        name = "GITHUB_APP_PEM_CONTENT"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.github_app_pem.secret_id
+            version = "latest"
+          }
+        }
+      }
     }
   }
 
-  depends_on = [google_secret_manager_secret_version.database_url]
+  depends_on = [
+    google_secret_manager_secret_version.database_url,
+    google_secret_manager_secret_version.github_app_pem,
+  ]
 
   # The image is managed by CI/CD after initial creation.
   # Env vars are managed by Terraform and must not be overwritten by deploys.

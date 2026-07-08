@@ -21,7 +21,7 @@ resource "github_repository" "this" {
   is_template = false
 
   has_discussions = false
-  has_issues      = false
+  has_issues      = true
   has_projects    = false
   has_wiki        = false
 

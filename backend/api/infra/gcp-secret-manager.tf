@@ -20,3 +20,32 @@ resource "google_secret_manager_secret_iam_member" "primary_service_sa_database_
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.primary_service_sa.email}"
 }
+
+# Secret holding the GitHub App private key (PEM), injected into Cloud Run.
+resource "google_secret_manager_secret" "github_app_pem" {
+  project   = var.gcp_project_id
+  secret_id = "${module.common.gcp_api_run_service_name}-github-app-pem"
+
+  replication {
+    auto {}
+  }
+}
+
+# Placeholder version; the real PKCS#8 PEM is uploaded manually and must not be
+# overwritten by Terraform.
+resource "google_secret_manager_secret_version" "github_app_pem" {
+  secret      = google_secret_manager_secret.github_app_pem.id
+  secret_data = "placeholder"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
+# Allow the Cloud Run service account to read the GitHub App private key.
+resource "google_secret_manager_secret_iam_member" "primary_service_sa_github_app_pem_accessor" {
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.github_app_pem.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.primary_service_sa.email}"
+}

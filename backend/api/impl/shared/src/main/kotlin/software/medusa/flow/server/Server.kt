@@ -13,6 +13,7 @@ fun buildServer(
     port: Int,
     auth: DecoratingHttpServiceFunction,
     counterStore: CounterStore,
+    gitHubIssueStore: GitHubIssueStore,
 ): Server {
   val cors =
       CorsService.builderForOriginRegex(originRegex)
@@ -39,6 +40,7 @@ fun buildServer(
       GrpcService.builder()
           .apply {
             addService(CounterServiceImpl(counterStore))
+            addService(GitHubServiceImpl(gitHubIssueStore))
             enableUnframedRequests(true)
           }
           .build()
