@@ -132,7 +132,7 @@ function AppContent({ token }: { token: string }) {
       </Box>
 
       <Box className={classes.section}>
-        <GitHubIssues client={gitHubClient} headers={headers} onError={handleError} />
+        <GitHubIssues client={gitHubClient} headers={headers} onUnauthorized={handleUnauthorized} />
       </Box>
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={0} className={classes.nextSteps}>

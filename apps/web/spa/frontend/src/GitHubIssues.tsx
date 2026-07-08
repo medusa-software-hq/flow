@@ -1,25 +1,19 @@
 import type { Client } from '@connectrpc/connect';
 import { Anchor, Badge, Group, Loader, Stack, Text, Title } from '@mantine/core';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { GitHubService, Issue } from './gen/medusa/github/v1/github_service_pb.ts';
 
 export function GitHubIssues({
   client,
   headers,
-  onError,
+  onUnauthorized,
 }: {
   client: Client<typeof GitHubService>;
   headers: HeadersInit;
-  onError: (err: unknown) => void;
+  onUnauthorized: () => void;
 }) {
   const [issues, setIssues] = useState<Issue[] | null>(null);
-
-  const handleError = useCallback(
-    (err: unknown) => {
-      onError(err);
-    },
-    [onError]
-  );
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,8 +25,14 @@ export function GitHubIssues({
           setIssues(response.issues);
         }
       } catch (err: unknown) {
-        if (!cancelled) {
-          handleError(err);
+        if (cancelled) {
+          return;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes('401') || message.includes('unauthenticated')) {
+          onUnauthorized();
+        } else {
+          setError(message);
         }
       }
     }
@@ -41,12 +41,16 @@ export function GitHubIssues({
     return () => {
       cancelled = true;
     };
-  }, [client, headers, handleError]);
+  }, [client, headers, onUnauthorized]);
 
   return (
     <Stack gap="sm">
       <Title order={2}>Latest issues</Title>
-      {issues === null ? (
+      {error !== null ? (
+        <Text c="red" size="sm">
+          Failed to load issues: {error}
+        </Text>
+      ) : issues === null ? (
         <Loader size="sm" />
       ) : issues.length === 0 ? (
         <Text c="dimmed">No issues found.</Text>
