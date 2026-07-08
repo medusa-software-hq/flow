@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package medusa.github.v1;
+
+option java_multiple_files = true;
+option java_package = "software.medusa.flow.v1";
+
+service GitHubService {
+  rpc ListIssues(ListIssuesRequest) returns (ListIssuesResponse);
+}
+
+message ListIssuesRequest {}
+
+message ListIssuesResponse {
+  repeated Issue issues = 1;
+}
+
+message Issue {
+  int32 number = 1;
+  string title = 2;
+  // Issue state, e.g. "open" or "closed".
+  string state = 3;
+  // URL of the issue on GitHub (the `html_url` field).
+  string url = 4;
+  // Login of the user who opened the issue.
+  string author = 5;
+}

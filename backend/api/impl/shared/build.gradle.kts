@@ -2,6 +2,7 @@ import com.google.protobuf.gradle.id
 
 plugins {
   alias(libs.plugins.kotlin.jvm)
+  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.protobuf)
   alias(libs.plugins.sqldelight)
   `java-library`
@@ -22,6 +23,7 @@ dependencies {
   api(libs.grpc.stub)
   api(libs.hikaricp)
   api(libs.kotlinx.coroutines.core)
+  api(libs.kotlinx.serialization.json)
   api(libs.nimbus.jose.jwt)
   api(libs.protobuf.kotlin)
   implementation(libs.flyway.core)

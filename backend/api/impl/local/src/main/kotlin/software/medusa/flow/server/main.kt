@@ -9,6 +9,7 @@ fun main() {
           port = localPort,
           auth = NoOpAuthDecorator,
           counterStore = InMemoryCounterStore(),
+          gitHubIssueStore = FakeGitHubIssueStore(),
       )
       .start()
       .join()
