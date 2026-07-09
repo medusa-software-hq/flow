@@ -7,12 +7,12 @@ import javax.sql.DataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.flywaydb.core.Flyway
-import software.medusa.flow.db.CounterDatabase
+import software.medusa.flow.db.FlowDatabase
 
 private const val maxPoolSize = 5
 
 class PostgresCounterStore(
-    private val database: CounterDatabase,
+    private val database: FlowDatabase,
 ) : CounterStore {
   companion object {
     /**
@@ -20,7 +20,7 @@ class PostgresCounterStore(
      * `sslmode=require`), running pending Flyway migrations before returning.
      *
      * Flyway owns the runtime schema; SQLDelight only provides type-safe queries, so we do not call
-     * [CounterDatabase.Schema] create/migrate here.
+     * [FlowDatabase.Schema] create/migrate here.
      */
     fun build(jdbcUrl: String): PostgresCounterStore {
       val dataSource: DataSource =
@@ -38,7 +38,7 @@ class PostgresCounterStore(
 
       Flyway.configure().dataSource(dataSource).load().migrate()
 
-      return PostgresCounterStore(CounterDatabase(dataSource.asJdbcDriver()))
+      return PostgresCounterStore(FlowDatabase(dataSource.asJdbcDriver()))
     }
   }
 
