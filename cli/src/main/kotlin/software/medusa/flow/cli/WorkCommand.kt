@@ -5,13 +5,17 @@ import com.github.ajalt.mordant.terminal.Terminal
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.worker.WrkConfig
 import software.medusa.flow.worker.WrkGrpcApiClient
+import software.medusa.flow.worker.WrkPlaceholderPublisher
 import software.medusa.flow.worker.WrkPollLoop
-import software.medusa.flow.worker.WrkStubSessionProcessor
+import software.medusa.flow.worker.WrkProcessGitCloner
+import software.medusa.flow.worker.WrkProperSessionProcessor
 
 class WorkCommand(
     private val terminal: Terminal,
+    private val taskCompleter: HrsTaskCompleter,
 ) : CliktCommand(name = "work") {
   override fun run() {
     val config = WrkConfig.fromEnvironment()
@@ -19,10 +23,18 @@ class WorkCommand(
     val apiClient =
         WrkGrpcApiClient.create(apiUrl = config.apiUrl, workerSaKeyFile = config.workerSaKeyFile)
 
+    val sessionProcessor =
+        WrkProperSessionProcessor(
+            gitCloner = WrkProcessGitCloner(gitHubToken = config.workerGitHubToken),
+            taskCompleter = taskCompleter,
+            publisher = WrkPlaceholderPublisher,
+            log = { terminal.println(it) },
+        )
+
     val pollLoop =
         WrkPollLoop(
             apiClient = apiClient,
-            sessionProcessor = WrkStubSessionProcessor,
+            sessionProcessor = sessionProcessor,
             log = { terminal.println(it) },
         )
 
