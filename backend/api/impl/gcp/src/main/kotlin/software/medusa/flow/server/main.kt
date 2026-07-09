@@ -31,12 +31,16 @@ fun main() {
       System.getenv(databaseUrlEnvVarName)
           ?: error("$databaseUrlEnvVarName environment variable must be set")
 
+  // One database (pool + migrations) shared by every Postgres-backed store.
+  val database = buildFlowDatabase(databaseUrl)
+
   buildServer(
           originRegex = corsOriginRegex,
           port = port,
           auth = GoogleIdTokenAuthDecorator(clientId, allowedDomain),
-          counterStore = PostgresCounterStore.build(databaseUrl),
+          counterStore = PostgresCounterStore(database),
           gitHubIssueStore = buildGitHubIssueStore(),
+          sessionStore = PostgresSessionStore(database),
       )
       .start()
       .join()
