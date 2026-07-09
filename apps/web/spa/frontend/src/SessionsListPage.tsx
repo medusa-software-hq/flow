@@ -1,4 +1,3 @@
-import { timestampDate } from '@bufbuild/protobuf/wkt';
 import type { Client } from '@connectrpc/connect';
 import { Anchor, Badge, Button, Group, Loader, Stack, Table, Text, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
@@ -8,31 +7,9 @@ import {
   type Session,
   type SessionService,
 } from './gen/medusa/session/v1/session_service_pb.ts';
+import { formatTimestamp, sessionStateColor, sessionStateLabel } from './sessionDisplay.ts';
 
 const REFRESH_INTERVAL_MS = 7000;
-
-const stateLabel: Record<SessionState, string> = {
-  [SessionState.UNSPECIFIED]: 'Unknown',
-  [SessionState.PENDING]: 'Pending',
-  [SessionState.RUNNING]: 'Running',
-  [SessionState.COMPLETED]: 'Completed',
-  [SessionState.FAILED]: 'Failed',
-};
-
-const stateColor: Record<SessionState, string> = {
-  [SessionState.UNSPECIFIED]: 'gray',
-  [SessionState.PENDING]: 'gray',
-  [SessionState.RUNNING]: 'blue',
-  [SessionState.COMPLETED]: 'green',
-  [SessionState.FAILED]: 'red',
-};
-
-function formatCreatedAt(session: Session): string {
-  if (!session.createdAt) {
-    return '—';
-  }
-  return timestampDate(session.createdAt).toLocaleString();
-}
 
 export function SessionsListPage({
   client,
@@ -120,11 +97,11 @@ export function SessionsListPage({
               >
                 <Table.Td>{session.repoFullName}</Table.Td>
                 <Table.Td>
-                  <Badge color={stateColor[session.state]} variant="light">
-                    {stateLabel[session.state]}
+                  <Badge color={sessionStateColor[session.state]} variant="light">
+                    {sessionStateLabel[session.state]}
                   </Badge>
                 </Table.Td>
-                <Table.Td>{formatCreatedAt(session)}</Table.Td>
+                <Table.Td>{formatTimestamp(session.createdAt)}</Table.Td>
                 <Table.Td>{session.createdBy}</Table.Td>
                 <Table.Td>
                   {session.state === SessionState.COMPLETED && session.prUrl !== '' && (
