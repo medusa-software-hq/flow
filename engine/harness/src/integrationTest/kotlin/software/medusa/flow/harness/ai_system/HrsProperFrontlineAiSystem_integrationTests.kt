@@ -74,6 +74,7 @@ class HrsProperFrontlineAiSystem_integrationTests {
     private val silentScoutingObserver =
         object : HrsTaskCompleter.ScoutingObserver {
           override fun observeRound(
+              roundNumber: Int,
               baseEditorWorktree: VedWorktree,
               scoutMessage: ScoutMessage,
           ) = Unit
