@@ -3,6 +3,7 @@ import './global.css';
 import { MantineProvider } from '@mantine/core';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router';
 import { Toaster } from 'sonner';
 import App from './App.tsx';
 import { AuthProvider } from './AuthProvider.tsx';
@@ -16,9 +17,11 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <MantineProvider theme={theme}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
       <Toaster richColors position="bottom-right" />
     </MantineProvider>
   </StrictMode>
