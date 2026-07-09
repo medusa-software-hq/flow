@@ -9,6 +9,7 @@ private const val gitHubAppClientIdEnvVarName = "GITHUB_APP_CLIENT_ID"
 private const val gitHubAppPemContentEnvVarName = "GITHUB_APP_PEM_CONTENT"
 private const val gitHubRepoOwnerEnvVarName = "GITHUB_REPO_OWNER"
 private const val gitHubRepoNameEnvVarName = "GITHUB_REPO_NAME"
+private const val workerSaEmailsEnvVarName = "WORKER_SA_EMAILS"
 
 fun main() {
   val port =
@@ -31,6 +32,10 @@ fun main() {
       System.getenv(databaseUrlEnvVarName)
           ?: error("$databaseUrlEnvVarName environment variable must be set")
 
+  val workerSaEmails =
+      System.getenv(workerSaEmailsEnvVarName)
+          ?: error("$workerSaEmailsEnvVarName environment variable must be set")
+
   // One database (pool + migrations) shared by every Postgres-backed store.
   val database = buildFlowDatabase(databaseUrl)
 
@@ -41,6 +46,7 @@ fun main() {
           counterStore = PostgresCounterStore(database),
           gitHubIssueStore = buildGitHubIssueStore(),
           sessionStore = PostgresSessionStore(database),
+          workerAuthorizer = buildWorkerAuthorizer(workerSaEmails),
       )
       .start()
       .join()
@@ -78,3 +84,14 @@ private fun buildGitHubIssueStore(): GitHubIssueStore {
       )
   )
 }
+
+/**
+ * Parses [workerSaEmails] as a comma-separated allowlist
+ * ([WORKER_SA_EMAILS][workerSaEmailsEnvVarName]).
+ */
+private fun buildWorkerAuthorizer(
+    workerSaEmails: String,
+): WorkerAuthorizer =
+    WorkerAuthorizer.allowlist(
+        workerSaEmails.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet(),
+    )

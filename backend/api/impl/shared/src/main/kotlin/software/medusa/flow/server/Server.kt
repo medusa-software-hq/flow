@@ -15,6 +15,7 @@ fun buildServer(
     counterStore: CounterStore,
     gitHubIssueStore: GitHubIssueStore,
     sessionStore: SessionStore,
+    workerAuthorizer: WorkerAuthorizer,
 ): Server {
   val cors =
       CorsService.builderForOriginRegex(originRegex)
@@ -43,6 +44,7 @@ fun buildServer(
             addService(CounterServiceImpl(counterStore))
             addService(GitHubServiceImpl(gitHubIssueStore))
             addService(SessionServiceImpl(sessionStore))
+            addService(WorkerServiceImpl(sessionStore, workerAuthorizer))
             enableUnframedRequests(true)
           }
           .build()

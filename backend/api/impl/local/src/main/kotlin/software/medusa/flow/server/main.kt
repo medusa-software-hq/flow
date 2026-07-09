@@ -11,6 +11,7 @@ fun main() {
           counterStore = InMemoryCounterStore(),
           gitHubIssueStore = FakeGitHubIssueStore(),
           sessionStore = InMemorySessionStore(),
+          workerAuthorizer = WorkerAuthorizer.permissive,
       )
       .start()
       .join()
