@@ -17,4 +17,5 @@ include(
     ":engine:toolchains:nodejs",
     ":engine:universal-project",
     ":engine:virtual-editor",
+    ":worker",
 )
