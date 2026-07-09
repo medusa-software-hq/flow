@@ -32,9 +32,10 @@ fun main() {
       System.getenv(databaseUrlEnvVarName)
           ?: error("$databaseUrlEnvVarName environment variable must be set")
 
-  val workerSaEmails =
-      System.getenv(workerSaEmailsEnvVarName)
-          ?: error("$workerSaEmailsEnvVarName environment variable must be set")
+  // Optional and empty by default (denies every worker) rather than required: the SA that will
+  // populate this (story 05, infra) is provisioned after this service already depends on it, and a
+  // missing/unconfigured allowlist should not crash the whole API.
+  val workerSaEmails = System.getenv(workerSaEmailsEnvVarName).orEmpty()
 
   // One database (pool + migrations) shared by every Postgres-backed store.
   val database = buildFlowDatabase(databaseUrl)
