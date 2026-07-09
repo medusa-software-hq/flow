@@ -1,6 +1,7 @@
 package software.medusa.flow.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.terminal.Terminal
@@ -21,6 +22,9 @@ class CompleteTaskCommand(
     ) {
   companion object {
     private val targetWorkspacePrefix = UfsName.Literal("target-workspace-")
+
+    /** Exit code for every [TaskCompletionResult.Failure] variant. */
+    private const val failureExitCode = 1
   }
 
   private val globalState by requireObject<RootCommand.GlobalState>()
@@ -81,6 +85,8 @@ class CompleteTaskCommand(
             terminal.println()
             terminal.printCode(moduleFailure.diagnosticOutput)
           }
+
+          throw ProgramResult(statusCode = failureExitCode)
         }
 
         is TaskCompletionResult.Failure.AttemptsExhausted -> {
@@ -104,6 +110,8 @@ class CompleteTaskCommand(
             terminal.println()
             terminal.printCode(moduleFailure.diagnosticOutput)
           }
+
+          throw ProgramResult(statusCode = failureExitCode)
         }
       }
 }
