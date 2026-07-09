@@ -61,6 +61,7 @@ class WorkerServiceImpl_serverTests {
                 auth = StubIdentityDecorator(email),
                 counterStore = InMemoryCounterStore(),
                 gitHubIssueStore = FakeGitHubIssueStore(),
+                gitHubRepositoryStore = FakeGitHubRepositoryStore(),
                 sessionStore = store,
                 workerAuthorizer = workerAuthorizer,
             )

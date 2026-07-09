@@ -14,6 +14,7 @@ fun buildServer(
     auth: DecoratingHttpServiceFunction,
     counterStore: CounterStore,
     gitHubIssueStore: GitHubIssueStore,
+    gitHubRepositoryStore: GitHubRepositoryStore,
     sessionStore: SessionStore,
     workerAuthorizer: WorkerAuthorizer,
 ): Server {
@@ -42,7 +43,7 @@ fun buildServer(
       GrpcService.builder()
           .apply {
             addService(CounterServiceImpl(counterStore))
-            addService(GitHubServiceImpl(gitHubIssueStore))
+            addService(GitHubServiceImpl(gitHubIssueStore, gitHubRepositoryStore))
             addService(SessionServiceImpl(sessionStore))
             addService(WorkerServiceImpl(sessionStore, workerAuthorizer))
             enableUnframedRequests(true)
