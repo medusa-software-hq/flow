@@ -9,7 +9,17 @@ plugins {
 // Proto sources live at the repo root, shared across services.
 sourceSets { main { proto { srcDir(rootDir.resolve("proto")) } } }
 
+repositories {
+  // The Gradle Tooling API (a transitive dependency via engine:harness) is published to Gradle's
+  // own repository, not Maven Central.
+  maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
+}
+
 dependencies {
+  api(project(":engine:harness"))
+  api(project(":engine:universal-project"))
+  api(project(":engine:virtual-editor"))
+
   api(platform(libs.armeria.bom))
   api(platform(libs.grpc.bom))
 
@@ -24,6 +34,7 @@ dependencies {
   api(libs.kotlinx.coroutines.core)
   api(libs.medusa.commons.git)
   api(libs.medusa.commons.markdown)
+  api(libs.medusa.commons.unix.filesystem)
   api(libs.protobuf.kotlin)
   runtimeOnly(libs.logback.classic)
 
