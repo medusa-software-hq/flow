@@ -54,6 +54,7 @@ class SessionServiceImpl_serverTests {
               counterStore = InMemoryCounterStore(),
               gitHubIssueStore = FakeGitHubIssueStore(),
               sessionStore = store,
+              workerAuthorizer = WorkerAuthorizer.permissive,
           )
           .also { it.start().join() }
 

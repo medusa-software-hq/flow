@@ -65,3 +65,25 @@ fun SessionEvent.toProto(): ProtoSessionEvent {
     message = domainEvent.message
   }
 }
+
+/**
+ * Null for `SESSION_EVENT_KIND_UNSPECIFIED` (or an unrecognised value); the caller decides how to
+ * react.
+ */
+fun ProtoSessionEventKind.toDomainOrNull(): SessionEventKind? =
+    when (this) {
+      ProtoSessionEventKind.SESSION_EVENT_KIND_WORKSPACE_PREPARING ->
+          SessionEventKind.WorkspacePreparing
+      ProtoSessionEventKind.SESSION_EVENT_KIND_HEALTH_GATE -> SessionEventKind.HealthGate
+      ProtoSessionEventKind.SESSION_EVENT_KIND_SCOUTING_ROUND -> SessionEventKind.ScoutingRound
+      ProtoSessionEventKind.SESSION_EVENT_KIND_WORKSPACE_BRIEFING ->
+          SessionEventKind.WorkspaceBriefing
+      ProtoSessionEventKind.SESSION_EVENT_KIND_IMPLEMENTATION_PLANNING ->
+          SessionEventKind.ImplementationPlanning
+      ProtoSessionEventKind.SESSION_EVENT_KIND_IMPLEMENTATION_ATTEMPT ->
+          SessionEventKind.ImplementationAttempt
+      ProtoSessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK -> SessionEventKind.HealthCheck
+      ProtoSessionEventKind.SESSION_EVENT_KIND_PUBLISHING -> SessionEventKind.Publishing
+      ProtoSessionEventKind.SESSION_EVENT_KIND_UNSPECIFIED,
+      ProtoSessionEventKind.UNRECOGNIZED -> null
+    }
