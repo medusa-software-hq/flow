@@ -60,7 +60,10 @@ class WrkProperGitHubPublisher_tests {
    */
   private fun setUpBareRepoAndClone(): BareRepoAndClone {
     val bareDirectory = Files.createTempDirectory("wrk-publish-bare-")
-    runGit(bareDirectory, "init", "--bare", "-q")
+    // `-b main` pins the bare repo's HEAD to the branch we're about to push, regardless of the
+    // machine's `init.defaultBranch` -- otherwise a plain push doesn't move HEAD to follow it, and
+    // a clone ends up with an unborn HEAD ("ambiguous argument 'HEAD'").
+    runGit(bareDirectory, "init", "--bare", "-q", "-b", "main")
 
     val seedDirectory = Files.createTempDirectory("wrk-publish-seed-")
     runGit(seedDirectory, "init", "-q", "-b", "main")
