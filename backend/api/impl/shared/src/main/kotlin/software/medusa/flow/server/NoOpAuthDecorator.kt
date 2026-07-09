@@ -8,9 +8,16 @@ import com.linecorp.armeria.server.ServiceRequestContext
 
 /** Passes every request through without any authentication check. For local development only. */
 object NoOpAuthDecorator : DecoratingHttpServiceFunction {
+  private const val localDevEmail = "local@localhost"
+
   override fun serve(
       delegate: HttpService,
       ctx: ServiceRequestContext,
       req: HttpRequest,
-  ): HttpResponse = delegate.serve(ctx, req)
+  ): HttpResponse {
+    // Stamp a placeholder identity so `created_by` is populated in local runs.
+    ctx.setAttr(AuthenticatedUser.emailAttributeKey, localDevEmail)
+
+    return delegate.serve(ctx, req)
+  }
 }

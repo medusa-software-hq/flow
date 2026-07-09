@@ -10,6 +10,7 @@ fun main() {
           auth = NoOpAuthDecorator,
           counterStore = InMemoryCounterStore(),
           gitHubIssueStore = FakeGitHubIssueStore(),
+          sessionStore = InMemorySessionStore(),
       )
       .start()
       .join()
