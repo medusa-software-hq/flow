@@ -2,6 +2,7 @@ import com.google.protobuf.gradle.id
 
 plugins {
   alias(libs.plugins.kotlin.jvm)
+  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.protobuf)
   `java-library`
 }
@@ -32,6 +33,7 @@ dependencies {
   api(libs.grpc.protobuf)
   api(libs.grpc.stub)
   api(libs.kotlinx.coroutines.core)
+  api(libs.kotlinx.serialization.json)
   api(libs.medusa.commons.git)
   api(libs.medusa.commons.markdown)
   api(libs.medusa.commons.unix.filesystem)
