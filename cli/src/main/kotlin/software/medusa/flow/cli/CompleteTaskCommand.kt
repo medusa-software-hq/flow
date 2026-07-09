@@ -31,8 +31,7 @@ class CompleteTaskCommand(
 
   override fun run() {
     runBlocking {
-      val gitWorktree = globalState.gitWorktree
-      val taskDescription = globalState.taskDescription
+      val (gitWorktree, taskDescription) = globalState.loadGitWorktreeAndTask()
 
       val taskCompletionResult =
           taskCompleter.completeTask(
