@@ -129,6 +129,13 @@ resource "google_cloud_run_v2_service" "primary" {
           }
         }
       }
+
+      env {
+        # WorkerService's allowlist (see gcp-worker-sa.tf). Just the SA's email —
+        # not a secret — so a plain env var, matching GOOGLE_CLIENT_ID above.
+        name  = "WORKER_SA_EMAILS"
+        value = google_service_account.worker_sa.email
+      }
     }
   }
 
