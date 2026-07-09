@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlinx.coroutines.runBlocking
-import org.junit.Assume.assumeTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.luaj.vm2.Globals
 import org.luaj.vm2.LoadState
 import org.luaj.vm2.compiler.LuaC
@@ -58,7 +58,7 @@ class HrsProperFrontlineAiSystem_integrationTests {
     private val apiKey = System.getenv(apiKeyEnvVarName)
 
     private fun buildClient(): OaiConfiguredClient {
-      assumeTrue("Environment variable $apiKeyEnvVarName is not set", apiKey != null)
+      assumeTrue(apiKey != null, "Environment variable $apiKeyEnvVarName is not set")
 
       return OaiProperClient.withTarget(
               targetBaseUrl = OaiConfiguredClient.openAiBaseUrl,
