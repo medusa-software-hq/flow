@@ -8,9 +8,9 @@ import kotlinx.coroutines.runBlocking
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.worker.WrkConfig
 import software.medusa.flow.worker.WrkGrpcApiClient
-import software.medusa.flow.worker.WrkPlaceholderPublisher
 import software.medusa.flow.worker.WrkPollLoop
 import software.medusa.flow.worker.WrkProcessGitCloner
+import software.medusa.flow.worker.WrkProperGitHubPublisher
 import software.medusa.flow.worker.WrkProperSessionProcessor
 
 class WorkCommand(
@@ -27,7 +27,7 @@ class WorkCommand(
         WrkProperSessionProcessor(
             gitCloner = WrkProcessGitCloner(gitHubToken = config.workerGitHubToken),
             taskCompleter = taskCompleter,
-            publisher = WrkPlaceholderPublisher,
+            publisher = WrkProperGitHubPublisher(gitHubToken = config.workerGitHubToken),
             log = { terminal.println(it) },
         )
 

@@ -13,10 +13,7 @@ import software.medusa.flow.v1.SessionEventKind
 
 private const val defaultHeartbeatIntervalMillis = 30_000L
 
-/**
- * Clones the repo, runs the engine pipeline, and reports progress -- the real
- * [WrkSessionProcessor], replacing [WrkStubSessionProcessor].
- */
+/** Clones the repo, runs the engine pipeline, publishes, and reports progress. */
 class WrkProperSessionProcessor(
     private val gitCloner: WrkGitCloner,
     private val taskCompleter: HrsTaskCompleter,
@@ -31,7 +28,7 @@ class WrkProperSessionProcessor(
     val cloneDirectory = Files.createTempDirectory("flow-worker-clone-")
 
     try {
-      val taskDescription = parseTaskDescription(session.taskMarkdown)
+      val (taskDescription, taskHeading) = parseTask(session.taskMarkdown)
 
       apiClient.appendSessionEvent(
           sessionId = session.id,
@@ -73,14 +70,40 @@ class WrkProperSessionProcessor(
       when (result) {
         is TaskCompletionResult.Success ->
             result.temporaryWorkspace.use { workspace ->
-              val prUrl =
-                  publisher.publish(
-                      repoFullName = session.repoFullName,
-                      taskDescription = taskDescription,
-                      workspace = workspace,
-                  )
+              apiClient.appendSessionEvent(
+                  sessionId = session.id,
+                  kind = SessionEventKind.SESSION_EVENT_KIND_PUBLISHING,
+                  message = "Publishing the result as a pull request",
+              )
 
-              apiClient.completeSession(sessionId = session.id, prUrl = prUrl)
+              val publishResult =
+                  try {
+                    publisher.publish(
+                        repoFullName = session.repoFullName,
+                        sessionId = session.id,
+                        taskHeading = taskHeading,
+                        taskMarkdown = session.taskMarkdown,
+                        cloneDirectory = cloneDirectory,
+                        workspace = workspace,
+                    )
+                  } catch (e: Exception) {
+                    apiClient.failSession(
+                        sessionId = session.id,
+                        failureSummary = "Failed to publish the result:\n\n```\n${e.message}\n```",
+                    )
+                    return@use
+                  }
+
+              when (publishResult) {
+                is WrkPublishResult.Published ->
+                    apiClient.completeSession(sessionId = session.id, prUrl = publishResult.prUrl)
+
+                WrkPublishResult.NoChanges ->
+                    apiClient.failSession(
+                        sessionId = session.id,
+                        failureSummary = "Engine produced no changes",
+                    )
+              }
             }
 
         is TaskCompletionResult.Failure ->
@@ -91,11 +114,21 @@ class WrkProperSessionProcessor(
     }
   }
 
-  private fun parseTaskDescription(
+  private data class ParsedTask(
+      val description: HrsTaskDescription,
+      val heading: String,
+  )
+
+  private fun parseTask(
       taskMarkdown: String,
-  ): HrsTaskDescription {
+  ): ParsedTask {
     val document = MdDocument.parse(markdownSource = taskMarkdown)
-    return HrsTaskDescription(body = document.rootChapter.element)
+    val heading = document.rootChapter.title.inlineNodes.joinToString("") { it.render() }
+
+    return ParsedTask(
+        description = HrsTaskDescription(body = document.rootChapter.element),
+        heading = heading,
+    )
   }
 
   private suspend fun heartbeatLoop(
