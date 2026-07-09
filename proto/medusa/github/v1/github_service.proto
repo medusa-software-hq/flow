@@ -7,6 +7,7 @@ option java_package = "software.medusa.flow.v1";
 
 service GitHubService {
   rpc ListIssues(ListIssuesRequest) returns (ListIssuesResponse);
+  rpc ListRepositories(ListRepositoriesRequest) returns (ListRepositoriesResponse);
 }
 
 message ListIssuesRequest {}
@@ -24,4 +25,17 @@ message Issue {
   string url = 4;
   // Login of the user who opened the issue.
   string author = 5;
+}
+
+message ListRepositoriesRequest {}
+
+message ListRepositoriesResponse {
+  repeated Repository repositories = 1;
+}
+
+message Repository {
+  // "owner/name".
+  string full_name = 1;
+  string default_branch = 2;
+  string url = 3;
 }
