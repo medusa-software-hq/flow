@@ -53,6 +53,7 @@ class SessionServiceImpl_serverTests {
               auth = NoOpAuthDecorator,
               counterStore = InMemoryCounterStore(),
               gitHubIssueStore = FakeGitHubIssueStore(),
+              gitHubRepositoryStore = FakeGitHubRepositoryStore(),
               sessionStore = store,
               workerAuthorizer = WorkerAuthorizer.permissive,
           )

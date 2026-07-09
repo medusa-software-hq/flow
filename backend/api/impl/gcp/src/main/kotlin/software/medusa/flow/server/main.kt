@@ -40,12 +40,16 @@ fun main() {
   // One database (pool + migrations) shared by every Postgres-backed store.
   val database = buildFlowDatabase(databaseUrl)
 
+  // One authenticated GitHub App client shared by every GitHubApp*Store.
+  val gitHubAppClient = buildGitHubAppClient()
+
   buildServer(
           originRegex = corsOriginRegex,
           port = port,
           auth = GoogleIdTokenAuthDecorator(clientId, allowedDomain),
           counterStore = PostgresCounterStore(database),
-          gitHubIssueStore = buildGitHubIssueStore(),
+          gitHubIssueStore = GitHubAppIssueStore(gitHubAppClient),
+          gitHubRepositoryStore = GitHubAppRepositoryStore(gitHubAppClient),
           sessionStore = PostgresSessionStore(database),
           workerAuthorizer = buildWorkerAuthorizer(workerSaEmails),
       )
@@ -54,12 +58,12 @@ fun main() {
 }
 
 /**
- * Builds a [GitHubIssueStore] from the GitHub App environment variables.
+ * Builds a [GitHubAppClient] from the GitHub App environment variables.
  *
  * All variables are required, and an invalid private key fails fast: the service crashes on startup
  * rather than silently serving stale data.
  */
-private fun buildGitHubIssueStore(): GitHubIssueStore {
+private fun buildGitHubAppClient(): GitHubAppClient {
   val clientId =
       System.getenv(gitHubAppClientIdEnvVarName)
           ?: error("$gitHubAppClientIdEnvVarName environment variable must be set")
@@ -76,7 +80,7 @@ private fun buildGitHubIssueStore(): GitHubIssueStore {
       System.getenv(gitHubRepoNameEnvVarName)
           ?: error("$gitHubRepoNameEnvVarName environment variable must be set")
 
-  return GitHubAppIssueStore(
+  return GitHubAppClient(
       GitHubAppConfig(
           clientId = clientId,
           pemContent = pemContent,

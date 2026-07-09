@@ -10,6 +10,7 @@ fun main() {
           auth = NoOpAuthDecorator,
           counterStore = InMemoryCounterStore(),
           gitHubIssueStore = FakeGitHubIssueStore(),
+          gitHubRepositoryStore = FakeGitHubRepositoryStore(),
           sessionStore = InMemorySessionStore(),
           workerAuthorizer = WorkerAuthorizer.permissive,
       )
