@@ -4,6 +4,7 @@ import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.rendering.TextStyles
 import com.github.ajalt.mordant.terminal.Terminal
 import software.medusa.commons.openai_client.OaiConfiguredClient
+import software.medusa.flow.harness.HrsPipelinePhase
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchMessage
@@ -13,6 +14,20 @@ import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutMessage
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 
 private fun heading(text: String): String = (TextStyles.bold + TextColors.brightCyan)("── $text ──")
+
+private fun phaseHeadingText(
+    phase: HrsPipelinePhase,
+): String =
+    when (phase) {
+      HrsPipelinePhase.WorkspacePreparing -> "Preparing workspace"
+      HrsPipelinePhase.HealthGate -> "Initial health gate"
+      HrsPipelinePhase.Scouting -> "Scouting"
+      HrsPipelinePhase.WorkspaceBriefing -> "Workspace briefing"
+      HrsPipelinePhase.ImplementationPlanning -> "Implementation planning"
+      is HrsPipelinePhase.ImplementationAttempt ->
+          "Implementation · attempt ${phase.attemptNumber} of ${phase.maxAttempts}"
+      is HrsPipelinePhase.HealthCheck -> "Health check · attempt ${phase.attemptNumber}"
+    }
 
 /** A [HrsTaskCompleter.Observer] that narrates task completion to the terminal in color. */
 class CliTaskObserver(
@@ -34,6 +49,13 @@ class CliTaskObserver(
     terminal.println()
     terminal.printCode(implementationPlan.body)
   }
+
+  override fun observePhase(
+      phase: HrsPipelinePhase,
+  ) {
+    terminal.println()
+    terminal.println(heading(phaseHeadingText(phase)))
+  }
 }
 
 class CliWorkspaceBriefingObserver(
@@ -48,22 +70,16 @@ class CliWorkspaceBriefingObserver(
 
 /**
  * A [HrsTaskCompleter.SolutionImplementationObserver] that narrates each implementation round. The
- * frontline's free-form message is printed by [observeRawResponse]; this only frames the round and
- * reports the resulting health.
+ * frontline's free-form message is printed by [observeRawResponse]; this only reports the resulting
+ * health — the attempt heading itself comes from [CliTaskObserver.observePhase].
  */
 class CliSolutionImplementationObserver(
     private val terminal: Terminal,
 ) : HrsTaskCompleter.SolutionImplementationObserver {
-  private var attemptNumber = 0
-
   override fun observeImplementation(
+      attemptNumber: Int,
       patchMessage: PatchMessage,
-  ) {
-    attemptNumber++
-
-    terminal.println()
-    terminal.println(heading("Solution · attempt $attemptNumber"))
-  }
+  ) = Unit
 
   override fun observeHealthStatus(
       healthStatus: ProjectHealthStatus,
@@ -110,14 +126,11 @@ class CliSolutionImplementationObserver(
 class CliScoutingObserver(
     private val terminal: Terminal,
 ) : HrsTaskCompleter.ScoutingObserver {
-  private var roundNumber = 0
-
   override fun observeRound(
+      roundNumber: Int,
       baseEditorWorktree: VedWorktree,
       scoutMessage: ScoutMessage,
   ) {
-    roundNumber++
-
     terminal.println()
     terminal.println(heading("Scouting · round $roundNumber"))
   }
