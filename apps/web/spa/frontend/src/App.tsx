@@ -1,13 +1,17 @@
 import { createClient } from '@connectrpc/connect';
 import { createGrpcWebTransport } from '@connectrpc/connect-web';
-import { Box, Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Box, Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, Route, Routes } from 'react-router';
 import heroImg from './assets/hero.png';
 import reactLogo from './assets/react.svg';
 import viteLogo from './assets/vite.svg';
 import { CounterService } from './gen/medusa/counter/v1/counter_service_pb.ts';
 import { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
+import { SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
 import { GitHubIssues } from './GitHubIssues.tsx';
+import { SessionsListPage } from './SessionsListPage.tsx';
+import { NewSessionPageStub, SessionDetailPageStub } from './SessionsStubPages.tsx';
 import { SignInWall } from './SignInWall.tsx';
 import { useAuth } from './useAuth.tsx';
 import classes from './App.module.css';
@@ -24,6 +28,7 @@ const transport = createGrpcWebTransport({
 
 const client = createClient(CounterService, transport);
 const gitHubClient = createClient(GitHubService, transport);
+const sessionClient = createClient(SessionService, transport);
 
 const socialLinks = [
   { label: 'GitHub', href: 'https://github.com/vitejs/vite', icon: 'github-icon' },
@@ -201,6 +206,62 @@ function AppContent({ token }: { token: string }) {
   );
 }
 
+function AuthenticatedApp({ token }: { token: string }) {
+  const { handleUnauthorized } = useAuth();
+  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  return (
+    <Stack gap={0}>
+      <Group
+        component="nav"
+        justify="flex-start"
+        gap="lg"
+        p="md"
+        style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
+      >
+        <Anchor component={Link} to="/" fw={600}>
+          Demo
+        </Anchor>
+        <Anchor component={Link} to="/sessions" fw={600}>
+          Sessions
+        </Anchor>
+      </Group>
+
+      <Routes>
+        <Route path="/" element={<AppContent token={token} />} />
+        <Route
+          path="/sessions"
+          element={
+            <Box p="md">
+              <SessionsListPage
+                client={sessionClient}
+                headers={headers}
+                onUnauthorized={handleUnauthorized}
+              />
+            </Box>
+          }
+        />
+        <Route
+          path="/sessions/new"
+          element={
+            <Box p="md">
+              <NewSessionPageStub />
+            </Box>
+          }
+        />
+        <Route
+          path="/sessions/:id"
+          element={
+            <Box p="md">
+              <SessionDetailPageStub />
+            </Box>
+          }
+        />
+      </Routes>
+    </Stack>
+  );
+}
+
 function App() {
   const { state } = useAuth();
 
@@ -210,7 +271,7 @@ function App() {
   if (state.status === 'unauthenticated') {
     return <SignInWall />;
   }
-  return <AppContent token={state.token} />;
+  return <AuthenticatedApp token={state.token} />;
 }
 
 export default App;
