@@ -1,9 +1,15 @@
 import type { Client } from '@connectrpc/connect';
 import { Alert, Button, Loader, Select, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import type { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
 import type { SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
+
+/** Pre-fill values passed via navigation state by "Retry as new session" on the detail page. */
+interface PrefillState {
+  repoFullName?: string;
+  taskMarkdown?: string;
+}
 
 function reportError(
   err: unknown,
@@ -30,12 +36,14 @@ export function NewSessionForm({
   onUnauthorized: () => void;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const prefill = location.state as PrefillState | null;
 
   const [repoOptions, setRepoOptions] = useState<{ value: string; label: string }[] | null>(null);
   const [repoLoadError, setRepoLoadError] = useState<string | null>(null);
 
-  const [repoFullName, setRepoFullName] = useState<string | null>(null);
-  const [taskMarkdown, setTaskMarkdown] = useState('');
+  const [repoFullName, setRepoFullName] = useState<string | null>(prefill?.repoFullName ?? null);
+  const [taskMarkdown, setTaskMarkdown] = useState(prefill?.taskMarkdown ?? '');
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);

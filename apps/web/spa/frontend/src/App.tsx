@@ -11,7 +11,7 @@ import { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
 import { SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
 import { GitHubIssues } from './GitHubIssues.tsx';
 import { NewSessionForm } from './NewSessionForm.tsx';
-import { SessionDetailPageStub } from './SessionDetailPageStub.tsx';
+import { SessionDetailPage } from './SessionDetailPage.tsx';
 import { SessionsListPage } from './SessionsListPage.tsx';
 import { SignInWall } from './SignInWall.tsx';
 import { useAuth } from './useAuth.tsx';
@@ -259,7 +259,11 @@ function AuthenticatedApp({ token }: { token: string }) {
           path="/sessions/:id"
           element={
             <Box p="md">
-              <SessionDetailPageStub />
+              <SessionDetailPage
+                client={sessionClient}
+                headers={headers}
+                onUnauthorized={handleUnauthorized}
+              />
             </Box>
           }
         />
