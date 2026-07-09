@@ -23,8 +23,7 @@ class ScoutFullyCommand(
 
   override fun run() {
     runBlocking {
-      val gitWorktree = globalState.gitWorktree
-      val taskDescription = globalState.taskDescription
+      val (gitWorktree, taskDescription) = globalState.loadGitWorktreeAndTask()
 
       val fullScoutingResult =
           HrsScoutingDriver.scoutFully(

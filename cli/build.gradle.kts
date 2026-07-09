@@ -14,6 +14,7 @@ dependencies {
   implementation(project(":engine:harness"))
   implementation(project(":engine:universal-project"))
   implementation(project(":engine:virtual-editor"))
+  implementation(project(":worker"))
 
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.medusa.commons.markdown)

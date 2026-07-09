@@ -135,6 +135,9 @@ private fun runMainCommand(
               terminal = terminal,
               taskCompleter = taskCompleter,
           ),
+          WorkCommand(
+              terminal = terminal,
+          ),
       )
       .main(args)
 }
