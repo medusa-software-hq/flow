@@ -59,7 +59,7 @@ protobuf {
 
 sqldelight {
   databases {
-    create("CounterDatabase") {
+    create("FlowDatabase") {
       packageName.set("software.medusa.flow.db")
       dialect(libs.sqldelight.postgresql.dialect)
     }
