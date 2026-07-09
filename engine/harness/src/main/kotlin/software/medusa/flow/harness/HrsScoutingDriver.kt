@@ -18,6 +18,8 @@ import software.medusa.flow.virtual_editor.worktree.VedWorktree
  * Extracted from [HrsProperTaskCompleter] so the standalone `scout-fully` command can reuse it.
  */
 object HrsScoutingDriver {
+  private const val firstRoundNumber = 1
+
   data class ScoutingOutcome(
       val fullyScoutedWorktree: VedWorktree,
       val finalTimestamp: VedTimestamp,
@@ -38,6 +40,7 @@ object HrsScoutingDriver {
           baseEditorWorktree = VedWorktree.import(sourceWorktree = sourceGitWorktree),
           baseScoutingLog = ScoutingLog.empty,
           startTimestamp = VedTimestamp.zero,
+          roundNumber = firstRoundNumber,
           scoutingObserver = scoutingObserver,
       )
 
@@ -49,6 +52,7 @@ object HrsScoutingDriver {
       baseEditorWorktree: VedWorktree,
       baseScoutingLog: ScoutingLog,
       startTimestamp: VedTimestamp,
+      roundNumber: Int,
       scoutingObserver: ScoutingObserver,
   ): ScoutingOutcome {
     val scoutMessage =
@@ -60,6 +64,7 @@ object HrsScoutingDriver {
         )
 
     scoutingObserver.observeRound(
+        roundNumber = roundNumber,
         baseEditorWorktree = baseEditorWorktree,
         scoutMessage = scoutMessage,
     )
@@ -106,6 +111,7 @@ object HrsScoutingDriver {
                         ),
                 ),
             startTimestamp = startTimestamp.next,
+            roundNumber = roundNumber + 1,
             scoutingObserver = scoutingObserver,
         )
       }
