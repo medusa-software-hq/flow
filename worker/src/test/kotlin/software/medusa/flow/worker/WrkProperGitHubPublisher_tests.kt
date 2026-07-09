@@ -22,15 +22,18 @@ private fun runGit(
     directory: Path,
     vararg args: String,
 ) {
-  val exitCode =
+  val process =
       ProcessBuilder(listOf("git", "-c", "commit.gpgsign=false") + args)
           .directory(directory.toFile())
           .redirectErrorStream(true)
           .start()
-          .also { it.inputStream.readAllBytes() }
-          .waitFor()
 
-  check(exitCode == 0) { "git ${args.joinToString(" ")} failed in $directory" }
+  val output = process.inputStream.bufferedReader().readText()
+  val exitCode = process.waitFor()
+
+  check(exitCode == 0) {
+    "git ${args.joinToString(" ")} failed in $directory (exit $exitCode):\n$output"
+  }
 }
 
 private class PublisherFakeReadonlyTemporaryWorkspace(
