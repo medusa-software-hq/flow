@@ -10,6 +10,7 @@ private const val gitHubAppPemContentEnvVarName = "GITHUB_APP_PEM_CONTENT"
 private const val gitHubRepoOwnerEnvVarName = "GITHUB_REPO_OWNER"
 private const val gitHubRepoNameEnvVarName = "GITHUB_REPO_NAME"
 private const val workerSaEmailsEnvVarName = "WORKER_SA_EMAILS"
+private const val workerTokenAudienceEnvVarName = "WORKER_TOKEN_AUDIENCE"
 
 fun main() {
   val port =
@@ -32,6 +33,12 @@ fun main() {
       System.getenv(databaseUrlEnvVarName)
           ?: error("$databaseUrlEnvVarName environment variable must be set")
 
+  // The API's own public URL — the `aud` a worker's service-account ID token is minted with (see
+  // WrkGrpcApiClient), distinct from GOOGLE_CLIENT_ID (the browser sign-in flow's audience).
+  val workerTokenAudience =
+      System.getenv(workerTokenAudienceEnvVarName)
+          ?: error("$workerTokenAudienceEnvVarName environment variable must be set")
+
   // Optional and empty by default (denies every worker) rather than required: the SA that will
   // populate this (story 05, infra) is provisioned after this service already depends on it, and a
   // missing/unconfigured allowlist should not crash the whole API.
@@ -46,7 +53,12 @@ fun main() {
   buildServer(
           originRegex = corsOriginRegex,
           port = port,
-          auth = GoogleIdTokenAuthDecorator(clientId, allowedDomain),
+          auth =
+              GoogleIdTokenAuthDecorator(
+                  userTokenAudience = clientId,
+                  allowedDomain = allowedDomain,
+                  workerTokenAudience = workerTokenAudience,
+              ),
           counterStore = PostgresCounterStore(database),
           gitHubIssueStore = GitHubAppIssueStore(gitHubAppClient),
           gitHubRepositoryStore = GitHubAppRepositoryStore(gitHubAppClient),

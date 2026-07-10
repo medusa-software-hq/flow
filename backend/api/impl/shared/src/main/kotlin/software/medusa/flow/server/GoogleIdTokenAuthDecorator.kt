@@ -9,6 +9,7 @@ import com.linecorp.armeria.server.ServiceRequestContext
 import com.nimbusds.jose.jwk.source.JWKSourceBuilder
 import com.nimbusds.jose.proc.JWSVerificationKeySelector
 import com.nimbusds.jose.proc.SecurityContext
+import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.proc.DefaultJWTClaimsVerifier
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import java.net.URI
@@ -24,18 +25,23 @@ private val googleIssuers = setOf("https://$googleAccountsHostname", googleAccou
 /**
  * Verifies a Google ID token passed as `Authorization: Bearer <token>`.
  *
- * Checks:
- * - Valid signature against Google's JWKS
- * - `iss` is a known Google issuer
- * - `aud` matches [clientId]
- * - Token is not expired
- * - `hd` claim matches [allowedDomain]
+ * Two caller classes present structurally different tokens, so audience and hosted-domain checks
+ * branch on which one matched:
+ * - **User** (Google Sign-In, browser): `aud` = [userTokenAudience] (the OAuth client ID), `hd`
+ *   must equal [allowedDomain].
+ * - **Worker** (`flow work`, a service account, impersonated or key-based): `aud` =
+ *   [workerTokenAudience] (this API's own public URL — see `WrkGrpcApiClient`, which mints the
+ *   token with the API URL as target audience). Service-account tokens never carry an `hd` claim,
+ *   so that check is skipped; the real access control for worker calls is `WorkerAuthorizer`'s
+ *   email allowlist, checked downstream in `WorkerServiceImpl`.
  *
- * Returns HTTP 401 on any failure.
+ * Common to both: valid signature against Google's JWKS, `iss` is a known Google issuer, token is
+ * not expired. Returns HTTP 401 on any failure.
  */
 class GoogleIdTokenAuthDecorator(
-    private val clientId: String,
+    private val userTokenAudience: String,
     private val allowedDomain: String,
+    private val workerTokenAudience: String,
 ) : DecoratingHttpServiceFunction {
   companion object {
     private val unauthorized: HttpResponse
@@ -50,9 +56,10 @@ class GoogleIdTokenAuthDecorator(
 
     val keySelector = JWSVerificationKeySelector(com.nimbusds.jose.JWSAlgorithm.RS256, jwkSource)
 
+    // Audience isn't checked here (it differs by caller class) — checked manually in serve().
     val claimsVerifier =
         DefaultJWTClaimsVerifier<SecurityContext>(
-            com.nimbusds.jwt.JWTClaimsSet.Builder().audience(clientId).build(),
+            com.nimbusds.jwt.JWTClaimsSet.Builder().build(),
             setOf("sub", "email", "iat", "exp"),
         )
 
@@ -76,17 +83,37 @@ class GoogleIdTokenAuthDecorator(
           return unauthorized
         }
 
-    // Verify issuer manually (nimbus claimsVerifier checks aud/exp/required fields).
-    if (claims.issuer !in googleIssuers) return unauthorized
-
-    // Enforce hosted domain.
-    val hd = claims.getStringClaim("hd")
-    if (hd != allowedDomain) return unauthorized
-
-    val email = claims.getStringClaim("email") ?: return unauthorized
+    val email = resolveAuthorizedEmail(claims) ?: return unauthorized
     ctx.setAttr(AuthenticatedUser.emailAttributeKey, email)
 
     return delegate.serve(ctx, req)
+  }
+
+  /**
+   * Applies the issuer/audience/hosted-domain rules described in the class doc to already
+   * signature-verified [claims], returning the caller's email if authorized, `null` otherwise.
+   * Pulled out of [serve] so it's testable without a real signed token (signature/JWKS verification
+   * requires live network access to Google).
+   */
+  internal fun resolveAuthorizedEmail(claims: JWTClaimsSet): String? {
+    if (claims.issuer !in googleIssuers) return null
+
+    val audience = claims.audience
+
+    when {
+      workerTokenAudience in audience -> {
+        // Worker (service-account) token: no hd claim to check; WorkerAuthorizer gates access.
+      }
+
+      userTokenAudience in audience -> {
+        val hd = claims.getStringClaim("hd")
+        if (hd != allowedDomain) return null
+      }
+
+      else -> return null
+    }
+
+    return claims.getStringClaim("email")
   }
 
   private fun extractBearerToken(req: HttpRequest): String? {
