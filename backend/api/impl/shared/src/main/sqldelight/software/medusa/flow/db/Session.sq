@@ -11,7 +11,11 @@ CREATE TABLE sessions (
   claimed_at        TIMESTAMPTZ,
   last_heartbeat_at TIMESTAMPTZ,
   pr_url            TEXT,
-  failure_summary   TEXT
+  failure_summary   TEXT,
+  -- M2: issue linkage (V3). NULL for manual sessions. Populated by later stories.
+  issue_pipeline_id TEXT,
+  issue_number      INTEGER,
+  issue_url         TEXT
 );
 
 CREATE TABLE session_events (
