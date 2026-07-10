@@ -44,7 +44,8 @@ resource "google_service_account_iam_member" "domain_mapper_wi_user" {
 }
 
 # Let the shared domain-mapper SA read/write only this project's domain-mapping
-# Terraform state prefix.
+# Terraform state prefix. One binding per state prefix — CEL's startsWith can't
+# express "either of these two paths" in a single condition.
 resource "google_storage_bucket_iam_member" "domain_mapper_state" {
   bucket = module.common.gcp_terraform_state_bucket_name
   role   = "roles/storage.objectAdmin"
@@ -54,5 +55,17 @@ resource "google_storage_bucket_iam_member" "domain_mapper_state" {
     title       = "web_domain_mapping_prefix_only"
     description = "Read/write only the web domain-mapping Terraform state prefix"
     expression  = "resource.name.startsWith('projects/_/buckets/${module.common.gcp_terraform_state_bucket_name}/objects/projects/${module.common.project_base_name}/${module.common.project_variant}/apps/web/domain-mapping/')"
+  }
+}
+
+resource "google_storage_bucket_iam_member" "api_domain_mapper_state" {
+  bucket = module.common.gcp_terraform_state_bucket_name
+  role   = "roles/storage.objectAdmin"
+  member = local.domain_mapper_sa_member
+
+  condition {
+    title       = "api_domain_mapping_prefix_only"
+    description = "Read/write only the API domain-mapping Terraform state prefix"
+    expression  = "resource.name.startsWith('projects/_/buckets/${module.common.gcp_terraform_state_bucket_name}/objects/projects/${module.common.project_base_name}/${module.common.project_variant}/backend/api/domain-mapping/')"
   }
 }
