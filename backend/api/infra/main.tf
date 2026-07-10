@@ -43,6 +43,16 @@ variable "neon_api_key" {
   sensitive   = true
 }
 
+variable "worker_token_audience" {
+  description = <<-EOT
+    The API's own public URL — the `aud` claim a worker's service-account ID
+    token is minted with. Sourced from the (manually maintained) API_URL
+    GitHub Actions variable, since a Cloud Run service can't cleanly
+    self-reference its own computed URL within its own resource config.
+  EOT
+  type        = string
+}
+
 # Primary Google provider
 provider "google" {
   project = module.common.gcp_meta_project_id
@@ -135,6 +145,11 @@ resource "google_cloud_run_v2_service" "primary" {
         # not a secret — so a plain env var, matching GOOGLE_CLIENT_ID above.
         name  = "WORKER_SA_EMAILS"
         value = google_service_account.worker_sa.email
+      }
+
+      env {
+        name  = "WORKER_TOKEN_AUDIENCE"
+        value = var.worker_token_audience
       }
     }
   }
