@@ -13,7 +13,7 @@ installing the CLI is all that's needed — there's no separate worker binary.
 
 | What | Where it comes from |
 |---|---|
-| Credentials for `flow-worker` | Preferred: impersonation, no key file. Be a member of the `flow-admins@medusa.software` Google Group (grants `roles/iam.serviceAccountTokenCreator` on `flow-worker` — see [backend/api/infra/gcp-worker-sa.tf](../backend/api/infra/gcp-worker-sa.tf)), then run `worker/scripts/get-worker-credentials.sh` once to mint short-lived Application Default Credentials; leave `FLOW_WORKER_SA_KEY_FILE` unset. Fallback: a downloaded long-lived key (`gcloud iam service-accounts keys create <file> --iam-account=<flow-worker-sa-email>`) pointed to by `FLOW_WORKER_SA_KEY_FILE` — deliberately not automated by Terraform, since a key is a secret, not infrastructure. |
+| Credentials for `flow-worker` | Be a member of the `flow-admins@medusa.software` Google Group (grants `roles/iam.serviceAccountTokenCreator` on `flow-worker` — see [backend/api/infra/gcp-worker-sa.tf](../backend/api/infra/gcp-worker-sa.tf)), then run `worker/scripts/get-worker-credentials.sh` once to mint short-lived Application Default Credentials via impersonation. This is the only supported path — there's no downloaded-key-file option. ADC is a single global file on the machine (`~/.config/gcloud/application_default_credentials.json`) — running `terraform` or any other `gcloud auth application-default login` afterward overwrites it, silently un-impersonating the worker. Re-run the script if `flow work` starts getting `UNAUTHENTICATED`. |
 | A GitHub token with push + PR-create access on the target repo(s) | A classic PAT, fine-grained PAT, or GitHub App installation token — whatever your target repos accept. Used for `git clone`/`push` (via `GIT_ASKPASS`, never on the command line) and the `POST .../pulls` REST call. |
 | An OpenRouter API key | Same key the engine already uses for `complete-task`/`scout-fully`. |
 | `git` on `PATH` | The worker shells out to it directly (`medusa.commons:git` has no clone/push support). |
@@ -24,8 +24,7 @@ All via environment variables, no config file in M1:
 
 | Variable | Purpose |
 |---|---|
-| `FLOW_API_URL` | Control-plane base URL, e.g. `https://api.flow.example.com` (or `http://localhost:8081` against a local backend). Also the audience the ID token is minted for. |
-| `FLOW_WORKER_SA_KEY_FILE` | Optional. Path to a downloaded service-account key JSON. When unset (the preferred setup), falls back to Application Default Credentials — see the impersonation step above. |
+| `FLOW_API_URL` | Control-plane base URL, e.g. `https://api.flow.example.com` (or `http://localhost:8081` against a local backend). Also the audience the ID token is minted for — must match the control plane's own `WORKER_TOKEN_AUDIENCE`. |
 | `FLOW_WORKER_GITHUB_TOKEN` | The GitHub token from the prerequisites step above. |
 | `OPENROUTER_API_KEY` | As for every other `flow` subcommand. |
 

@@ -3,11 +3,8 @@ package software.medusa.flow.worker
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdTokenCredentials
 import com.google.auth.oauth2.IdTokenProvider
-import com.google.auth.oauth2.ServiceAccountCredentials
 import com.linecorp.armeria.client.grpc.GrpcClients
 import io.grpc.auth.MoreCallCredentials
-import java.io.FileInputStream
-import java.nio.file.Path
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.WorkerServiceGrpcKt
@@ -19,41 +16,30 @@ import software.medusa.flow.v1.heartbeatRequest
 import software.medusa.flow.v1.sessionOrNull
 
 /**
- * Real [WrkApiClient]: mints a Google ID token (audience = [apiUrl]) and attaches it to every call.
- * `google-auth-library`'s [IdTokenCredentials] caches/refreshes the token internally, so minting
- * only happens on expiry, not per call.
+ * Real [WrkApiClient]: mints a Google ID token (audience = [apiUrl]) from Application Default
+ * Credentials and attaches it to every call. In practice that's short-lived credentials from
+ * impersonating the worker SA (`gcloud auth application-default login
+ * --impersonate-service-account=...`, see `worker/scripts/get-worker-credentials.sh`) — the only
+ * supported path, deliberately: no downloaded long-lived key file, ever. `google-auth-library`'s
+ * [IdTokenCredentials] caches/refreshes the token internally, so minting only happens on expiry,
+ * not per call.
  */
 class WrkGrpcApiClient
 private constructor(
     private val stub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
 ) : WrkApiClient {
   companion object {
-    /**
-     * When [workerSaKeyFile] is null, falls back to Application Default Credentials — e.g.
-     * short-lived credentials from impersonating the worker SA (`gcloud auth application-default
-     * login --impersonate-service-account=...`, see `worker/scripts/get-worker-credentials.sh`),
-     * the preferred path since it never creates a downloadable long-lived key. Whatever ADC
-     * resolves to must implement [IdTokenProvider] — service-account, impersonated, and user
-     * credentials all do.
-     */
-    fun create(
-        apiUrl: String,
-        workerSaKeyFile: Path?,
-    ): WrkGrpcApiClient {
-      val idTokenProvider =
-          if (workerSaKeyFile != null) {
-            FileInputStream(workerSaKeyFile.toFile()).use { keyFileStream ->
-              ServiceAccountCredentials.fromStream(keyFileStream)
-            }
-          } else {
-            GoogleCredentials.getApplicationDefault()
-          }
-              as IdTokenProvider
+    fun create(apiUrl: String): WrkGrpcApiClient {
+      // ADC must resolve to something implementing IdTokenProvider (impersonated, service-account,
+      // and user credentials all do). INCLUDE_EMAIL is required: without it the minted token has no
+      // `email` claim, which the control plane's auth decorator requires.
+      val idTokenProvider = GoogleCredentials.getApplicationDefault() as IdTokenProvider
 
       val idTokenCredentials =
           IdTokenCredentials.newBuilder()
               .setIdTokenProvider(idTokenProvider)
               .setTargetAudience(apiUrl)
+              .setOptions(listOf(IdTokenProvider.Option.INCLUDE_EMAIL))
               .build()
 
       val baseStub =
