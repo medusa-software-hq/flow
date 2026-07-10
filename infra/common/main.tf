@@ -19,9 +19,7 @@ locals {
 
   # GitHub App used to read repository issues.
   # https://github.com/organizations/medusa-software-hq/settings/apps
-  github_app_client_id           = "Iv23liiYuXXbBb9RRGrZ"
-  gh_app_client_id_var_name      = "GITHUB_APP_CLIENT_ID"
-  gh_app_pem_content_secret_name = "GITHUB_APP_PEM_CONTENT"
+  github_app_client_id = "Iv23liiYuXXbBb9RRGrZ"
 
   project_base_name = "flow"
   project_variant   = "baseline"
@@ -73,14 +71,6 @@ output "gh_api_url_var_name" {
 
 output "github_app_client_id" {
   value = local.github_app_client_id
-}
-
-output "gh_app_client_id_var_name" {
-  value = local.gh_app_client_id_var_name
-}
-
-output "gh_app_pem_content_secret_name" {
-  value = local.gh_app_pem_content_secret_name
 }
 
 output "project_base_name" {
