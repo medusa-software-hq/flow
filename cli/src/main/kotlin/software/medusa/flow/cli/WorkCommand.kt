@@ -20,8 +20,7 @@ class WorkCommand(
   override fun run() {
     val config = WrkConfig.fromEnvironment()
 
-    val apiClient =
-        WrkGrpcApiClient.create(apiUrl = config.apiUrl, workerSaKeyFile = config.workerSaKeyFile)
+    val apiClient = WrkGrpcApiClient.create(apiUrl = config.apiUrl)
 
     val sessionProcessor =
         WrkProperSessionProcessor(

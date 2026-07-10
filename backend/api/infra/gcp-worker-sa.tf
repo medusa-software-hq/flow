@@ -19,16 +19,12 @@ resource "google_service_account_iam_member" "worker_sa_impersonation" {
   member             = "group:flow-admins@medusa.software"
 }
 
-# A downloaded, long-lived JSON key remains available as a fallback (e.g. for
-# a hosted worker not running under a caller's own identity) but is
-# deliberately not managed by Terraform — a key is a secret, not
-# infrastructure:
-#
-#   gcloud iam service-accounts keys create flow-worker-key.json \
-#     --iam-account="flow-worker@<gcp-project-id>.iam.gserviceaccount.com"
-#
-# Keep the key file out of version control; point the worker at it via
-# FLOW_WORKER_SA_KEY_FILE (see worker/README.md).
+# The worker CLI only ever authenticates via impersonated Application Default
+# Credentials (above) — it has no code path for a downloaded key file. A
+# `gcloud iam service-accounts keys create` key would work for other,
+# non-worker purposes if ever needed, but isn't wired into anything here, and
+# deliberately isn't managed by Terraform either way (a key is a secret, not
+# infrastructure).
 
 output "worker_sa_email" {
   description = "Flow worker service account e-mail (the WorkerService allowlist value)."

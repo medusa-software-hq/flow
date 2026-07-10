@@ -1,25 +1,19 @@
 package software.medusa.flow.worker
 
-import java.nio.file.Path
-import java.nio.file.Paths
-
 /**
  * Worker-specific environment configuration. `OPENROUTER_API_KEY` is validated separately, at CLI
  * startup, since every subcommand (not just `work`) needs it.
  *
- * [workerSaKeyFile] is optional: when unset, [WrkGrpcApiClient] falls back to Application Default
- * Credentials, e.g. short-lived credentials from impersonating `flow-worker` (see
- * `worker/scripts/get-worker-credentials.sh`) — the preferred path, since it never creates a
- * downloadable long-lived key.
+ * Authentication isn't a config field here: [WrkGrpcApiClient] always uses Application Default
+ * Credentials — short-lived credentials from impersonating `flow-worker` (see
+ * `worker/scripts/get-worker-credentials.sh`). No downloaded long-lived key file, ever.
  */
 data class WrkConfig(
     val apiUrl: String,
-    val workerSaKeyFile: Path?,
     val workerGitHubToken: String,
 ) {
   companion object {
     private const val apiUrlEnvVarName = "FLOW_API_URL"
-    private const val workerSaKeyFileEnvVarName = "FLOW_WORKER_SA_KEY_FILE"
     private const val workerGitHubTokenEnvVarName = "FLOW_WORKER_GITHUB_TOKEN"
 
     fun fromEnvironment(
@@ -30,8 +24,6 @@ data class WrkConfig(
 
       return WrkConfig(
           apiUrl = required(apiUrlEnvVarName),
-          workerSaKeyFile =
-              lookup(workerSaKeyFileEnvVarName)?.takeIf { it.isNotBlank() }?.let(Paths::get),
           workerGitHubToken = required(workerGitHubTokenEnvVarName),
       )
     }
