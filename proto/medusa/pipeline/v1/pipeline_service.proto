@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package medusa.pipeline.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "software.medusa.flow.v1";
+
+// One picked (repo, issue) run through the session pipeline. The DB is
+// authoritative; GitHub `flow:*` labels are a projection kept in sync via the
+// outbox. Held state machine:
+//   IN_PROGRESS -> PR_OPEN -> AWAITING_MERGE_CHECKS -> DONE
+//   (any stage) -> FAILED
+enum IssuePipelineState {
+  ISSUE_PIPELINE_STATE_UNSPECIFIED = 0;
+  ISSUE_PIPELINE_STATE_IN_PROGRESS = 1; // session running, no PR yet
+  ISSUE_PIPELINE_STATE_PR_OPEN = 2; // PR opened, awaiting merge
+  ISSUE_PIPELINE_STATE_AWAITING_MERGE_CHECKS = 3; // PR merged, merge-commit checks running
+  ISSUE_PIPELINE_STATE_DONE = 4; // issue closed, dependents unblocked
+  ISSUE_PIPELINE_STATE_FAILED = 5; // holds the repo mutex until cleared
+}
+
+message IssuePipeline {
+  string id = 1;
+  string repo_full_name = 2;
+  int32 issue_number = 3;
+  string issue_title = 4;
+  string issue_url = 5;
+  IssuePipelineState state = 6;
+  // The session driving this pipeline (empty until one is created).
+  string session_id = 7;
+  // Set once the PR exists.
+  string pr_url = 8;
+  // Set when FAILED. Human-readable Markdown.
+  string failure_summary = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  // A human cleared a FAILED pipeline, releasing the repo mutex.
+  bool cleared = 12;
+  // A flagged outbox entry exists for this pipeline — GitHub sync is behind.
+  bool outbox_stuck = 13;
+}
+
+// User-facing service, authenticated with a Google user ID token.
+service PipelineService {
+  // Live + recent pipelines, newest-first, with an optional repo filter.
+  rpc ListIssuePipelines(ListIssuePipelinesRequest) returns (ListIssuePipelinesResponse);
+  // FAILED pipelines only: marks the pipeline cleared, releasing the repo
+  // mutex. FAILED_PRECONDITION for any other state.
+  rpc ClearIssuePipeline(ClearIssuePipelineRequest) returns (ClearIssuePipelineResponse);
+}
+
+message ListIssuePipelinesRequest {
+  // Optional `owner/name` filter; empty returns pipelines across all repos.
+  string repo_full_name = 1;
+}
+
+message ListIssuePipelinesResponse {
+  repeated IssuePipeline pipelines = 1;
+}
+
+message ClearIssuePipelineRequest {
+  string id = 1;
+}
+
+message ClearIssuePipelineResponse {
+  IssuePipeline pipeline = 1;
+}
+
+// Internal service, authenticated with a service-account ID token against an
+// email allowlist (scheduler SA + worker SA). Triggered by Cloud Scheduler
+// (correctness backstop) and GitHub webhooks (latency).
+service ReconcileService {
+  // Observes PR/merge-check state, closes done issues, and picks the next
+  // candidate when a repo is free. Idempotent and safe to call repeatedly.
+  rpc Reconcile(ReconcileRequest) returns (ReconcileResponse);
+}
+
+message ReconcileRequest {
+  // Optional `owner/name`; empty reconciles every relevant repo.
+  string repo_full_name = 1;
+}
+
+message ReconcileResponse {
+  repeated RepoReconcileSummary repo_summaries = 1;
+}
+
+// Per-repo counts, for logs/observability only.
+message RepoReconcileSummary {
+  string repo_full_name = 1;
+  // A new issue pipeline was picked and started this cycle.
+  int32 picked_count = 2;
+  // Existing pipelines that advanced state this cycle.
+  int32 advanced_count = 3;
+  // Outbox entries dispatched to GitHub this cycle.
+  int32 drained_count = 4;
+}
