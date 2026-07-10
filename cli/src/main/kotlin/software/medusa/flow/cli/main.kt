@@ -15,6 +15,7 @@ import software.medusa.flow.harness.ai_system.HrsAiPatchInterpreter
 import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
 import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem
+import software.medusa.flow.harness.ai_system.HrsRetryingAiClient
 import software.medusa.flow.integration.gradle.GrdProperProjectConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsNpmConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsPackageManagerConnectorHub
@@ -97,14 +98,20 @@ private fun runMainCommand(
     expertOpenAiClient: OaiConfiguredClient,
     interpreterOpenAiClient: OaiConfiguredClient,
 ) {
-  val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineOpenAiClient)
+  // Every LLM call retries a transient empty response (see HrsRetryingAiClient) — wrapping here, at
+  // the composition root, covers frontline/expert/interpreter for complete-task, scout-fully, and
+  // work alike.
+  val frontlineClient = HrsRetryingAiClient(delegate = frontlineOpenAiClient)
+  val expertClient = HrsRetryingAiClient(delegate = expertOpenAiClient)
+  val interpreterClient = HrsRetryingAiClient(delegate = interpreterOpenAiClient)
 
-  val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertOpenAiClient)
+  val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineClient)
 
-  val scoutDecisionInterpreter =
-      HrsAiScoutDecisionInterpreter(openaiClient = interpreterOpenAiClient)
+  val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertClient)
 
-  val patchInterpreter = HrsAiPatchInterpreter(openaiClient = interpreterOpenAiClient)
+  val scoutDecisionInterpreter = HrsAiScoutDecisionInterpreter(openaiClient = interpreterClient)
+
+  val patchInterpreter = HrsAiPatchInterpreter(openaiClient = interpreterClient)
 
   val projectManifestLoader =
       UnpYamlProjectManifestLoader(
