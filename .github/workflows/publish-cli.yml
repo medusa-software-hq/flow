@@ -8,10 +8,13 @@ on:
     paths:
       - cli/**
       - engine/**
+      - worker/**
       - gradle/**
       - build.gradle.kts
       - settings.gradle.kts
       - gradle.properties
+
+  workflow_dispatch: {}
 
 permissions:
   contents: read
