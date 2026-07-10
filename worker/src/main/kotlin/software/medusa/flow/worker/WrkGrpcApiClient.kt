@@ -1,5 +1,6 @@
 package software.medusa.flow.worker
 
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdTokenCredentials
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.auth.oauth2.ServiceAccountCredentials
@@ -18,27 +19,40 @@ import software.medusa.flow.v1.heartbeatRequest
 import software.medusa.flow.v1.sessionOrNull
 
 /**
- * Real [WrkApiClient]: mints a Google ID token from the service-account key (audience = [apiUrl])
- * and attaches it to every call. `google-auth-library`'s [IdTokenCredentials] caches/refreshes the
- * token internally, so minting only happens on expiry, not per call.
+ * Real [WrkApiClient]: mints a Google ID token (audience = [apiUrl]) and attaches it to every call.
+ * `google-auth-library`'s [IdTokenCredentials] caches/refreshes the token internally, so minting
+ * only happens on expiry, not per call.
  */
 class WrkGrpcApiClient
 private constructor(
     private val stub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
 ) : WrkApiClient {
   companion object {
+    /**
+     * When [workerSaKeyFile] is null, falls back to Application Default Credentials — e.g.
+     * short-lived credentials from impersonating the worker SA (`gcloud auth application-default
+     * login --impersonate-service-account=...`, see `worker/scripts/get-worker-credentials.sh`),
+     * the preferred path since it never creates a downloadable long-lived key. Whatever ADC
+     * resolves to must implement [IdTokenProvider] — service-account, impersonated, and user
+     * credentials all do.
+     */
     fun create(
         apiUrl: String,
-        workerSaKeyFile: Path,
+        workerSaKeyFile: Path?,
     ): WrkGrpcApiClient {
-      val serviceAccountCredentials =
-          FileInputStream(workerSaKeyFile.toFile()).use { keyFileStream ->
-            ServiceAccountCredentials.fromStream(keyFileStream)
-          } as IdTokenProvider
+      val idTokenProvider =
+          if (workerSaKeyFile != null) {
+            FileInputStream(workerSaKeyFile.toFile()).use { keyFileStream ->
+              ServiceAccountCredentials.fromStream(keyFileStream)
+            }
+          } else {
+            GoogleCredentials.getApplicationDefault()
+          }
+              as IdTokenProvider
 
       val idTokenCredentials =
           IdTokenCredentials.newBuilder()
-              .setIdTokenProvider(serviceAccountCredentials)
+              .setIdTokenProvider(idTokenProvider)
               .setTargetAudience(apiUrl)
               .build()
 

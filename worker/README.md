@@ -13,7 +13,7 @@ installing the CLI is all that's needed — there's no separate worker binary.
 
 | What | Where it comes from |
 |---|---|
-| A GCP service-account key for `flow-worker` | One-time manual step: `gcloud iam service-accounts keys create <file> --iam-account=<flow-worker-sa-email>@<project>.iam.gserviceaccount.com`. The SA itself and its email allowlisting on the control plane are provisioned by Terraform ([backend/api/infra](../backend/api/infra)) — only the key file is a manual step, since minting one is a credential-creation action the infra code deliberately doesn't automate. |
+| Credentials for `flow-worker` | Preferred: impersonation, no key file. Be a member of the `flow-admins@medusa.software` Google Group (grants `roles/iam.serviceAccountTokenCreator` on `flow-worker` — see [backend/api/infra/gcp-worker-sa.tf](../backend/api/infra/gcp-worker-sa.tf)), then run `worker/scripts/get-worker-credentials.sh` once to mint short-lived Application Default Credentials; leave `FLOW_WORKER_SA_KEY_FILE` unset. Fallback: a downloaded long-lived key (`gcloud iam service-accounts keys create <file> --iam-account=<flow-worker-sa-email>`) pointed to by `FLOW_WORKER_SA_KEY_FILE` — deliberately not automated by Terraform, since a key is a secret, not infrastructure. |
 | A GitHub token with push + PR-create access on the target repo(s) | A classic PAT, fine-grained PAT, or GitHub App installation token — whatever your target repos accept. Used for `git clone`/`push` (via `GIT_ASKPASS`, never on the command line) and the `POST .../pulls` REST call. |
 | An OpenRouter API key | Same key the engine already uses for `complete-task`/`scout-fully`. |
 | `git` on `PATH` | The worker shells out to it directly (`medusa.commons:git` has no clone/push support). |
@@ -24,13 +24,13 @@ All via environment variables, no config file in M1:
 
 | Variable | Purpose |
 |---|---|
-| `FLOW_API_URL` | Control-plane base URL, e.g. `https://api.flow.example.com` (or `http://localhost:8081` against a local backend). Also the audience the SA key's ID token is minted for. |
-| `FLOW_WORKER_SA_KEY_FILE` | Path to the GCP service-account key JSON from the prerequisites step above. |
+| `FLOW_API_URL` | Control-plane base URL, e.g. `https://api.flow.example.com` (or `http://localhost:8081` against a local backend). Also the audience the ID token is minted for. |
+| `FLOW_WORKER_SA_KEY_FILE` | Optional. Path to a downloaded service-account key JSON. When unset (the preferred setup), falls back to Application Default Credentials — see the impersonation step above. |
 | `FLOW_WORKER_GITHUB_TOKEN` | The GitHub token from the prerequisites step above. |
 | `OPENROUTER_API_KEY` | As for every other `flow` subcommand. |
 
-Missing or blank variables fail fast at startup with a message naming the
-specific variable — nothing silently runs half-configured.
+Missing or blank required variables fail fast at startup with a message
+naming the specific variable — nothing silently runs half-configured.
 
 Model wiring (which OpenRouter models back the frontline/expert/interpreter
 roles) is hardcoded in `cli/src/main/kotlin/software/medusa/flow/cli/main.kt`,
@@ -40,8 +40,9 @@ M1.
 ## Running it
 
 ```bash
+./worker/scripts/get-worker-credentials.sh  # once per ADC expiry
+
 export FLOW_API_URL=https://api.flow.example.com
-export FLOW_WORKER_SA_KEY_FILE=/path/to/flow-worker-key.json
 export FLOW_WORKER_GITHUB_TOKEN=ghp_...
 export OPENROUTER_API_KEY=sk-or-...
 

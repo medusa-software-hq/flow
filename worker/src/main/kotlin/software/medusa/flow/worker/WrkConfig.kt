@@ -6,10 +6,15 @@ import java.nio.file.Paths
 /**
  * Worker-specific environment configuration. `OPENROUTER_API_KEY` is validated separately, at CLI
  * startup, since every subcommand (not just `work`) needs it.
+ *
+ * [workerSaKeyFile] is optional: when unset, [WrkGrpcApiClient] falls back to Application Default
+ * Credentials, e.g. short-lived credentials from impersonating `flow-worker` (see
+ * `worker/scripts/get-worker-credentials.sh`) — the preferred path, since it never creates a
+ * downloadable long-lived key.
  */
 data class WrkConfig(
     val apiUrl: String,
-    val workerSaKeyFile: Path,
+    val workerSaKeyFile: Path?,
     val workerGitHubToken: String,
 ) {
   companion object {
@@ -25,7 +30,8 @@ data class WrkConfig(
 
       return WrkConfig(
           apiUrl = required(apiUrlEnvVarName),
-          workerSaKeyFile = Paths.get(required(workerSaKeyFileEnvVarName)),
+          workerSaKeyFile =
+              lookup(workerSaKeyFileEnvVarName)?.takeIf { it.isNotBlank() }?.let(Paths::get),
           workerGitHubToken = required(workerGitHubTokenEnvVarName),
       )
     }
