@@ -12,6 +12,8 @@ import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.openai_client.OaiConfiguredClient.CompletionRequest
 import software.medusa.commons.openai_client.OaiConfiguredClient.UnstructuredCompletionResponse
 import software.medusa.commons.openai_client.OaiConfiguredClient.Usage
+import software.medusa.commons.openai_client.OaiEmptyResponseException
+import software.medusa.commons.openai_client.OaiIncompleteResponseException
 import software.medusa.commons.openai_client.OaiMessage
 import software.medusa.commons.openai_client.OaiRole
 
@@ -74,7 +76,7 @@ class HrsRetryingAiClient_tests {
     val delegate =
         ScriptedClient(
             failuresBeforeSuccess = 2,
-            failure = IllegalStateException(emptyResponseMessage),
+            failure = OaiEmptyResponseException(emptyResponseMessage),
         )
 
     val response = retryingClient(delegate).createUnstructuredCompletion(anyRequest)
@@ -84,35 +86,34 @@ class HrsRetryingAiClient_tests {
   }
 
   @Test
-  fun `a persistently empty response throws a typed exception after the retry budget`() =
+  fun `a persistently empty response propagates the typed exception after the retry budget`() =
       runBlocking {
-        val delegate =
-            ScriptedClient(
-                failuresBeforeSuccess = Int.MAX_VALUE,
-                failure = IllegalStateException(emptyResponseMessage),
-            )
+        val failure = OaiEmptyResponseException(emptyResponseMessage)
+        val delegate = ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = failure)
 
         val thrown =
-            assertFailsWith<HrsEmptyAiResponseException> {
+            assertFailsWith<OaiEmptyResponseException> {
               retryingClient(delegate, maxAttempts = 3).createUnstructuredCompletion(anyRequest)
             }
 
+        assertSame(failure, thrown)
         assertEquals(3, delegate.callCount)
-        assertEquals(emptyResponseMessage, thrown.cause?.message)
       }
 
   @Test
-  fun `the no-choices variant is also treated as an empty response`() = runBlocking {
-    val delegate =
-        ScriptedClient(
-            failuresBeforeSuccess = 1,
-            failure = IllegalStateException("OpenAI response did not contain any choices"),
-        )
+  fun `an incomplete (truncated) response is not retried and propagates immediately`() =
+      runBlocking {
+        val failure = OaiIncompleteResponseException(finishReason = "length", message = "cut short")
+        val delegate = ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = failure)
 
-    retryingClient(delegate).createUnstructuredCompletion(anyRequest)
+        val thrown =
+            assertFailsWith<OaiIncompleteResponseException> {
+              retryingClient(delegate).createUnstructuredCompletion(anyRequest)
+            }
 
-    assertEquals(2, delegate.callCount)
-  }
+        assertSame(failure, thrown)
+        assertEquals(1, delegate.callCount) // fail fast — re-rolling won't un-truncate it
+      }
 
   @Test
   fun `an unrelated failure is rethrown immediately, not retried`() = runBlocking {
