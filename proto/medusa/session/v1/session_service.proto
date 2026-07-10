@@ -26,6 +26,11 @@ message Session {
   string pr_url = 7;
   // Set when FAILED. Human-readable Markdown.
   string failure_summary = 8;
+  // Issue linkage (M2). Set only for sessions the reconciler created for an
+  // issue pipeline; empty/zero for manual sessions.
+  int32 issue_number = 9;
+  string issue_url = 10;
+  string issue_pipeline_id = 11;
 }
 
 enum SessionEventKind {
