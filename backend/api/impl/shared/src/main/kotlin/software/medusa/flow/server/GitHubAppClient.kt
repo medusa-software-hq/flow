@@ -2,8 +2,13 @@ package software.medusa.flow.server
 
 import com.linecorp.armeria.client.WebClient
 import com.linecorp.armeria.common.AggregatedHttpResponse
+import com.linecorp.armeria.common.HttpData
 import com.linecorp.armeria.common.HttpHeaderNames
+import com.linecorp.armeria.common.HttpMethod
+import com.linecorp.armeria.common.HttpRequest
 import com.linecorp.armeria.common.HttpStatus
+import com.linecorp.armeria.common.MediaType
+import com.linecorp.armeria.common.RequestHeaders
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
@@ -72,18 +77,45 @@ class GitHubAppClient(
   /** Performs an authenticated `GET` against [path] as the installation. */
   suspend fun get(
       path: String,
+  ): AggregatedHttpResponse = request(HttpMethod.GET, path, body = null)
+
+  /** Performs an authenticated `POST` against [path] with an optional JSON [body]. */
+  suspend fun post(
+      path: String,
+      body: String? = null,
+  ): AggregatedHttpResponse = request(HttpMethod.POST, path, body)
+
+  /** Performs an authenticated `PATCH` against [path] with a JSON [body]. */
+  suspend fun patch(
+      path: String,
+      body: String,
+  ): AggregatedHttpResponse = request(HttpMethod.PATCH, path, body)
+
+  /** Performs an authenticated `DELETE` against [path]. */
+  suspend fun delete(
+      path: String,
+  ): AggregatedHttpResponse = request(HttpMethod.DELETE, path, body = null)
+
+  private suspend fun request(
+      method: HttpMethod,
+      path: String,
+      body: String?,
   ): AggregatedHttpResponse {
     val installationToken = fetchInstallationToken()
 
-    return webClient
-        .prepare()
-        .get(path)
-        .header(HttpHeaderNames.AUTHORIZATION, "Bearer $installationToken")
-        .header(HttpHeaderNames.ACCEPT, githubAcceptHeader)
-        .header(HttpHeaderNames.USER_AGENT, userAgent)
-        .execute()
-        .aggregate()
-        .await()
+    val requestHeaders =
+        RequestHeaders.builder(method, path)
+            .add(HttpHeaderNames.AUTHORIZATION, "Bearer $installationToken")
+            .add(HttpHeaderNames.ACCEPT, githubAcceptHeader)
+            .add(HttpHeaderNames.USER_AGENT, userAgent)
+            .apply { if (body != null) contentType(MediaType.JSON) }
+            .build()
+
+    val httpRequest =
+        if (body != null) HttpRequest.of(requestHeaders, HttpData.ofUtf8(body))
+        else HttpRequest.of(requestHeaders)
+
+    return webClient.execute(httpRequest).aggregate().await()
   }
 
   private suspend fun fetchInstallationToken(): String {
