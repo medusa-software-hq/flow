@@ -68,21 +68,9 @@ resource "github_actions_variable" "google_allowed_domain" {
   value         = module.common.organization_domain
 }
 
-# GitHub App client ID, consumed when reading repository issues.
-resource "github_actions_variable" "gh_app_client_id" {
-  repository    = data.github_repository.this.name
-  variable_name = module.common.gh_app_client_id_var_name
-  value         = module.common.github_app_client_id
-}
-
-# GitHub App private key (PEM). Populated manually via the repository settings:
-# https://github.com/medusa-software-hq/flow/settings/secrets/actions/GITHUB_APP_PEM_CONTENT
-resource "github_actions_secret" "gh_app_pem_content" {
-  repository      = data.github_repository.this.name
-  secret_name     = module.common.gh_app_pem_content_secret_name
-  plaintext_value = "placeholder"
-
-  lifecycle {
-    ignore_changes = [plaintext_value]
-  }
-}
+# No github_actions_variable/secret for the GitHub App client ID / PEM: GitHub
+# rejects variable/secret names starting with "GITHUB_", and neither is
+# actually consumed by any workflow — the client ID is a hardcoded local
+# (module.common.github_app_client_id, wired straight into the Cloud Run env
+# var in backend/api/infra/main.tf) and the PEM is a manually-uploaded Secret
+# Manager placeholder (backend/api/infra/gcp-secret-manager.tf).
