@@ -1,0 +1,84 @@
+-- Schema for SQLDelight compile-time query verification (Postgres dialect).
+-- The runtime schema is owned by Flyway; keep these table definitions identical
+-- to src/main/resources/db/migration/V3__create_issue_pipelines.sql.
+--
+-- Cross-table foreign keys (session_id -> sessions) are intentionally omitted
+-- here — SQLDelight only needs column types to verify queries, and the real
+-- constraints live in the migration.
+CREATE TABLE issue_pipelines (
+  id               TEXT NOT NULL PRIMARY KEY,
+  repo_full_name   TEXT NOT NULL,
+  issue_number     INTEGER NOT NULL,
+  issue_title      TEXT NOT NULL,
+  issue_url        TEXT NOT NULL,
+  state            TEXT NOT NULL,
+  session_id       TEXT,
+  pr_number        INTEGER,
+  pr_url           TEXT,
+  merge_commit_sha TEXT,
+  failure_summary  TEXT,
+  created_at       TIMESTAMPTZ NOT NULL,
+  updated_at       TIMESTAMPTZ NOT NULL,
+  cleared_at       TIMESTAMPTZ
+);
+
+insertIssuePipeline:
+INSERT INTO issue_pipelines (
+  id, repo_full_name, issue_number, issue_title, issue_url, state, session_id,
+  created_at, updated_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectById:
+SELECT * FROM issue_pipelines WHERE id = ?;
+
+listAll:
+SELECT * FROM issue_pipelines ORDER BY created_at DESC;
+
+listByRepo:
+SELECT * FROM issue_pipelines WHERE repo_full_name = ? ORDER BY created_at DESC;
+
+-- Live = holds the repo mutex: an active state, or an uncleared FAILED row.
+listLive:
+SELECT * FROM issue_pipelines
+WHERE state IN ('IN_PROGRESS', 'PR_OPEN', 'AWAITING_MERGE_CHECKS')
+   OR (state = 'FAILED' AND cleared_at IS NULL);
+
+countLiveForRepo:
+SELECT COUNT(*) FROM issue_pipelines
+WHERE repo_full_name = ?
+  AND (state IN ('IN_PROGRESS', 'PR_OPEN', 'AWAITING_MERGE_CHECKS')
+       OR (state = 'FAILED' AND cleared_at IS NULL));
+
+-- Guarded transitions: each only applies against the expected source state and
+-- returns the row when it did, so the caller distinguishes applied from
+-- rejected by presence of a row.
+markPrOpenIfInProgress:
+UPDATE issue_pipelines
+SET state = 'PR_OPEN', pr_number = ?, pr_url = ?, updated_at = :now
+WHERE id = ? AND state = 'IN_PROGRESS'
+RETURNING *;
+
+markAwaitingIfPrOpen:
+UPDATE issue_pipelines
+SET state = 'AWAITING_MERGE_CHECKS', merge_commit_sha = ?, updated_at = :now
+WHERE id = ? AND state = 'PR_OPEN'
+RETURNING *;
+
+markDoneIfAwaiting:
+UPDATE issue_pipelines
+SET state = 'DONE', updated_at = :now
+WHERE id = ? AND state = 'AWAITING_MERGE_CHECKS'
+RETURNING *;
+
+markFailedIfLive:
+UPDATE issue_pipelines
+SET state = 'FAILED', failure_summary = ?, updated_at = :now
+WHERE id = ? AND state IN ('IN_PROGRESS', 'PR_OPEN', 'AWAITING_MERGE_CHECKS')
+RETURNING *;
+
+clearIfFailed:
+UPDATE issue_pipelines
+SET cleared_at = :now, updated_at = :now
+WHERE id = ? AND state = 'FAILED' AND cleared_at IS NULL
+RETURNING *;
