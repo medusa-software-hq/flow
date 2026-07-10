@@ -20,6 +20,7 @@ import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
+import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 
 class HrsProperTaskCompleter(
     private val physicalWorkspaceAllocator: PhwWorkspaceAllocator,
@@ -31,6 +32,17 @@ class HrsProperTaskCompleter(
 ) : HrsTaskCompleter {
   private companion object {
     private const val maxImplementationAttempts = 5
+
+    /**
+     * The frontline occasionally describes a patch [patchInterpreter] can't turn into a real edit
+     * (e.g. editing a file that was never opened) — an [IllegalArgumentException] from
+     * [HrsPatchInterpreter.interpretPatch] or [VedWorktreePatch.patchWorktree]. That's a malformed
+     * response, not a genuine health failure, so it's retried separately from
+     * [maxImplementationAttempts] — a blind re-ask, since there's no existing structured-feedback
+     * shape for "your patch didn't even apply" (that shape assumes the patch *did* apply and a
+     * health check ran afterward).
+     */
+    private const val maxPatchInterpretationRetries = 3
   }
 
   /**
@@ -184,30 +196,15 @@ class HrsProperTaskCompleter(
             ),
     )
 
-    val patchMessage =
-        frontlineAiSystem.implementSolution(
+    val (patchMessage, solutionApplicationResult) =
+        implementAndApplyPatchWithRetries(
             taskDescription = taskDescription,
-            editorWorktree = baseEditorWorktree,
+            baseEditorWorktree = baseEditorWorktree,
             implementationPlan = implementationPlan,
-            solutionImplementationLog = baseSolutionImplementationLog,
+            baseSolutionImplementationLog = baseSolutionImplementationLog,
+            startTimestamp = startTimestamp,
+            attemptNumber = attemptNumber,
             solutionImplementationObserver = solutionImplementationObserver,
-        )
-
-    solutionImplementationObserver.observeImplementation(
-        attemptNumber = attemptNumber,
-        patchMessage = patchMessage,
-    )
-
-    val solutionPatch =
-        patchInterpreter.interpretPatch(
-            patchMessage = patchMessage,
-            editorWorktree = baseEditorWorktree,
-        )
-
-    val solutionApplicationResult =
-        solutionPatch.patchWorktree(
-            worktree = baseEditorWorktree,
-            timestamp = startTimestamp,
         )
 
     physicalRootDirectory.applyMutation(
@@ -261,6 +258,63 @@ class HrsProperTaskCompleter(
         }
       }
     }
+  }
+
+  /**
+   * Asks the frontline for a patch and turns it into a [VedWorktreePatch.PatchApplicationResult],
+   * retrying (re-asking from scratch, same log) up to [maxPatchInterpretationRetries] times if
+   * [patchInterpreter] or [VedWorktreePatch.patchWorktree] rejects the response as malformed.
+   */
+  private suspend fun implementAndApplyPatchWithRetries(
+      taskDescription: HrsTaskDescription,
+      baseEditorWorktree: VedWorktree,
+      implementationPlan: HrsExpertAiSystem.ImplementationPlan,
+      baseSolutionImplementationLog: SolutionImplementationLog,
+      startTimestamp: VedTimestamp,
+      attemptNumber: Int,
+      solutionImplementationObserver: HrsTaskCompleter.SolutionImplementationObserver,
+  ): Pair<HrsFrontlineAiSystem.PatchMessage, VedWorktreePatch.PatchApplicationResult> {
+    var lastInterpretationError: IllegalArgumentException? = null
+
+    repeat(maxPatchInterpretationRetries) {
+      val patchMessage =
+          frontlineAiSystem.implementSolution(
+              taskDescription = taskDescription,
+              editorWorktree = baseEditorWorktree,
+              implementationPlan = implementationPlan,
+              solutionImplementationLog = baseSolutionImplementationLog,
+              solutionImplementationObserver = solutionImplementationObserver,
+          )
+
+      solutionImplementationObserver.observeImplementation(
+          attemptNumber = attemptNumber,
+          patchMessage = patchMessage,
+      )
+
+      try {
+        val solutionPatch =
+            patchInterpreter.interpretPatch(
+                patchMessage = patchMessage,
+                editorWorktree = baseEditorWorktree,
+            )
+
+        val solutionApplicationResult =
+            solutionPatch.patchWorktree(
+                worktree = baseEditorWorktree,
+                timestamp = startTimestamp,
+            )
+
+        return patchMessage to solutionApplicationResult
+      } catch (e: IllegalArgumentException) {
+        lastInterpretationError = e
+      }
+    }
+
+    throw IllegalStateException(
+        "The model failed to produce an applicable patch after $maxPatchInterpretationRetries " +
+            "attempts. Last error: ${lastInterpretationError?.message}",
+        lastInterpretationError,
+    )
   }
 
   private suspend fun checkHealthInitially(
