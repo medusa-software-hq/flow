@@ -46,7 +46,8 @@ internal data class HrsRawWorktreePatch(
   @Serializable
   data class FileWrite(
       @Description(
-          "Absolute path of the file, exactly as shown in the worktree, e.g. `/src/Main.kt`.",
+          "Absolute path of the file, exactly as shown in the worktree. MUST start with a " +
+              "leading '/' character, e.g. `/src/Main.kt` — never `src/Main.kt`.",
       )
       val path: String,
       @Description("The full new content of the file.") //
@@ -56,7 +57,8 @@ internal data class HrsRawWorktreePatch(
   @Serializable
   data class FilePath(
       @Description(
-          "Absolute path of the file, exactly as shown in the worktree, e.g. `/src/Main.kt`.",
+          "Absolute path of the file, exactly as shown in the worktree. MUST start with a " +
+              "leading '/' character, e.g. `/src/Main.kt` — never `src/Main.kt`.",
       )
       val path: String,
   )
@@ -119,8 +121,12 @@ internal data class HrsRawWorktreePatch(
   private fun parseFilePath(
       path: String,
   ): List<UfsName.Literal> {
+    // The model is asked for absolute paths but occasionally drops the leading '/' — normalize
+    // rather than fail the whole attempt over a formatting slip.
+    val normalizedPath = if (path.startsWith("/")) path else "/$path"
+
     val literalPath =
-        UfsAbsolutePath.parse(path).toLiteral()
+        UfsAbsolutePath.parse(normalizedPath).toLiteral()
             ?: throw IllegalArgumentException("Path `$path` is not a valid literal absolute path.")
 
     val names = literalPath.innerPath.names

@@ -5,6 +5,7 @@ import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.runBlocking
 import software.medusa.commons.git.worktree.GitWorktree
@@ -144,6 +145,27 @@ class HrsProperTaskCompleter_tests {
         editorWorktree: VedWorktree,
     ): VedWorktreePatch =
         VedWorktreePatch(rootDirectoryPatch = VedDirectoryPatch(childPatchByName = emptyMap()))
+  }
+
+  /**
+   * Rejects the first [failuresBeforeSuccess] patches, then succeeds like [NoOpPatchInterpreter].
+   */
+  private class FlakyPatchInterpreter(
+      private val failuresBeforeSuccess: Int,
+  ) : HrsPatchInterpreter {
+    var callCount = 0
+      private set
+
+    override suspend fun interpretPatch(
+        patchMessage: PatchMessage,
+        editorWorktree: VedWorktree,
+    ): VedWorktreePatch {
+      callCount += 1
+      if (callCount <= failuresBeforeSuccess) {
+        throw IllegalArgumentException("simulated malformed patch (call $callCount)")
+      }
+      return VedWorktreePatch(rootDirectoryPatch = VedDirectoryPatch(childPatchByName = emptyMap()))
+    }
   }
 
   private object FakeExpertAiSystem : HrsExpertAiSystem {
@@ -320,13 +342,14 @@ class HrsProperTaskCompleter_tests {
 
   private fun buildTaskCompleter(
       projectManifestLoader: UnpProjectManifestLoader,
+      patchInterpreter: HrsPatchInterpreter = NoOpPatchInterpreter,
   ): HrsProperTaskCompleter =
       HrsProperTaskCompleter(
           physicalWorkspaceAllocator = FakePhwWorkspaceAllocator(),
           projectManifestLoader = projectManifestLoader,
           frontlineAiSystem = FakeFrontlineAiSystem,
           scoutDecisionInterpreter = SingleRoundScoutDecisionInterpreter,
-          patchInterpreter = NoOpPatchInterpreter,
+          patchInterpreter = patchInterpreter,
           expertAiSystem = FakeExpertAiSystem,
       )
 
@@ -417,4 +440,47 @@ class HrsProperTaskCompleter_tests {
         val healthResults = observer.events.filter { it.startsWith("healthStatus") }
         assertEquals(List(5) { "healthStatus(unhealthy)" }, healthResults)
       }
+
+  @Test
+  fun `a malformed patch is retried and succeeds once the interpreter stops rejecting it`() =
+      runBlocking {
+        val patchInterpreter = FlakyPatchInterpreter(failuresBeforeSuccess = 2)
+        val taskCompleter =
+            buildTaskCompleter(
+                projectManifestLoader = EmptyProjectManifestLoader,
+                patchInterpreter = patchInterpreter,
+            )
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription = HrsTaskDescription(body = MdElement.Empty),
+                observer = Observer.Noop,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+        // 2 failures + 1 success, all within the same implementation attempt.
+        assertEquals(3, patchInterpreter.callCount)
+      }
+
+  @Test
+  fun `a persistently malformed patch throws after exhausting its retry budget`() = runBlocking {
+    val patchInterpreter = FlakyPatchInterpreter(failuresBeforeSuccess = Int.MAX_VALUE)
+    val taskCompleter =
+        buildTaskCompleter(
+            projectManifestLoader = EmptyProjectManifestLoader,
+            patchInterpreter = patchInterpreter,
+        )
+
+    assertFailsWith<IllegalStateException> {
+      taskCompleter.completeTask(
+          sourceGitWorktree = loadGitWorktree(),
+          taskDescription = HrsTaskDescription(body = MdElement.Empty),
+          observer = Observer.Noop,
+      )
+    }
+
+    // The retry budget, not the (much larger) implementation-attempt budget.
+    assertEquals(3, patchInterpreter.callCount)
+  }
 }
