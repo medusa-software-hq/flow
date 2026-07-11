@@ -151,12 +151,23 @@ resource "google_cloud_run_v2_service" "primary" {
         name  = "WORKER_TOKEN_AUDIENCE"
         value = var.worker_token_audience
       }
+
+      env {
+        name = "GITHUB_WEBHOOK_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.github_webhook_secret.secret_id
+            version = "latest"
+          }
+        }
+      }
     }
   }
 
   depends_on = [
     google_secret_manager_secret_version.database_url,
     google_secret_manager_secret_version.github_app_pem,
+    google_secret_manager_secret_version.github_webhook_secret,
   ]
 
   # The image is managed by CI/CD after initial creation.

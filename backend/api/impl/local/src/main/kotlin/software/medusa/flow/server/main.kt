@@ -23,6 +23,9 @@ fun main() {
           gitHubPrClient = FakeGitHubPrClient(),
           gitHubCandidateClient = FakeGitHubCandidateClient(),
           reconcileAuthorizer = WorkerAuthorizer.permissive,
+          // Local dev doesn't receive real GitHub webhooks; set GITHUB_WEBHOOK_SECRET to smoke-test
+          // the endpoint with a hand-signed request. Empty → the route rejects everything (401).
+          gitHubWebhookSecret = System.getenv("GITHUB_WEBHOOK_SECRET").orEmpty(),
       )
       .start()
       .join()
