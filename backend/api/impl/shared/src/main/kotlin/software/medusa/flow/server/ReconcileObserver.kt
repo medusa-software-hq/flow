@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory
  */
 class ReconcileObserver(
     private val pipelineStore: IssuePipelineStore,
+    private val sessionStore: SessionStore,
     private val prClient: GitHubPrClient,
     private val clock: Clock = Clock.systemUTC(),
     private val noRunsGracePeriod: Duration = defaultNoRunsGracePeriod,
@@ -36,7 +37,8 @@ class ReconcileObserver(
   ): Int {
     val observable =
         pipelineStore.list(repoFullName).filter {
-          it.state == IssuePipelineState.PrOpen ||
+          it.state == IssuePipelineState.InProgress ||
+              it.state == IssuePipelineState.PrOpen ||
               it.state == IssuePipelineState.AwaitingMergeChecks
         }
 
@@ -44,6 +46,7 @@ class ReconcileObserver(
     for (pipeline in observable) {
       val transition =
           when (pipeline.state) {
+            IssuePipelineState.InProgress -> observeInProgress(pipeline)
             IssuePipelineState.PrOpen -> observePrOpen(pipeline)
             IssuePipelineState.AwaitingMergeChecks -> observeAwaitingMergeChecks(pipeline)
             else -> null
@@ -52,6 +55,42 @@ class ReconcileObserver(
     }
     return advanced
   }
+
+  /**
+   * Backstop for the session-driven transitions ([WorkerServiceImpl]): if the linked session
+   * already reached a terminal state but the pipeline is still `IN_PROGRESS` — e.g. the worker was
+   * lost and lazy heartbeat expiry failed the session, so no `FailSession` RPC ran — converge here.
+   * Idempotent: if the RPC already advanced the pipeline, it isn't `IN_PROGRESS` and is skipped.
+   */
+  private suspend fun observeInProgress(
+      pipeline: IssuePipeline,
+  ): PipelineTransition? {
+    val sessionId = pipeline.sessionId ?: return null
+    val session = sessionStore.get(sessionId, afterSeq = 0)?.session ?: return null
+
+    return when (session.state) {
+      SessionState.Completed ->
+          pipelineStore.markPrOpen(
+              pipeline.id,
+              prNumber = session.prUrl?.let(::parsePrNumber) ?: 0,
+              prUrl = session.prUrl.orEmpty(),
+          )
+      SessionState.Failed ->
+          pipelineStore.markFailed(
+              pipeline.id,
+              failureSummary =
+                  "The Flow session for this issue failed:\n\n" +
+                      "${session.failureSummary ?: "unknown error"}\n\n" +
+                      "Clear this pipeline to let Flow try the issue again.",
+          )
+      SessionState.Pending,
+      SessionState.Running -> null // still working
+    }
+  }
+
+  private fun parsePrNumber(
+      prUrl: String,
+  ): Int = Regex("""/pull/(\d+)""").find(prUrl)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
   private suspend fun observePrOpen(
       pipeline: IssuePipeline,

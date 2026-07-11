@@ -32,6 +32,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 selectById:
 SELECT * FROM issue_pipelines WHERE id = ?;
 
+selectBySessionId:
+SELECT * FROM issue_pipelines WHERE session_id = ? LIMIT 1;
+
 listAll:
 SELECT * FROM issue_pipelines ORDER BY created_at DESC;
 

@@ -39,7 +39,14 @@ private fun SessionEventKind.toProto(): ProtoSessionEventKind =
       SessionEventKind.Publishing -> ProtoSessionEventKind.SESSION_EVENT_KIND_PUBLISHING
     }
 
-fun Session.toProto(): ProtoSession {
+/**
+ * [linkedPipeline] is the issue pipeline driving this session (from
+ * [IssuePipelineStore.findBySessionId]), or null for a manual session — its issue number/url and
+ * pipeline id populate the display-only linkage fields (proto3 defaults for manual sessions).
+ */
+fun Session.toProto(
+    linkedPipeline: IssuePipeline? = null,
+): ProtoSession {
   val domainSession = this
 
   return session {
@@ -52,6 +59,11 @@ fun Session.toProto(): ProtoSession {
     // Proto3 strings default to empty; nulls collapse to "".
     prUrl = domainSession.prUrl.orEmpty()
     failureSummary = domainSession.failureSummary.orEmpty()
+    linkedPipeline?.let {
+      issueNumber = it.issueNumber
+      issueUrl = it.issueUrl
+      issuePipelineId = it.id.id
+    }
   }
 }
 

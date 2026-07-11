@@ -32,9 +32,16 @@ class ReconcileObserver_tests {
     val backend = InMemoryPipelineBackend(clock = clock)
     val pipelines = InMemoryIssuePipelineStore(backend)
     val outbox = InMemoryGithubOutboxStore(backend)
+    val sessions = InMemorySessionStore(clock = clock)
     val prClient = FakeGitHubPrClient()
     val observer =
-        ReconcileObserver(pipelines, prClient, clock, noRunsGracePeriod = Duration.ofMinutes(6))
+        ReconcileObserver(
+            pipelines,
+            sessions,
+            prClient,
+            clock,
+            noRunsGracePeriod = Duration.ofMinutes(6),
+        )
   }
 
   /** Picks an issue and drives it to `PR_OPEN` (pr #7). */
@@ -169,13 +176,42 @@ class ReconcileObserver_tests {
       }
 
   @Test
-  fun `observe only touches PR_OPEN and AWAITING pipelines, not IN_PROGRESS or terminal`() =
+  fun `an IN_PROGRESS pipeline whose session is still running is left alone`() = runBlocking {
+    val fx = Fixture(SteppableClock(Instant.parse("2026-04-01T00:00:00Z")))
+    val session = fx.sessions.create(repo, "task", "flow-reconciler")
+    fx.pipelines.pick(repo, 1, "Issue 1", "u", session.id)
+    fx.sessions.claimNext() // session → RUNNING
+
+    assertEquals(0, fx.observer.observe(repo))
+    assertEquals(IssuePipelineState.InProgress, fx.pipelines.list(repo).single().state)
+  }
+
+  @Test
+  fun `worker-lost backstop - IN_PROGRESS with a FAILED session fails the pipeline and holds the mutex`() =
       runBlocking {
         val fx = Fixture(SteppableClock(Instant.parse("2026-04-01T00:00:00Z")))
-        // IN_PROGRESS (worker-driven, not observed here).
-        fx.pipelines.pick(repo, 1, "t", "u", SessionId("s1"))
+        val session = fx.sessions.create(repo, "task", "flow-reconciler")
+        val p =
+            (fx.pipelines.pick(repo, 1, "Issue 1", "u", session.id) as PickResult.Picked).pipeline
+        fx.sessions.claimNext()
+        fx.sessions.fail(session.id, "Worker lost")
 
-        assertEquals(0, fx.observer.observe(repo))
-        assertEquals(IssuePipelineState.InProgress, fx.pipelines.list(repo).single().state)
+        assertEquals(1, fx.observer.observe(repo))
+        assertEquals(IssuePipelineState.Failed, fx.pipelines.get(p.id)!!.state)
+        assertTrue(fx.pipelines.isRepoBusy(repo)) // FAILED still holds the mutex
       }
+
+  @Test
+  fun `backstop - IN_PROGRESS with a COMPLETED session advances to PR_OPEN`() = runBlocking {
+    val fx = Fixture(SteppableClock(Instant.parse("2026-04-01T00:00:00Z")))
+    val session = fx.sessions.create(repo, "task", "flow-reconciler")
+    val p = (fx.pipelines.pick(repo, 1, "Issue 1", "u", session.id) as PickResult.Picked).pipeline
+    fx.sessions.claimNext()
+    fx.sessions.complete(session.id, "https://github.com/acme/app/pull/9")
+
+    assertEquals(1, fx.observer.observe(repo))
+    val updated = fx.pipelines.get(p.id)!!
+    assertEquals(IssuePipelineState.PrOpen, updated.state)
+    assertEquals(9, updated.prNumber)
+  }
 }

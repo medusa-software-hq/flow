@@ -147,6 +147,11 @@ interface IssuePipelineStore {
       id: IssuePipelineId,
   ): IssuePipeline?
 
+  /** The pipeline driven by [sessionId] (one-to-one), or null for a manual/unlinked session. */
+  suspend fun findBySessionId(
+      sessionId: SessionId,
+  ): IssuePipeline?
+
   /** Every live pipeline (the ones holding a repo mutex), across all repos. */
   suspend fun listLive(): List<IssuePipeline>
 

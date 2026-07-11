@@ -226,6 +226,13 @@ class PostgresIssuePipelineStore(
   ): IssuePipeline? =
       withContext(Dispatchers.IO) { pipelines.selectById(id.id).executeAsOneOrNull()?.toDomain() }
 
+  override suspend fun findBySessionId(
+      sessionId: SessionId,
+  ): IssuePipeline? =
+      withContext(Dispatchers.IO) {
+        pipelines.selectBySessionId(sessionId.id).executeAsOneOrNull()?.toDomain()
+      }
+
   override suspend fun listLive(): List<IssuePipeline> =
       withContext(Dispatchers.IO) { pipelines.listLive().executeAsList().map { it.toDomain() } }
 

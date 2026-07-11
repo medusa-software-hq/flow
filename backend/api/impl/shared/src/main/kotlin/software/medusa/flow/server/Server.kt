@@ -33,7 +33,7 @@ fun buildServer(
           pipelineStore = issuePipelineStore,
           outboxStore = githubOutboxStore,
           dispatcher = OutboxDispatcher(githubOutboxStore, gitHubIssueClient),
-          observer = ReconcileObserver(issuePipelineStore, gitHubPrClient),
+          observer = ReconcileObserver(issuePipelineStore, sessionStore, gitHubPrClient),
           picker = ReconcilePicker(issuePipelineStore, sessionStore, gitHubCandidateClient),
           repoLock = InMemoryRepoLock(),
       )
@@ -64,8 +64,8 @@ fun buildServer(
           .apply {
             addService(CounterServiceImpl(counterStore))
             addService(GitHubServiceImpl(gitHubIssueStore, gitHubRepositoryStore))
-            addService(SessionServiceImpl(sessionStore))
-            addService(WorkerServiceImpl(sessionStore, workerAuthorizer))
+            addService(SessionServiceImpl(sessionStore, issuePipelineStore))
+            addService(WorkerServiceImpl(sessionStore, workerAuthorizer, issuePipelineStore))
             addService(ReconcileServiceImpl(reconciler, reconcileAuthorizer))
             enableUnframedRequests(true)
           }

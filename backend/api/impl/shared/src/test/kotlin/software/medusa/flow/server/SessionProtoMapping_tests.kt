@@ -89,4 +89,49 @@ class SessionProtoMapping_tests {
       assertEquals(proto, event.kind)
     }
   }
+
+  @Test
+  fun `a linked pipeline populates the session's issue fields and manual leaves them empty`() {
+    val session =
+        Session(
+            id = SessionId("s1"),
+            repoFullName = "acme/app",
+            taskMarkdown = "# Task",
+            state = SessionState.Running,
+            createdAt = Instant.EPOCH,
+            createdBy = "flow-reconciler",
+            claimedAt = null,
+            lastHeartbeatAt = null,
+            prUrl = null,
+            failureSummary = null,
+        )
+
+    val pipeline =
+        IssuePipeline(
+            id = IssuePipelineId("p1"),
+            repoFullName = "acme/app",
+            issueNumber = 42,
+            issueTitle = "Do the thing",
+            issueUrl = "https://github.com/acme/app/issues/42",
+            state = IssuePipelineState.InProgress,
+            sessionId = SessionId("s1"),
+            prNumber = null,
+            prUrl = null,
+            mergeCommitSha = null,
+            failureSummary = null,
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH,
+            clearedAt = null,
+        )
+
+    val linked = session.toProto(pipeline)
+    assertEquals(42, linked.issueNumber)
+    assertEquals("https://github.com/acme/app/issues/42", linked.issueUrl)
+    assertEquals("p1", linked.issuePipelineId)
+
+    val manual = session.toProto(linkedPipeline = null)
+    assertEquals(0, manual.issueNumber)
+    assertEquals("", manual.issueUrl)
+    assertEquals("", manual.issuePipelineId)
+  }
 }

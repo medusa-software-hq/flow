@@ -33,7 +33,12 @@ import software.medusa.flow.v1.heartbeatResponse
 class WorkerServiceImpl(
     private val sessionStore: SessionStore,
     private val workerAuthorizer: WorkerAuthorizer,
+    private val issuePipelineStore: IssuePipelineStore,
 ) : WorkerServiceGrpcKt.WorkerServiceCoroutineImplBase() {
+  private companion object {
+    private val prNumberRegex = Regex("""/pull/(\d+)""")
+  }
+
   private fun requireAuthorizedWorker() {
     val email =
         AuthenticatedUser.currentEmail()
@@ -65,7 +70,10 @@ class WorkerServiceImpl(
 
     val claimed = sessionStore.claimNext()
 
-    return claimNextSessionResponse { claimed?.let { session = it.toProto() } }
+    // Include the issue linkage so the worker can publish an issue-aware PR (story 09).
+    return claimNextSessionResponse {
+      claimed?.let { session = it.toProto(issuePipelineStore.findBySessionId(it.id)) }
+    }
   }
 
   override suspend fun appendSessionEvent(
@@ -100,9 +108,21 @@ class WorkerServiceImpl(
   ): CompleteSessionResponse {
     requireAuthorizedWorker()
 
+    val sessionId = SessionId(request.sessionId)
     sessionStore
-        .complete(id = SessionId(request.sessionId), prUrl = request.prUrl)
+        .complete(id = sessionId, prUrl = request.prUrl)
         .orFailedPrecondition(request.sessionId)
+
+    // Advance the linked pipeline IN_PROGRESS → PR_OPEN (latency; the reconcile observe phase is
+    // the
+    // correctness backstop if this doesn't run). A manual session has no pipeline — no-op.
+    advanceLinkedPipeline(sessionId) { pipeline ->
+      issuePipelineStore.markPrOpen(
+          pipeline.id,
+          prNumber = parsePrNumber(request.prUrl),
+          prUrl = request.prUrl,
+      )
+    }
 
     return completeSessionResponse {}
   }
@@ -112,10 +132,35 @@ class WorkerServiceImpl(
   ): FailSessionResponse {
     requireAuthorizedWorker()
 
+    val sessionId = SessionId(request.sessionId)
     sessionStore
-        .fail(id = SessionId(request.sessionId), failureSummary = request.failureSummary)
+        .fail(id = sessionId, failureSummary = request.failureSummary)
         .orFailedPrecondition(request.sessionId)
+
+    advanceLinkedPipeline(sessionId) { pipeline ->
+      issuePipelineStore.markFailed(
+          pipeline.id,
+          failureSummary =
+              "The Flow session for this issue failed:\n\n${request.failureSummary}\n\n" +
+                  "Clear this pipeline to let Flow try the issue again.",
+      )
+    }
 
     return failSessionResponse {}
   }
+
+  /**
+   * Runs [transition] against the pipeline linked to [sessionId], if it exists and is IN_PROGRESS.
+   */
+  private suspend fun advanceLinkedPipeline(
+      sessionId: SessionId,
+      transition: suspend (IssuePipeline) -> PipelineTransition,
+  ) {
+    val pipeline = issuePipelineStore.findBySessionId(sessionId) ?: return
+    if (pipeline.state == IssuePipelineState.InProgress) transition(pipeline)
+  }
+
+  private fun parsePrNumber(
+      prUrl: String,
+  ): Int = prNumberRegex.find(prUrl)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 }
