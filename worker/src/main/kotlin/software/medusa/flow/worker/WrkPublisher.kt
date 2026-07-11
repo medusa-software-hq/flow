@@ -19,6 +19,10 @@ fun interface WrkPublisher {
    * [cloneDirectory] is the on-disk clone [WrkGitCloner] produced -- publishing branches, commits,
    * and pushes from there. [taskHeading] is the task's first heading/line, used as the commit
    * subject and PR title.
+   *
+   * [issueNumber] links the PR to an issue pipeline (story 09): non-null switches the branch to
+   * `flow/issue-<n>` and adds a `Refs #<n>` (never a closing keyword — the reconciler closes the
+   * issue, gated on the merge checks). Null is a manual session — identical to M1 behavior.
    */
   suspend fun publish(
       repoFullName: String,
@@ -27,5 +31,6 @@ fun interface WrkPublisher {
       taskMarkdown: String,
       cloneDirectory: Path,
       workspace: HrsReadonlyTemporaryWorkspace,
+      issueNumber: Int?,
   ): WrkPublishResult
 }

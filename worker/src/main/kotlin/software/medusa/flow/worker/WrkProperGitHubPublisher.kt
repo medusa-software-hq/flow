@@ -3,6 +3,7 @@ package software.medusa.flow.worker
 import com.linecorp.armeria.client.WebClient
 import com.linecorp.armeria.common.HttpHeaderNames
 import com.linecorp.armeria.common.HttpStatus
+import com.linecorp.armeria.common.MediaType
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.coroutines.Dispatchers
@@ -40,9 +41,11 @@ class WrkProperGitHubPublisher(
       taskMarkdown: String,
       cloneDirectory: Path,
       workspace: HrsReadonlyTemporaryWorkspace,
+      issueNumber: Int?,
   ): WrkPublishResult {
     val directoryFile = cloneDirectory.toFile()
-    val branchName = "flow/session-$sessionId"
+    val branchName =
+        if (issueNumber != null) "flow/issue-$issueNumber" else "flow/session-$sessionId"
 
     val defaultBranch =
         WrkGitProcess.run(directoryFile, gitHubToken, "rev-parse", "--abbrev-ref", "HEAD").trim()
@@ -91,11 +94,33 @@ class WrkProperGitHubPublisher(
             branchName = branchName,
             baseBranch = defaultBranch,
             title = taskHeading,
-            body = "$taskMarkdown\n\n---\nSession: $sessionId",
+            body =
+                composePrBody(
+                    taskMarkdown = taskMarkdown,
+                    sessionId = sessionId,
+                    issueNumber = issueNumber,
+                ),
         )
 
     return WrkPublishResult.Published(prUrl = prUrl)
   }
+
+  /**
+   * A manual session's body is byte-identical to M1. An issue-linked body embeds the (sanitized)
+   * task Markdown, then a `Refs #<n>` that references the issue *without* closing it — closing is
+   * the reconciler's gated move.
+   */
+  private fun composePrBody(
+      taskMarkdown: String,
+      sessionId: String,
+      issueNumber: Int?,
+  ): String =
+      if (issueNumber == null) {
+        "$taskMarkdown\n\n---\nSession: $sessionId"
+      } else {
+        val safeMarkdown = WrkClosingKeywords.neutralize(taskMarkdown)
+        "$safeMarkdown\n\n---\nRefs #$issueNumber\nSession: $sessionId"
+      }
 
   private suspend fun syncWorkspaceInto(
       cloneDirectory: Path,
@@ -134,7 +159,9 @@ class WrkProperGitHubPublisher(
             .header(HttpHeaderNames.AUTHORIZATION, "Bearer $gitHubToken")
             .header(HttpHeaderNames.ACCEPT, githubAcceptHeader)
             .header(HttpHeaderNames.USER_AGENT, userAgent)
-            .content("application/json", requestBody)
+            // NB: `.content(MediaType, String)`, NOT `.content(String, Object...)` -- the latter is
+            // Armeria's printf overload, which would drop `requestBody` and send the format string.
+            .content(MediaType.JSON, requestBody)
             .execute()
             .aggregate()
             .await()

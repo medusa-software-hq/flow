@@ -85,6 +85,7 @@ class WrkProperSessionProcessor(
                         taskMarkdown = session.taskMarkdown,
                         cloneDirectory = cloneDirectory,
                         workspace = workspace,
+                        issueNumber = session.issueNumber.takeIf { it > 0 },
                     )
                   } catch (e: Exception) {
                     apiClient.failSession(

@@ -13,6 +13,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.bytestring.ByteString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
 import software.medusa.commons.unix.path.UfsName
@@ -141,6 +144,7 @@ class WrkProperGitHubPublisher_tests {
             taskMarkdown = "# Add hello.txt\n\nDo it.",
             cloneDirectory = cloneDirectory,
             workspace = workspace,
+            issueNumber = null,
         )
 
     assertEquals(WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/7"), result)
@@ -174,6 +178,7 @@ class WrkProperGitHubPublisher_tests {
             taskMarkdown = "# No-op",
             cloneDirectory = cloneDirectory,
             workspace = workspace,
+            issueNumber = null,
         )
 
     assertEquals(WrkPublishResult.NoChanges, result)
@@ -184,5 +189,137 @@ class WrkProperGitHubPublisher_tests {
     val output = branchList.inputStream.bufferedReader().readText()
     branchList.waitFor()
     assertTrue(!output.contains("flow/session-s2"))
+  }
+
+  @Test
+  fun `an issue-linked run branches on the issue and Refs it without a closing keyword`() =
+      runBlocking {
+        val (_, cloneDirectory) = setUpBareRepoAndClone()
+        val webClient =
+            buildCapturingPrServer(
+                responseJson = """{"html_url":"https://github.com/acme/app/pull/12"}""",
+            )
+
+        val workspace =
+            fakeWorkspaceWith(fileName = "hello.txt", content = "hello from the engine\n")
+
+        val publisher =
+            WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+
+        val result =
+            publisher.publish(
+                repoFullName = "acme/app",
+                sessionId = "s7",
+                taskHeading = "Add hello.txt",
+                taskMarkdown = "# Add hello.txt\n\nDo it.",
+                cloneDirectory = cloneDirectory,
+                workspace = workspace,
+                issueNumber = 42,
+            )
+
+        assertEquals(
+            WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/12"),
+            result,
+        )
+
+        // The push landed on the issue-scoped branch, not the session-scoped one.
+        val bareShow =
+            ProcessBuilder("git", "show", "flow/issue-42:hello.txt")
+                .directory(cloneDirectory.toFile())
+                .start()
+        val shown = bareShow.inputStream.bufferedReader().readText()
+        bareShow.waitFor()
+        assertTrue(shown.contains("hello from the engine"))
+
+        val body = capturedPrBody ?: error("no PR request captured")
+        assertTrue(body.contains("Refs #42"), "expected a Refs reference in: $body")
+        assertTrue(!body.contains("Closes #42"), "must not close the linked issue: $body")
+      }
+
+  @Test
+  fun `an issue body containing a closing keyword is neutralized in the PR body`() = runBlocking {
+    val (_, cloneDirectory) = setUpBareRepoAndClone()
+    val webClient =
+        buildCapturingPrServer(
+            responseJson = """{"html_url":"https://github.com/acme/app/pull/9"}"""
+        )
+
+    val workspace = fakeWorkspaceWith(fileName = "hello.txt", content = "hi\n")
+
+    val publisher =
+        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+
+    // The issue's own body carries a closing keyword aimed at a *different* issue.
+    publisher.publish(
+        repoFullName = "acme/app",
+        sessionId = "s8",
+        taskHeading = "Follow-up",
+        taskMarkdown = "# Follow-up\n\nThis Closes #7 as part of the epic.",
+        cloneDirectory = cloneDirectory,
+        workspace = workspace,
+        issueNumber = 8,
+    )
+
+    val body = capturedPrBody ?: error("no PR request captured")
+    // The zero-width space is invisible but the raw "Closes #7" adjacency is gone.
+    assertTrue(!body.contains("Closes #7"), "closing keyword must be neutralized: $body")
+    assertTrue(!WrkClosingKeywords.containsClosingReference(body), "no live closing ref: $body")
+    assertTrue(body.contains("Refs #8"))
+  }
+
+  @Test
+  fun `a manual run's PR body is byte-identical to M1`() = runBlocking {
+    val (_, cloneDirectory) = setUpBareRepoAndClone()
+    val webClient =
+        buildCapturingPrServer(
+            responseJson = """{"html_url":"https://github.com/acme/app/pull/3"}"""
+        )
+
+    val workspace = fakeWorkspaceWith(fileName = "hello.txt", content = "hi\n")
+
+    val publisher =
+        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+
+    publisher.publish(
+        repoFullName = "acme/app",
+        sessionId = "s3",
+        taskHeading = "Manual",
+        taskMarkdown = "# Manual\n\nBody.",
+        cloneDirectory = cloneDirectory,
+        workspace = workspace,
+        issueNumber = null, // the manual path.
+    )
+
+    val body = capturedPrBody ?: error("no PR request captured")
+    assertEquals("# Manual\n\nBody.\n\n---\nSession: s3", body)
+  }
+
+  @Volatile private var capturedPrRequestJson: String? = null
+
+  /** The decoded `body` field of the captured PR-creation request. */
+  private val capturedPrBody: String?
+    get() = capturedPrRequestJson?.let {
+      Json.parseToJsonElement(it).jsonObject.getValue("body").jsonPrimitive.content
+    }
+
+  /** Like [buildPrCreationServer] but records the PR request payload for assertions. */
+  private fun buildCapturingPrServer(
+      responseJson: String,
+  ): WebClient {
+    server =
+        Server.builder()
+            .http(0)
+            .service("/repos/acme/app/pulls") { _, req ->
+              HttpResponse.of(
+                  req.aggregate().thenApply { aggregated ->
+                    capturedPrRequestJson = aggregated.contentUtf8()
+                    HttpResponse.of(HttpStatus.CREATED, MediaType.JSON, responseJson)
+                  },
+              )
+            }
+            .build()
+            .also { it.start().join() }
+
+    return WebClient.of("http://127.0.0.1:${server.activeLocalPort()}")
   }
 }

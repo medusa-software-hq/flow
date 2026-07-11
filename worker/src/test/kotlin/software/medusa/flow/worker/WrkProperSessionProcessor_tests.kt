@@ -77,7 +77,7 @@ class WrkProperSessionProcessor_tests {
             gitCloner = gitCloner,
             taskCompleter = taskCompleter,
             publisher =
-                WrkPublisher { _, _, _, _, _, _ ->
+                WrkPublisher { _, _, _, _, _, _, _ ->
                   WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1").also {
                     publishedPrUrl = it.prUrl
                   }
@@ -122,7 +122,7 @@ class WrkProperSessionProcessor_tests {
             WrkProperSessionProcessor(
                 gitCloner = gitCloner,
                 taskCompleter = taskCompleter,
-                publisher = WrkPublisher { _, _, _, _, _, _ -> error("must not be called") },
+                publisher = WrkPublisher { _, _, _, _, _, _, _ -> error("must not be called") },
                 log = {},
             )
 
@@ -167,7 +167,7 @@ class WrkProperSessionProcessor_tests {
         WrkProperSessionProcessor(
             gitCloner = gitCloner,
             taskCompleter = taskCompleter,
-            publisher = WrkPublisher { _, _, _, _, _, _ -> error("must not be called") },
+            publisher = WrkPublisher { _, _, _, _, _, _, _ -> error("must not be called") },
             log = {},
         )
 
