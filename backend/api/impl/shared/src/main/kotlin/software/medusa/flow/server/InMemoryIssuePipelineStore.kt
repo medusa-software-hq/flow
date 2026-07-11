@@ -194,6 +194,13 @@ class InMemoryIssuePipelineStore(
       id: IssuePipelineId,
   ): IssuePipeline? = synchronized(backend.lock) { backend.pipelinesById[id] }
 
+  override suspend fun findBySessionId(
+      sessionId: SessionId,
+  ): IssuePipeline? =
+      synchronized(backend.lock) {
+        backend.pipelinesById.values.firstOrNull { it.sessionId == sessionId }
+      }
+
   override suspend fun listLive(): List<IssuePipeline> =
       synchronized(backend.lock) { backend.pipelinesById.values.filter { it.isLive } }
 

@@ -21,6 +21,7 @@ import software.medusa.flow.v1.listSessionsResponse
  */
 class SessionServiceImpl(
     private val sessionStore: SessionStore,
+    private val issuePipelineStore: IssuePipelineStore,
 ) : SessionServiceGrpcKt.SessionServiceCoroutineImplBase() {
   private companion object {
     // owner/name: two non-empty, slash-free, whitespace-free segments.
@@ -67,7 +68,9 @@ class SessionServiceImpl(
     // The store expires stale sessions before reading.
     val sessions = sessionStore.list(limit = listLimit)
 
-    return listSessionsResponse { this.sessions += sessions.map { it.toProto() } }
+    return listSessionsResponse {
+      this.sessions += sessions.map { it.toProto(issuePipelineStore.findBySessionId(it.id)) }
+    }
   }
 
   override suspend fun getSession(
@@ -78,8 +81,10 @@ class SessionServiceImpl(
             ?: throw Status.NOT_FOUND.withDescription("No such session: ${request.id}")
                 .asRuntimeException()
 
+    val linkedPipeline = issuePipelineStore.findBySessionId(result.session.id)
+
     return getSessionResponse {
-      session = result.session.toProto()
+      session = result.session.toProto(linkedPipeline)
       events += result.events.map { it.toProto() }
     }
   }
