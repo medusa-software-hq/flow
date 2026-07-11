@@ -23,16 +23,16 @@ fun buildServer(
     issuePipelineStore: IssuePipelineStore = InMemoryIssuePipelineStore(),
     githubOutboxStore: GithubOutboxStore = InMemoryGithubOutboxStore(),
     gitHubIssueClient: GitHubIssueClient = FakeGitHubIssueClient(),
+    gitHubPrClient: GitHubPrClient = FakeGitHubPrClient(),
     reconcileAuthorizer: WorkerAuthorizer = WorkerAuthorizer.permissive,
 ): Server {
-  // Reconcile assembly. Observe/pick are the story-05 no-op stubs (filled in by 06/07); the outbox
-  // dispatcher and per-repo lock are real.
+  // Reconcile assembly. Observe (story 06) is real; pick (07) is still a no-op stub.
   val reconciler =
       Reconciler(
           pipelineStore = issuePipelineStore,
           outboxStore = githubOutboxStore,
           dispatcher = OutboxDispatcher(githubOutboxStore, gitHubIssueClient),
-          observer = PipelineObserver.Noop,
+          observer = ReconcileObserver(issuePipelineStore, gitHubPrClient),
           picker = PipelinePicker.Noop,
           repoLock = InMemoryRepoLock(),
       )

@@ -20,6 +20,7 @@ fun main() {
           issuePipelineStore = InMemoryIssuePipelineStore(pipelineBackend),
           githubOutboxStore = InMemoryGithubOutboxStore(pipelineBackend),
           gitHubIssueClient = FakeGitHubIssueClient(),
+          gitHubPrClient = FakeGitHubPrClient(),
           reconcileAuthorizer = WorkerAuthorizer.permissive,
       )
       .start()
