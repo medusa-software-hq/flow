@@ -7,6 +7,10 @@ import com.linecorp.armeria.server.Server
 import com.linecorp.armeria.server.cors.CorsService
 import com.linecorp.armeria.server.grpc.GrpcService
 import com.linecorp.armeria.server.healthcheck.HealthCheckService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 fun buildServer(
     originRegex: String,
@@ -26,6 +30,10 @@ fun buildServer(
     gitHubPrClient: GitHubPrClient = FakeGitHubPrClient(),
     gitHubCandidateClient: GitHubCandidateClient = FakeGitHubCandidateClient(),
     reconcileAuthorizer: WorkerAuthorizer = WorkerAuthorizer.permissive,
+    // GitHub webhook HMAC secret (story 10). Blank by default — the webhook route then fails every
+    // request closed (401), since an unverifiable event must never trigger work. The mains supply
+    // the real secret (Secret Manager on gcp, env on local).
+    gitHubWebhookSecret: String = "",
 ): Server {
   // Reconcile assembly — observe (06) and pick (07) are both real now.
   val reconciler =
@@ -36,6 +44,16 @@ fun buildServer(
           observer = ReconcileObserver(issuePipelineStore, sessionStore, gitHubPrClient),
           picker = ReconcilePicker(issuePipelineStore, sessionStore, gitHubCandidateClient),
           repoLock = InMemoryRepoLock(),
+      )
+
+  // Webhook-triggered reconciles run detached (the endpoint answers 202 immediately). This scope
+  // lives for the server's lifetime; SupervisorJob keeps one failing reconcile from cancelling the
+  // rest. Correctness never depends on these completing — the scheduler is the backstop.
+  val webhookReconcileScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+  val webhookService =
+      GitHubWebhookService(
+          webhookSecret = gitHubWebhookSecret,
+          trigger = { repo -> webhookReconcileScope.launch { reconciler.reconcile(repo) } },
       )
 
   val cors =
@@ -77,6 +95,9 @@ fun buildServer(
 
         // Health check is unauthenticated (used by Cloud Run probes).
         service("/health", HealthCheckService.of())
+
+        // GitHub webhook: outside the gRPC auth decorator (it self-authenticates via HMAC).
+        service(GitHubWebhookService.path, webhookService)
 
         serviceUnder("/", grpcService.decorate(auth).decorate(cors))
       }

@@ -12,6 +12,7 @@ private const val gitHubRepoNameEnvVarName = "GITHUB_REPO_NAME"
 private const val workerSaEmailsEnvVarName = "WORKER_SA_EMAILS"
 private const val schedulerSaEmailsEnvVarName = "SCHEDULER_SA_EMAILS"
 private const val workerTokenAudienceEnvVarName = "WORKER_TOKEN_AUDIENCE"
+private const val gitHubWebhookSecretEnvVarName = "GITHUB_WEBHOOK_SECRET"
 
 fun main() {
   val port =
@@ -49,6 +50,11 @@ fun main() {
   // populated by the scheduler infra (story 11); optional/empty until then.
   val schedulerSaEmails = System.getenv(schedulerSaEmailsEnvVarName).orEmpty()
 
+  // GitHub webhook HMAC secret (Secret Manager → env). Optional/empty until the App webhook is
+  // configured; while empty the webhook route rejects every request, degrading to scheduler
+  // cadence.
+  val gitHubWebhookSecret = System.getenv(gitHubWebhookSecretEnvVarName).orEmpty()
+
   // One database (pool + migrations) shared by every Postgres-backed store.
   val database = buildFlowDatabase(databaseUrl)
 
@@ -75,6 +81,7 @@ fun main() {
           gitHubPrClient = GitHubAppPrClient(gitHubAppClient),
           gitHubCandidateClient = GitHubAppCandidateClient(gitHubAppClient),
           reconcileAuthorizer = buildWorkerAuthorizer("$workerSaEmails,$schedulerSaEmails"),
+          gitHubWebhookSecret = gitHubWebhookSecret,
       )
       .start()
       .join()

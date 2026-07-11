@@ -49,3 +49,36 @@ resource "google_secret_manager_secret_iam_member" "primary_service_sa_github_ap
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.primary_service_sa.email}"
 }
+
+# Secret holding the GitHub App webhook secret, injected into Cloud Run. The API HMAC-verifies every
+# webhook (X-Hub-Signature-256) against this value; the same value is entered in the GitHub App's
+# "Webhook secret" field. See backend/api/impl/.../GitHubWebhookService.kt.
+resource "google_secret_manager_secret" "github_webhook_secret" {
+  project   = var.gcp_project_id
+  secret_id = "${module.common.gcp_api_run_service_name}-github-webhook-secret"
+
+  replication {
+    auto {}
+  }
+}
+
+# Placeholder version; the real secret is generated once and uploaded manually (and entered in the
+# GitHub App settings), and must not be overwritten by Terraform. While it stays the placeholder,
+# real GitHub signatures won't match, so the webhook route rejects everything and the system runs on
+# scheduler cadence only.
+resource "google_secret_manager_secret_version" "github_webhook_secret" {
+  secret      = google_secret_manager_secret.github_webhook_secret.id
+  secret_data = "placeholder"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
+# Allow the Cloud Run service account to read the webhook secret.
+resource "google_secret_manager_secret_iam_member" "primary_service_sa_github_webhook_secret_accessor" {
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.github_webhook_secret.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.primary_service_sa.email}"
+}
