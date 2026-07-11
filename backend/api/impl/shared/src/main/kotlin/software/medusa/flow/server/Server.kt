@@ -17,7 +17,26 @@ fun buildServer(
     gitHubRepositoryStore: GitHubRepositoryStore,
     sessionStore: SessionStore,
     workerAuthorizer: WorkerAuthorizer,
+    // Reconcile wiring. Defaulted so tests that don't exercise reconcile need not supply them; the
+    // mains pass real stores (and, for in-memory/local, a *shared* backend so the pipeline and
+    // outbox stores are atomic).
+    issuePipelineStore: IssuePipelineStore = InMemoryIssuePipelineStore(),
+    githubOutboxStore: GithubOutboxStore = InMemoryGithubOutboxStore(),
+    gitHubIssueClient: GitHubIssueClient = FakeGitHubIssueClient(),
+    reconcileAuthorizer: WorkerAuthorizer = WorkerAuthorizer.permissive,
 ): Server {
+  // Reconcile assembly. Observe/pick are the story-05 no-op stubs (filled in by 06/07); the outbox
+  // dispatcher and per-repo lock are real.
+  val reconciler =
+      Reconciler(
+          pipelineStore = issuePipelineStore,
+          outboxStore = githubOutboxStore,
+          dispatcher = OutboxDispatcher(githubOutboxStore, gitHubIssueClient),
+          observer = PipelineObserver.Noop,
+          picker = PipelinePicker.Noop,
+          repoLock = InMemoryRepoLock(),
+      )
+
   val cors =
       CorsService.builderForOriginRegex(originRegex)
           .apply {
@@ -46,6 +65,7 @@ fun buildServer(
             addService(GitHubServiceImpl(gitHubIssueStore, gitHubRepositoryStore))
             addService(SessionServiceImpl(sessionStore))
             addService(WorkerServiceImpl(sessionStore, workerAuthorizer))
+            addService(ReconcileServiceImpl(reconciler, reconcileAuthorizer))
             enableUnframedRequests(true)
           }
           .build()

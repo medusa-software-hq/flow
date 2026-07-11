@@ -58,6 +58,11 @@ class InMemoryGithubOutboxStore(
         backend.outboxEntries.filter { it.dispatchedAt == null && it.attempts >= maxAttempts }
       }
 
+  override suspend fun reposWithPendingEntries(): List<String> =
+      synchronized(backend.lock) {
+        backend.outboxEntries.filter { it.dispatchedAt == null }.map { it.repoFullName }.distinct()
+      }
+
   private inline fun replace(
       id: OutboxEntryId,
       update: (OutboxEntry) -> OutboxEntry,

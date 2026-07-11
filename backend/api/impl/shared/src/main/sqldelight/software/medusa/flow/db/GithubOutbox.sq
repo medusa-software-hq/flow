@@ -49,3 +49,6 @@ WHERE id = ?;
 stuckEntries:
 SELECT * FROM github_outbox
 WHERE dispatched_at IS NULL AND attempts >= ?;
+
+reposWithPendingEntries:
+SELECT DISTINCT repo_full_name FROM github_outbox WHERE dispatched_at IS NULL;
