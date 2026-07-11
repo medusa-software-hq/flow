@@ -21,6 +21,7 @@ fun main() {
           githubOutboxStore = InMemoryGithubOutboxStore(pipelineBackend),
           gitHubIssueClient = FakeGitHubIssueClient(),
           gitHubPrClient = FakeGitHubPrClient(),
+          gitHubCandidateClient = FakeGitHubCandidateClient(),
           reconcileAuthorizer = WorkerAuthorizer.permissive,
       )
       .start()

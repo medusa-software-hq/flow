@@ -73,6 +73,7 @@ fun main() {
           githubOutboxStore = PostgresGithubOutboxStore(database),
           gitHubIssueClient = GitHubAppIssueClient(gitHubAppClient),
           gitHubPrClient = GitHubAppPrClient(gitHubAppClient),
+          gitHubCandidateClient = GitHubAppCandidateClient(gitHubAppClient),
           reconcileAuthorizer = buildWorkerAuthorizer("$workerSaEmails,$schedulerSaEmails"),
       )
       .start()
