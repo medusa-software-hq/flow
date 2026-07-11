@@ -58,6 +58,9 @@ class PostgresGithubOutboxStore(
         queries.stuckEntries(maxAttempts).executeAsList().map { it.toDomain() }
       }
 
+  override suspend fun reposWithPendingEntries(): List<String> =
+      withContext(Dispatchers.IO) { queries.reposWithPendingEntries().executeAsList() }
+
   private fun java.time.Instant.toOffsetDateTime(): OffsetDateTime = atOffset(ZoneOffset.UTC)
 
   private fun Github_outbox.toDomain(): OutboxEntry =

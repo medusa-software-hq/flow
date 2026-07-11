@@ -80,6 +80,13 @@ interface GithubOutboxStore {
       maxAttempts: Int,
   ): List<OutboxEntry>
 
+  /**
+   * Distinct repos that still have undispatched entries — a repo can have pending outbox after its
+   * pipeline is already `DONE` (the close/comment entries), so the reconciler treats these as
+   * relevant even when no live pipeline remains.
+   */
+  suspend fun reposWithPendingEntries(): List<String>
+
   companion object {
     /** After this many failed attempts an entry is considered stuck (default). */
     const val defaultStuckAttempts = 5

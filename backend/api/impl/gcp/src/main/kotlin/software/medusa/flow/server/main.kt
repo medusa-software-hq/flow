@@ -10,6 +10,7 @@ private const val gitHubAppPemContentEnvVarName = "GITHUB_APP_PEM_CONTENT"
 private const val gitHubRepoOwnerEnvVarName = "GITHUB_REPO_OWNER"
 private const val gitHubRepoNameEnvVarName = "GITHUB_REPO_NAME"
 private const val workerSaEmailsEnvVarName = "WORKER_SA_EMAILS"
+private const val schedulerSaEmailsEnvVarName = "SCHEDULER_SA_EMAILS"
 private const val workerTokenAudienceEnvVarName = "WORKER_TOKEN_AUDIENCE"
 
 fun main() {
@@ -44,6 +45,10 @@ fun main() {
   // missing/unconfigured allowlist should not crash the whole API.
   val workerSaEmails = System.getenv(workerSaEmailsEnvVarName).orEmpty()
 
+  // Reconcile is callable by the worker SA and the scheduler SA. The scheduler SA env var is
+  // populated by the scheduler infra (story 11); optional/empty until then.
+  val schedulerSaEmails = System.getenv(schedulerSaEmailsEnvVarName).orEmpty()
+
   // One database (pool + migrations) shared by every Postgres-backed store.
   val database = buildFlowDatabase(databaseUrl)
 
@@ -64,6 +69,10 @@ fun main() {
           gitHubRepositoryStore = GitHubAppRepositoryStore(gitHubAppClient),
           sessionStore = PostgresSessionStore(database),
           workerAuthorizer = buildWorkerAuthorizer(workerSaEmails),
+          issuePipelineStore = PostgresIssuePipelineStore(database),
+          githubOutboxStore = PostgresGithubOutboxStore(database),
+          gitHubIssueClient = GitHubAppIssueClient(gitHubAppClient),
+          reconcileAuthorizer = buildWorkerAuthorizer("$workerSaEmails,$schedulerSaEmails"),
       )
       .start()
       .join()
