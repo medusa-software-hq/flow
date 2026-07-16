@@ -15,5 +15,14 @@ scope cut from the M2 definition's non-goals.
 | 7 | **One in-flight issue per repo; single local worker** | Repo mutex + a single, locally-run M1 worker. No hosted worker fleet, no parallelism within a repo. | Hosted worker fleet; controlled parallelism across issues once the mutex relaxes (see #1). |
 | 8 | **Oldest-first picking only** | Among ready, unblocked candidates, the oldest is picked; no priority. | Configurable priority ordering; configurable label names (`ready`, `flow:*`). |
 
+## Surfaced during the M2 end-to-end demo (story 13)
+
+| # | Edge | Today's behavior | Follow-up |
+|---|------|------------------|-----------|
+| 9 | **Scheduler can't discover a fresh repo** | `Reconciler.relevantRepos()` (the no-arg/scheduler path) = repos with a live pipeline ∪ pending outbox. Nothing enumerates repos that merely have `ready` issues, so the *initial* pick in a brand-new repo only happens via the webhook's repo-scoped `Reconcile(repo)`. "Scheduler alone would also get there" isn't true for first discovery. | Have the scheduler also scan a configured/installed-app repo set for `ready` candidates, so discovery doesn't depend on the webhook. |
+| 10 | **Clearing a pipeline doesn't cancel its session** | `ClearIssuePipeline` marks the pipeline cleared but leaves its session. Harmless when the session is already terminal, but a still-`PENDING`/`RUNNING` session could later publish a second PR for the same issue after a re-pick. | On clear, cancel/fail the linked non-terminal session (and/or have the worker no-op a session whose pipeline is cleared). |
+| 11 | **Workspace sync drops executable bits** | The engine's workspace→clone copy loses the `+x` bit (observed: `gradlew` 100755→100644 in the published PR), which can break CI that runs `./gradlew`. | Preserve file modes when materializing the workspace over the clone. |
+| 12 | **Exact-match token audience is slash-brittle** | `WORKER_TOKEN_AUDIENCE` is compared to the token `aud` exactly, so a trailing-slash difference 401s. Fine when everything derives `aud` from the same `API_URL`, but a footgun. | Normalize a trailing slash on both sides of the `aud` comparison in `GoogleIdTokenAuthDecorator`. |
+
 When M3 starts, open a GitHub issue per row that's in scope and link it back
 here.

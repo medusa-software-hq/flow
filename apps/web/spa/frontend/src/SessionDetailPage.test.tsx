@@ -131,6 +131,44 @@ test('polling appends new events without duplication, passing after_seq forward'
   });
 });
 
+test('re-subscribing (token refresh changes headers) does not duplicate the event feed', async () => {
+  // The session is terminal, so each subscription polls exactly once (from afterSeq 0).
+  const getSession = vi.fn().mockResolvedValue({
+    session: baseSession({ state: SessionState.COMPLETED }),
+    events: [event(1, SessionEventKind.SCOUTING_ROUND, 'round one')],
+  });
+  const client = { getSession } as unknown as SessionClient;
+
+  function Harness({ headers }: { headers: HeadersInit }) {
+    return (
+      <MemoryRouter initialEntries={['/sessions/abc']}>
+        <Routes>
+          <Route
+            path="/sessions/:id"
+            element={
+              <SessionDetailPage
+                client={client}
+                headers={headers}
+                onUnauthorized={() => {}}
+                pollIntervalMs={10}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  const { rerender } = render(<Harness headers={{ Authorization: 'Bearer a' }} />);
+  expect(await screen.findByText('round one')).toBeInTheDocument();
+
+  // A refreshed token gives `headers` a new identity → the effect re-subscribes and re-polls from
+  // afterSeq 0, replaying event seq 1. It must not appear twice.
+  rerender(<Harness headers={{ Authorization: 'Bearer b' }} />);
+  await vi.waitFor(() => expect(getSession).toHaveBeenCalledTimes(2));
+  expect(screen.getAllByText('round one')).toHaveLength(1);
+});
+
 test('a terminal state stops polling and shows the PR link', async () => {
   const getSession = vi.fn().mockResolvedValue({
     session: baseSession({
