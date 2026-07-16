@@ -30,6 +30,10 @@ class Reconciler(
     private val observer: PipelineObserver,
     private val picker: PipelinePicker,
     private val repoLock: RepoLock,
+    // Repos the scheduler (no-arg) reconcile always scans for `ready` candidates, even with no live
+    // pipeline or pending outbox yet. Without this, a brand-new repo's *first* pick can only happen
+    // via a webhook's repo-scoped reconcile — the scheduler backstop would never discover it.
+    private val discoveryRepos: Set<String> = emptySet(),
 ) {
   private val log = LoggerFactory.getLogger(Reconciler::class.java)
 
@@ -53,14 +57,14 @@ class Reconciler(
   }
 
   /**
-   * "Relevant" for a full run = repos with a live pipeline ∪ repos with pending outbox. (Repos that
-   * merely have `ready` issues but no pipeline yet become relevant once the pick phase learns to
-   * discover them — story 07.)
+   * "Relevant" for a full run = repos with a live pipeline ∪ repos with pending outbox ∪ the
+   * configured [discoveryRepos]. The first two keep in-flight work converging; [discoveryRepos] is
+   * what lets the scheduler *discover* a repo whose only signal so far is a `ready` issue.
    */
   private suspend fun relevantRepos(): List<String> {
     val fromLivePipelines = pipelineStore.listLive().map { it.repoFullName }
     val fromPendingOutbox = outboxStore.reposWithPendingEntries()
-    return (fromLivePipelines + fromPendingOutbox).distinct()
+    return (fromLivePipelines + fromPendingOutbox + discoveryRepos).distinct()
   }
 
   private suspend fun reconcileRepo(
