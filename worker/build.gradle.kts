@@ -41,6 +41,7 @@ dependencies {
   runtimeOnly(libs.logback.classic)
 
   testImplementation(libs.kotlin.test)
+  testImplementation(project(":test-fixtures:github-stub"))
 }
 
 val grpcJavaId = "grpc"
