@@ -19,12 +19,14 @@ class PipelineServiceImpl_tests {
     val backend = InMemoryPipelineBackend()
     val pipelines = InMemoryIssuePipelineStore(backend)
     val outbox = InMemoryGithubOutboxStore(backend)
-    return Fixture(pipelines, outbox, PipelineServiceImpl(pipelines, outbox))
+    val sessions = InMemorySessionStore()
+    return Fixture(pipelines, outbox, sessions, PipelineServiceImpl(pipelines, outbox, sessions))
   }
 
   private data class Fixture(
       val pipelines: InMemoryIssuePipelineStore,
       val outbox: InMemoryGithubOutboxStore,
+      val sessions: InMemorySessionStore,
       val service: PipelineServiceImpl,
   )
 
@@ -69,6 +71,40 @@ class PipelineServiceImpl_tests {
     // The row is now dead -> the repo is free for a re-pick.
     assertFalse(f.pipelines.isRepoBusy("acme/app"))
   }
+
+  @Test
+  fun `clearing a pipeline abandons its still-running session`() = runBlocking {
+    val f = newFixture()
+    // A session claimed by a worker (RUNNING), linked to a pipeline that then failed.
+    val session = f.sessions.create(repoFullName = "acme/app", taskMarkdown = "t", createdBy = "r")
+    val claimed = f.sessions.claimNext()
+    assertEquals(session.id, claimed?.id)
+    val pipeline =
+        assertIs<PickResult.Picked>(
+                f.pipelines.pick("acme/app", 1, "Issue 1", "https://x/1", session.id),
+            )
+            .pipeline
+    f.pipelines.markFailed(pipeline.id, "boom")
+
+    f.service.clearIssuePipeline(clearIssuePipelineRequest { id = pipeline.id.id })
+
+    // The abandoned session is now FAILED, so a re-pick's worker can't be shadowed by it.
+    assertEquals(SessionState.Failed, f.sessions.get(session.id, afterSeq = 0)?.session?.state)
+  }
+
+  @Test
+  fun `clearing a pipeline whose session is already terminal is a no-op on the session`() =
+      runBlocking {
+        val f = newFixture()
+        // No session with this id exists — clear must still succeed without erroring.
+        val pipeline = f.pipelines.pickA()
+        f.pipelines.markFailed(pipeline.id, "boom")
+
+        val response =
+            f.service.clearIssuePipeline(clearIssuePipelineRequest { id = pipeline.id.id })
+
+        assertTrue(response.pipeline.cleared)
+      }
 
   @Test
   fun `clearIssuePipeline rejects a non-FAILED pipeline with FAILED_PRECONDITION`() = runBlocking {

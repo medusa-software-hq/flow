@@ -20,6 +20,7 @@ import software.medusa.flow.v1.listIssuePipelinesResponse
 class PipelineServiceImpl(
     private val issuePipelineStore: IssuePipelineStore,
     private val githubOutboxStore: GithubOutboxStore,
+    private val sessionStore: SessionStore,
 ) : PipelineServiceGrpcKt.PipelineServiceCoroutineImplBase() {
   override suspend fun listIssuePipelines(
       request: ListIssuePipelinesRequest,
@@ -54,10 +55,19 @@ class PipelineServiceImpl(
             .asRuntimeException()
 
     return when (val transition = issuePipelineStore.clear(id)) {
-      is PipelineTransition.Applied ->
-          clearIssuePipelineResponse { pipeline = transition.pipeline.toProto() }
+      is PipelineTransition.Applied -> {
+        // Abandon the cleared pipeline's session so a worker still holding it can't publish a PR
+        // that a re-pick would duplicate. Best-effort: fail() only applies to a RUNNING session
+        // (the "worker lost but still alive" edge) and no-ops for an already-terminal one.
+        transition.pipeline.sessionId?.let { sessionStore.fail(it, clearedFailureSummary) }
+        clearIssuePipelineResponse { pipeline = transition.pipeline.toProto() }
+      }
       is PipelineTransition.Rejected ->
           throw Status.FAILED_PRECONDITION.withDescription(transition.reason).asRuntimeException()
     }
+  }
+
+  private companion object {
+    const val clearedFailureSummary = "Pipeline cleared — this session was abandoned."
   }
 }
