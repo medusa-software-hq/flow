@@ -68,7 +68,16 @@ export function SessionDetailPage({
 
         setSession(response.session);
         if (response.events.length > 0) {
-          setEvents((prev) => [...prev, ...response.events]);
+          // Merge by seq, not blind append: if this effect re-subscribes (e.g. the auth token
+          // refreshes, changing `headers`), it re-polls from afterSeq 0 and would otherwise append
+          // the whole stream a second time, showing every event twice.
+          setEvents((prev) => {
+            const bySeq = new Map(prev.map((event) => [event.seq, event]));
+            for (const event of response.events) {
+              bySeq.set(event.seq, event);
+            }
+            return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+          });
         }
         setError(null);
 
