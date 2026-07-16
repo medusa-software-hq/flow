@@ -17,8 +17,9 @@ locals {
   # so introducing the workspace dimension is a no-op on the prod state.
   environment_config = {
     prod = {
-      # GitHub org whose repos this environment's App watches / acts on.
-      gh_organization_name = "medusa-software-hq"
+      # GitHub org whose repos this environment's App watches / acts on (the
+      # App's target — NOT where CI runs; see gh_organization_name below).
+      github_target_org = "medusa-software-hq"
 
       # GitHub App used to read repository issues.
       # https://github.com/organizations/medusa-software-hq/settings/apps
@@ -29,7 +30,7 @@ locals {
     }
     staging = {
       # Sandbox org — the staging App's credential boundary is the env boundary.
-      gh_organization_name = "medusa-software-test-hq"
+      github_target_org = "medusa-software-test-hq"
 
       # https://github.com/organizations/medusa-software-test-hq/settings/apps
       github_app_client_id = "Iv23liGENDkcxvvs8EwJ"
@@ -49,10 +50,16 @@ locals {
   gcp_api_run_service_name = "api"
   gcp_web_run_service_name = "web"
 
-  gh_organization_name = local.selected_environment.gh_organization_name
+  # The GitHub org + repo that holds the code and runs CI/CD. This is the SAME
+  # for every environment — one repo, one Actions pipeline — so it is a flavor
+  # constant, NOT part of environment_config. Used for WIF principalSets, the
+  # `github` provider owner, and Terraform state prefixes. Do not confuse with
+  # github_target_org (the org the deployed App watches), which is per-env.
+  gh_organization_name = "medusa-software-hq"
   gh_repo_name         = "flow"
   gh_api_url_var_name  = "API_URL"
 
+  github_target_org    = local.selected_environment.github_target_org
   github_app_client_id = local.selected_environment.github_app_client_id
 
   subdomain_label = local.selected_environment.subdomain_label
@@ -99,6 +106,10 @@ output "gcp_web_run_service_name" {
 
 output "gh_organization_name" {
   value = local.gh_organization_name
+}
+
+output "github_target_org" {
+  value = local.github_target_org
 }
 
 output "subdomain_label" {

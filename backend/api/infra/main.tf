@@ -121,8 +121,11 @@ resource "google_cloud_run_v2_service" "primary" {
       }
 
       env {
+        # The org the deployed App watches/reconciles — per-environment (prod
+        # watches medusa-software-hq, staging the sandbox org), NOT the code-repo
+        # org. Drives the reconciler's org fence (`org:<owner>` search).
         name  = "GITHUB_REPO_OWNER"
-        value = module.common.gh_organization_name
+        value = module.common.github_target_org
       }
 
       env {
