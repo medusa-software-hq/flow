@@ -98,14 +98,17 @@ class GoogleIdTokenAuthDecorator(
   internal fun resolveAuthorizedEmail(claims: JWTClaimsSet): String? {
     if (claims.issuer !in googleIssuers) return null
 
-    val audience = claims.audience
+    // Compare audiences ignoring a trailing slash on either side: the token's `aud` and the
+    // configured audiences both derive from the same API URL, but a stray slash (e.g. the API_URL
+    // variable carrying one while a caller mints its token without) shouldn't cause a 401.
+    val audiences = claims.audience.orEmpty().map { it.trimTrailingSlash() }
 
     when {
-      workerTokenAudience in audience -> {
+      workerTokenAudience.trimTrailingSlash() in audiences -> {
         // Worker (service-account) token: no hd claim to check; WorkerAuthorizer gates access.
       }
 
-      userTokenAudience in audience -> {
+      userTokenAudience.trimTrailingSlash() in audiences -> {
         val hd = claims.getStringClaim("hd")
         if (hd != allowedDomain) return null
       }
@@ -115,6 +118,8 @@ class GoogleIdTokenAuthDecorator(
 
     return claims.getStringClaim("email")
   }
+
+  private fun String.trimTrailingSlash(): String = trimEnd('/')
 
   private fun extractBearerToken(req: HttpRequest): String? {
     val header = req.headers().get(httpAuthorizationHeaderName) ?: return null
