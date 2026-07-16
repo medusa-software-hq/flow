@@ -23,6 +23,7 @@ scope cut from the M2 definition's non-goals.
 | 10 | **Clearing a pipeline doesn't cancel its session** | `ClearIssuePipeline` marks the pipeline cleared but leaves its session. Harmless when the session is already terminal, but a still-`PENDING`/`RUNNING` session could later publish a second PR for the same issue after a re-pick. | On clear, cancel/fail the linked non-terminal session (and/or have the worker no-op a session whose pipeline is cleared). |
 | 11 | **Workspace sync drops executable bits** | The engine's workspace→clone copy loses the `+x` bit (observed: `gradlew` 100755→100644 in the published PR), which can break CI that runs `./gradlew`. | Preserve file modes when materializing the workspace over the clone. |
 | 12 | **Exact-match token audience is slash-brittle** | `WORKER_TOKEN_AUDIENCE` is compared to the token `aud` exactly, so a trailing-slash difference 401s. Fine when everything derives `aud` from the same `API_URL`, but a footgun. | Normalize a trailing slash on both sides of the `aud` comparison in `GoogleIdTokenAuthDecorator`. |
+| 13 | **Discovery search is global, only org-fenced** | The `flow:ready` discovery GraphQL search is NOT limited to the App's installed repos — it matches any public repo using that label name (observed: a coincidental `smbss1/flow-mvp-test` hit). It's now fenced with `org:<owner>` + an owner-prefix filter, but an org repo *without* the App installed could still be surfaced (harmless — the pick's repo-scoped search returns empty there). | Drive discovery off the App's installed-repositories set (`GET /installation/repositories`) rather than a global search + org filter. |
 
-When M3 starts, open a GitHub issue per row that's in scope and link it back
-here.
+Follow-ups #9–#12 were fixed in the story-13 session; #13 is partially addressed
+(org-fenced). When M3 starts, open a GitHub issue per row still in scope.

@@ -71,12 +71,15 @@ class GitHubAppCandidateClient(
   }
 
   override suspend fun findReposWithReadyIssues(): Set<String> {
-    // No `repo:` qualifier -> the search spans every repo the installation token can see, in one
-    // call. We only need the distinct repositories, not the issues themselves.
+    // Scope to our own org with `org:`. The GraphQL search is NOT limited to the App's installed
+    // repos — with only `label:"flow:ready"` it matches any public repo on GitHub that happens to
+    // use that label name. `org:` fences it to our org; the owner-prefix filter below is a
+    // belt-and-suspenders guard in case the qualifier ever returns something broader.
+    val owner = client.repoOwner
     val graphQlQuery =
         """
         query {
-          search(query: "is:issue is:open label:\"${GitHubCandidateClient.readyLabel}\"", type: ISSUE, first: 100) {
+          search(query: "org:$owner is:issue is:open label:\"${GitHubCandidateClient.readyLabel}\"", type: ISSUE, first: 100) {
             nodes {
               ... on Issue {
                 repository { nameWithOwner }
@@ -101,6 +104,7 @@ class GitHubAppCandidateClient(
         .orEmpty()
         .filterNotNull()
         .mapNotNull { it.repository?.nameWithOwner }
+        .filter { it.substringBefore('/') == owner }
         .toSet()
   }
 }
