@@ -1,8 +1,11 @@
 package software.medusa.flow.server
 
+import com.linecorp.armeria.client.WebClient
 import com.linecorp.armeria.client.grpc.GrpcClients
 import com.linecorp.armeria.common.HttpRequest
 import com.linecorp.armeria.common.HttpResponse
+import com.linecorp.armeria.common.HttpStatus
+import com.linecorp.armeria.common.MediaType
 import com.linecorp.armeria.server.DecoratingHttpServiceFunction
 import com.linecorp.armeria.server.HttpService
 import com.linecorp.armeria.server.ServiceRequestContext
@@ -12,6 +15,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
 import software.medusa.flow.v1.ReconcileServiceGrpcKt
 import software.medusa.flow.v1.reconcileRequest
@@ -108,5 +112,28 @@ class ReconcileServiceImpl_serverTests {
 
     val response = client.reconcile(reconcileRequest {})
     assertEquals(0, response.repoSummariesCount)
+  }
+
+  /**
+   * The exact wire shape Cloud Scheduler produces (gcp-scheduler.tf): a plain POST to the gRPC
+   * method path, `Content-Type: application/json`, empty-object body — handled by the server's
+   * unframed-request support. This pins that contract so a wrong content type / path in the
+   * scheduler config would fail here rather than silently every 3 minutes in production.
+   */
+  @Test
+  fun `an unframed JSON POST -- what Cloud Scheduler sends -- reaches Reconcile`() = runBlocking {
+    val (srv, _) = startServerAs(schedulerEmail)
+    server = srv
+
+    val response =
+        WebClient.of("http://127.0.0.1:${srv.activeLocalPort()}/")
+            .prepare()
+            .post("/medusa.pipeline.v1.ReconcileService/Reconcile")
+            .content(MediaType.JSON, "{}")
+            .execute()
+            .aggregate()
+            .await()
+
+    assertEquals(HttpStatus.OK, response.status())
   }
 }

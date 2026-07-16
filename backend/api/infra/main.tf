@@ -148,6 +148,14 @@ resource "google_cloud_run_v2_service" "primary" {
       }
 
       env {
+        # ReconcileService's extra allowlist entry: the scheduler SA that drives
+        # the periodic backstop reconcile (see gcp-scheduler.tf). The worker SA is
+        # also allowed to call Reconcile; main.kt unions the two.
+        name  = "SCHEDULER_SA_EMAILS"
+        value = google_service_account.scheduler_sa.email
+      }
+
+      env {
         name  = "WORKER_TOKEN_AUDIENCE"
         value = var.worker_token_audience
       }
