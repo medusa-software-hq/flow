@@ -33,6 +33,7 @@ dependencies {
   runtimeOnly(libs.postgresql)
 
   testImplementation(libs.kotlin.test)
+  testImplementation(project(":test-fixtures:github-stub"))
 }
 
 val grpcJavaId = "grpc"

@@ -10,6 +10,7 @@ include(
     ":backend:api:impl:local",
     ":backend:api:impl:shared",
     ":cli",
+    ":test-fixtures:github-stub",
     ":engine:harness",
     ":engine:physical-workspace",
     ":engine:test-utils",
