@@ -160,6 +160,47 @@ class WrkProperGitHubPublisher_tests {
   }
 
   @Test
+  fun `an executable file keeps its executable bit through publish`() = runBlocking {
+    val (_, cloneDirectory) = setUpBareRepoAndClone()
+    val webClient =
+        buildPrCreationServer(
+            responseJson = """{"html_url":"https://github.com/acme/app/pull/9"}"""
+        )
+
+    // A gradlew-like script: executable in the materialized workspace.
+    val directory = UfsNioDirectory.createTemporary(prefix = UfsName.Literal("wrk-publish-ws-"))
+    directory
+        .createFile(
+            name = UfsName.Literal("run.sh"),
+            initialContent = ByteString("#!/bin/sh\necho hi\n".toByteArray()),
+        )
+        .makeExecutable()
+    val workspace = PublisherFakeReadonlyTemporaryWorkspace(rootDirectory = directory)
+
+    val publisher =
+        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+
+    publisher.publish(
+        repoFullName = "acme/app",
+        sessionId = "s9",
+        taskHeading = "Add run.sh",
+        taskMarkdown = "# Add run.sh",
+        cloneDirectory = cloneDirectory,
+        workspace = workspace,
+        issueNumber = null,
+    )
+
+    // git records an executable blob as mode 100755, a regular one as 100644.
+    val lsTree =
+        ProcessBuilder("git", "ls-tree", "flow/session-s9", "run.sh")
+            .directory(cloneDirectory.toFile())
+            .start()
+    val mode = lsTree.inputStream.bufferedReader().readText()
+    lsTree.waitFor()
+    assertTrue(mode.startsWith("100755"), "expected an executable blob, got: $mode")
+  }
+
+  @Test
   fun `a run with no changes returns NoChanges and pushes nothing`() = runBlocking {
     val (bareDirectory, cloneDirectory) = setUpBareRepoAndClone()
     val webClient = buildPrCreationServer(responseJson = """{"html_url":"unused"}""")
