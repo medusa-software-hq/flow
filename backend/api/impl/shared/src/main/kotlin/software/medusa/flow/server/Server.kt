@@ -84,6 +84,7 @@ fun buildServer(
             addService(GitHubServiceImpl(gitHubIssueStore, gitHubRepositoryStore))
             addService(SessionServiceImpl(sessionStore, issuePipelineStore))
             addService(WorkerServiceImpl(sessionStore, workerAuthorizer, issuePipelineStore))
+            addService(PipelineServiceImpl(issuePipelineStore, githubOutboxStore))
             addService(ReconcileServiceImpl(reconciler, reconcileAuthorizer))
             enableUnframedRequests(true)
           }
