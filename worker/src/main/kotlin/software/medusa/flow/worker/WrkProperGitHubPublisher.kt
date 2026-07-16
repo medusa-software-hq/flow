@@ -12,8 +12,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import software.medusa.commons.unix.filesystem.copyRecursivelyTo
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
+import software.medusa.commons.unix.filesystem.materializeIn
 import software.medusa.flow.harness.HrsReadonlyTemporaryWorkspace
 
 /**
@@ -134,7 +134,7 @@ class WrkProperGitHubPublisher(
       }
     }
 
-    workspace.rootDirectory.copyRecursivelyTo(
+    workspace.rootDirectory.materializeIn(
         targetDirectory = UfsNioDirectory(directoryPath = cloneDirectory),
     )
   }
