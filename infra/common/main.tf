@@ -55,9 +55,10 @@ locals {
   # constant, NOT part of environment_config. Used for WIF principalSets, the
   # `github` provider owner, and Terraform state prefixes. Do not confuse with
   # github_target_org (the org the deployed App watches), which is per-env.
-  gh_organization_name = "medusa-software-hq"
-  gh_repo_name         = "flow"
-  gh_api_url_var_name  = "API_URL"
+  gh_organization_name   = "medusa-software-hq"
+  gh_repo_name           = "flow"
+  gh_api_url_var_name    = "API_URL"
+  gh_default_branch_name = "trunk/baseline3"
 
   github_target_org    = local.selected_environment.github_target_org
   github_app_client_id = local.selected_environment.github_app_client_id
@@ -118,6 +119,10 @@ output "subdomain_label" {
 
 output "gh_repo_name" {
   value = local.gh_repo_name
+}
+
+output "gh_default_branch_name" {
+  value = local.gh_default_branch_name
 }
 
 output "gh_api_url_var_name" {
