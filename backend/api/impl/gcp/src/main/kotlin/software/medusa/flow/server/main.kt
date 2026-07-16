@@ -82,6 +82,8 @@ fun main() {
           gitHubCandidateClient = GitHubAppCandidateClient(gitHubAppClient),
           reconcileAuthorizer = buildWorkerAuthorizer("$workerSaEmails,$schedulerSaEmails"),
           gitHubWebhookSecret = gitHubWebhookSecret,
+          // Fence the reconciler to our org — it must never act on a repo outside it.
+          reconcileOrgOwner = gitHubAppClient.repoOwner,
       )
       .start()
       .join()

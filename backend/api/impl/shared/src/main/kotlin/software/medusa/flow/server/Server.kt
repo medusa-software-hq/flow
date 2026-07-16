@@ -34,6 +34,9 @@ fun buildServer(
     // request closed (401), since an unverifiable event must never trigger work. The mains supply
     // the real secret (Secret Manager on gcp, env on local).
     gitHubWebhookSecret: String = "",
+    // When set, the reconciler only ever acts on repos owned by this org (every path is fenced).
+    // The mains pass the GitHub App's owner; null (tests/local) disables the fence.
+    reconcileOrgOwner: String? = null,
 ): Server {
   // Reconcile assembly — observe (06) and pick (07) are both real now.
   val reconciler =
@@ -47,6 +50,7 @@ fun buildServer(
           // The scheduler discovers repos with `flow:ready` issues via one installation-wide
           // search.
           discoverReadyRepos = gitHubCandidateClient::findReposWithReadyIssues,
+          orgOwner = reconcileOrgOwner,
       )
 
   // Webhook-triggered reconciles run detached (the endpoint answers 202 immediately). This scope

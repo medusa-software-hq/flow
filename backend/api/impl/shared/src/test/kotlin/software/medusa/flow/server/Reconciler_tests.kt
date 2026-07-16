@@ -31,6 +31,7 @@ class Reconciler_tests {
       picker: PipelinePicker = PipelinePicker.Noop,
       repoLock: RepoLock = InMemoryRepoLock(),
       discoverReadyRepos: suspend () -> Set<String> = { emptySet() },
+      orgOwner: String? = null,
   ): Reconciler =
       Reconciler(
           pipelineStore = pipelines,
@@ -40,6 +41,7 @@ class Reconciler_tests {
           picker = picker,
           repoLock = repoLock,
           discoverReadyRepos = discoverReadyRepos,
+          orgOwner = orgOwner,
       )
 
   @Test
@@ -88,6 +90,38 @@ class Reconciler_tests {
         assertEquals(setOf("acme/fresh"), summaries.map { it.repoFullName }.toSet())
         assertEquals(1, summaries.single().pickedCount)
       }
+
+  @Test
+  fun `repos outside the configured org are never reconciled, on any path`() = runBlocking {
+    val (pipelines, outbox, github) = fixture()
+    // A leftover live pipeline for a foreign repo (as a stray global-search pick would create) —
+    // it must not be reconciled once the org fence is on.
+    pipelines.pick("stranger/repo", 1, "t", "u", SessionId("s1"))
+    pipelines.pick("acme/app", 2, "t", "u", SessionId("s2"))
+
+    val summaries =
+        reconciler(
+                pipelines,
+                outbox,
+                github,
+                discoverReadyRepos = { setOf("stranger/other") }, // discovery also fenced
+                orgOwner = "acme",
+            )
+            .reconcile(repoFullName = null)
+
+    assertEquals(setOf("acme/app"), summaries.map { it.repoFullName }.toSet())
+  }
+
+  @Test
+  fun `a webhook trigger for a foreign repo is dropped`() = runBlocking {
+    val (pipelines, outbox, github) = fixture()
+
+    val summaries =
+        reconciler(pipelines, outbox, github, orgOwner = "acme")
+            .reconcile(repoFullName = "stranger/repo")
+
+    assertEquals(emptyList(), summaries)
+  }
 
   @Test
   fun `a failing discovery search still reconciles already-relevant repos`() = runBlocking {

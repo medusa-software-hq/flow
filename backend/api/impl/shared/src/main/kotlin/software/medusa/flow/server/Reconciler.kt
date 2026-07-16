@@ -36,18 +36,31 @@ class Reconciler(
     // without this a brand-new repo's *first* pick could only come from a webhook. Defaults to
     // none.
     private val discoverReadyRepos: suspend () -> Set<String> = { emptySet() },
+    // When set, the reconciler *only ever* acts on repos owned by [orgOwner] — every path
+    // (discovery,
+    // live pipelines, pending outbox, and even a webhook's repo-scoped trigger) is fenced to it.
+    // The
+    // App can't write outside our org (label/close calls 403), so acting on a foreign repo only
+    // creates inert junk + stuck outbox in our own DB. Null (tests/local) disables the fence.
+    private val orgOwner: String? = null,
 ) {
   private val log = LoggerFactory.getLogger(Reconciler::class.java)
 
   /**
    * Reconciles [repoFullName], or — when null — every currently-relevant repo. Returns a per-repo
    * summary. Repos are processed independently; each is serialized against concurrent triggers by
-   * [repoLock].
+   * [repoLock]. Any repo outside [orgOwner] is dropped before processing.
    */
   suspend fun reconcile(
       repoFullName: String?,
   ): List<ReconcileSummary> {
-    val targetRepos = repoFullName?.let { listOf(it) } ?: relevantRepos()
+    val candidateRepos = repoFullName?.let { listOf(it) } ?: relevantRepos()
+    val targetRepos = candidateRepos.filter(::isInOrg)
+
+    val dropped = candidateRepos - targetRepos.toSet()
+    if (dropped.isNotEmpty()) {
+      log.warn("skipping repos outside org '{}': {}", orgOwner, dropped)
+    }
 
     log.info(
         "reconcile start: trigger={}, repos={}",
@@ -57,6 +70,10 @@ class Reconciler(
 
     return targetRepos.map { repo -> repoLock.withRepoLock(repo) { reconcileRepo(repo) } }
   }
+
+  private fun isInOrg(
+      repoFullName: String,
+  ): Boolean = orgOwner == null || repoFullName.substringBefore('/') == orgOwner
 
   /**
    * "Relevant" for a full run = repos with a live pipeline ∪ repos with pending outbox ∪ repos with
