@@ -34,6 +34,10 @@ fun buildServer(
     // request closed (401), since an unverifiable event must never trigger work. The mains supply
     // the real secret (Secret Manager on gcp, env on local).
     gitHubWebhookSecret: String = "",
+    // Repos the scheduler always scans for `ready` candidates, so a fresh repo's first pick doesn't
+    // depend on a webhook. Empty by default (behaves as before); the mains supply the configured
+    // set.
+    reconcileDiscoveryRepos: Set<String> = emptySet(),
 ): Server {
   // Reconcile assembly — observe (06) and pick (07) are both real now.
   val reconciler =
@@ -44,6 +48,7 @@ fun buildServer(
           observer = ReconcileObserver(issuePipelineStore, sessionStore, gitHubPrClient),
           picker = ReconcilePicker(issuePipelineStore, sessionStore, gitHubCandidateClient),
           repoLock = InMemoryRepoLock(),
+          discoveryRepos = reconcileDiscoveryRepos,
       )
 
   // Webhook-triggered reconciles run detached (the endpoint answers 202 immediately). This scope

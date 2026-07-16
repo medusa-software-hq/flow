@@ -30,6 +30,7 @@ class Reconciler_tests {
       observer: PipelineObserver = PipelineObserver.Noop,
       picker: PipelinePicker = PipelinePicker.Noop,
       repoLock: RepoLock = InMemoryRepoLock(),
+      discoveryRepos: Set<String> = emptySet(),
   ): Reconciler =
       Reconciler(
           pipelineStore = pipelines,
@@ -38,6 +39,7 @@ class Reconciler_tests {
           observer = observer,
           picker = picker,
           repoLock = repoLock,
+          discoveryRepos = discoveryRepos,
       )
 
   @Test
@@ -65,6 +67,26 @@ class Reconciler_tests {
         val summaries = reconciler(pipelines, outbox, github).reconcile(repoFullName = null)
 
         assertEquals(setOf("acme/a", "acme/b"), summaries.map { it.repoFullName }.toSet())
+      }
+
+  @Test
+  fun `a full run also scans configured discovery repos with no pipeline or outbox yet`() =
+      runBlocking {
+        val (pipelines, outbox, github) = fixture()
+        // No pick, no pending outbox — the repo's only signal is that it's in the discovery set. A
+        // pre-fix scheduler run would have scanned nothing.
+        val summaries =
+            reconciler(
+                    pipelines,
+                    outbox,
+                    github,
+                    picker = PipelinePicker { 1 },
+                    discoveryRepos = setOf("acme/fresh"),
+                )
+                .reconcile(repoFullName = null)
+
+        assertEquals(setOf("acme/fresh"), summaries.map { it.repoFullName }.toSet())
+        assertEquals(1, summaries.single().pickedCount)
       }
 
   @Test
