@@ -68,6 +68,18 @@ with the PR link. If the engine can't get the project healthy, the session
 ends `FAILED` with a human-readable summary; there's no partial/resumable
 state, a failed or crashed run is simply retried as a new session.
 
+## Auto mode
+
+Beyond the manual flow above, Flow can watch a repository's **issues** and work
+them on its own: label an issue `ready`, and Flow picks it, runs a session,
+opens a PR, and — once you merge it — closes the issue and moves to whatever it
+unblocked. One issue per repo at a time; native GitHub "blocked by" orders the
+work; failures stop the repo until a human clears them in the web app.
+
+- Issue authors and operators: [docs/auto-mode.md](docs/auto-mode.md)
+- Acceptance-demo runbook: [docs/m2-demo-runbook.md](docs/m2-demo-runbook.md)
+- Known edges deferred past M2: [docs/m2-follow-ups.md](docs/m2-follow-ups.md)
+
 ## Building
 
 Kotlin/JVM throughout (Java 21 toolchain), Gradle with a version catalog at
