@@ -139,6 +139,18 @@ class FakeGitHubServer : AutoCloseable {
       repoFullName: String,
   ): PullRequest? = repos[repoFullName]?.pulls?.values?.firstOrNull { it.open }
 
+  /** Registers a PR with a fixed [number] (so a test can point a pipeline's pr_number at it). */
+  fun seedPullRequest(
+      repoFullName: String,
+      number: Int,
+      head: String = "flow/issue-$number",
+  ): PullRequest {
+    val repo = seedRepo(repoFullName)
+    return PullRequest(number, head, repo.defaultBranch, title = "t", body = "b").also {
+      repo.pulls[number] = it
+    }
+  }
+
   fun issue(
       repoFullName: String,
       number: Int,
