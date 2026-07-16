@@ -95,7 +95,23 @@ export function SessionsListPage({
                 onClick={() => void navigate(`/sessions/${session.id}`)}
                 style={{ cursor: 'pointer' }}
               >
-                <Table.Td>{session.repoFullName}</Table.Td>
+                <Table.Td>
+                  <Group gap="xs">
+                    {session.repoFullName}
+                    {session.issueNumber > 0 && (
+                      <Anchor
+                        href={session.issueUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Badge color="grape" variant="light">
+                          #{session.issueNumber}
+                        </Badge>
+                      </Anchor>
+                    )}
+                  </Group>
+                </Table.Td>
                 <Table.Td>
                   <Badge color={sessionStateColor[session.state]} variant="light">
                     {sessionStateLabel[session.state]}
