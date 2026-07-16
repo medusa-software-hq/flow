@@ -3,6 +3,42 @@ terraform {
 }
 
 locals {
+  # Deployment environment, derived from the Terraform workspace. The `default`
+  # workspace is production — its state predates the prod/staging split, so it
+  # stays in place (no state migration); every other workspace is a named
+  # non-prod environment. This is the single dimension that distinguishes prod
+  # from staging across every root that imports this module.
+  environment = terraform.workspace == "default" ? "prod" : terraform.workspace
+
+  # Per-environment values. Everything *outside* this map is shared across
+  # environments of the same flavor (same GCP meta project, state bucket,
+  # region, OAuth client, …); only what genuinely differs per environment lives
+  # here. `default`/prod resolves to exactly the values used before this split,
+  # so introducing the workspace dimension is a no-op on the prod state.
+  environment_config = {
+    prod = {
+      # GitHub org whose repos this environment's App watches / acts on.
+      gh_organization_name = "medusa-software-hq"
+
+      # GitHub App used to read repository issues.
+      # https://github.com/organizations/medusa-software-hq/settings/apps
+      github_app_client_id = "Iv23liiYuXXbBb9RRGrZ"
+
+      # Flavor subdomain under organization_domain (e.g. api.<label>.<domain>).
+      subdomain_label = "flow-baseline"
+    }
+    staging = {
+      # Sandbox org — the staging App's credential boundary is the env boundary.
+      gh_organization_name = "medusa-software-test-hq"
+
+      # https://github.com/organizations/medusa-software-test-hq/settings/apps
+      github_app_client_id = "Iv23liGENDkcxvvs8EwJ"
+
+      subdomain_label = "flow-baseline-staging"
+    }
+  }
+  selected_environment = local.environment_config[local.environment]
+
   organization_domain = "medusa.software"
 
   gcp_organization_prefix         = "ms"
@@ -13,13 +49,13 @@ locals {
   gcp_api_run_service_name = "api"
   gcp_web_run_service_name = "web"
 
-  gh_organization_name = "medusa-software-hq"
+  gh_organization_name = local.selected_environment.gh_organization_name
   gh_repo_name         = "flow"
   gh_api_url_var_name  = "API_URL"
 
-  # GitHub App used to read repository issues.
-  # https://github.com/organizations/medusa-software-hq/settings/apps
-  github_app_client_id = "Iv23liiYuXXbBb9RRGrZ"
+  github_app_client_id = local.selected_environment.github_app_client_id
+
+  subdomain_label = local.selected_environment.subdomain_label
 
   project_base_name = "flow"
   project_variant   = "baseline"
@@ -27,6 +63,10 @@ locals {
   # Google OAuth 2.0 client ID
   # https://console.cloud.google.com/auth/clients/852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com?project=ms-auth-284371d2
   google_client_id = "852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com"
+}
+
+output "environment" {
+  value = local.environment
 }
 
 output "organization_domain" {
@@ -59,6 +99,10 @@ output "gcp_web_run_service_name" {
 
 output "gh_organization_name" {
   value = local.gh_organization_name
+}
+
+output "subdomain_label" {
+  value = local.subdomain_label
 }
 
 output "gh_repo_name" {
