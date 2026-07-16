@@ -2,17 +2,13 @@
 # invokes ReconcileService.Reconcile (no repo arg -> every relevant repo) on a
 # fixed cadence. The GitHub webhook (story 10) only *accelerates* this; with
 # webhooks disabled the system still converges at this cadence.
-
-# The Cloud Scheduler API. Enabled here, alongside the job that needs it, rather
-# than in the root infra project config: that state is applied out-of-band, so
-# co-locating the enablement with the resource keeps this state's CI apply
-# self-contained (no cross-state ordering dependency). cloudscheduler is owned by
-# this state alone -- it is not in the root's API set, so there is no overlap.
-resource "google_project_service" "cloudscheduler" {
-  project            = var.gcp_project_id
-  service            = "cloudscheduler.googleapis.com"
-  disable_on_destroy = false
-}
+#
+# This state's CI/CD SA has no serviceusage or cloudscheduler permissions, so the
+# foundation pieces live in the (more privileged) root infra state, applied first:
+#   - cloudscheduler.googleapis.com enablement (infra/gcp-project.tf)
+#   - roles/cloudscheduler.admin on the CI/CD SA (infra/gcp-ci-cd-sa.tf)
+# The CI/CD SA's project-level roles/iam.serviceAccountUser covers acting as the
+# scheduler SA when creating the job below.
 
 # Dedicated identity the scheduler authenticates as. Like flow-worker, it holds
 # no GCP roles: it exists purely so the job can present a Google-signed OIDC
@@ -64,8 +60,6 @@ resource "google_cloud_scheduler_job" "reconcile" {
       audience              = var.worker_token_audience
     }
   }
-
-  depends_on = [google_project_service.cloudscheduler]
 }
 
 output "scheduler_sa_email" {
