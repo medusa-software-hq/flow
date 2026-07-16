@@ -13,9 +13,10 @@ locals {
   gcp_api_run_service_name = "api"
   gcp_web_run_service_name = "web"
 
-  gh_organization_name = "medusa-software-hq"
-  gh_repo_name         = "flow"
-  gh_api_url_var_name  = "API_URL"
+  gh_organization_name   = "medusa-software-hq"
+  gh_repo_name           = "flow"
+  gh_api_url_var_name    = "API_URL"
+  gh_default_branch_name = "trunk/baseline3"
 
   # GitHub App used to read repository issues.
   # https://github.com/organizations/medusa-software-hq/settings/apps
@@ -63,6 +64,10 @@ output "gh_organization_name" {
 
 output "gh_repo_name" {
   value = local.gh_repo_name
+}
+
+output "gh_default_branch_name" {
+  value = local.gh_default_branch_name
 }
 
 output "gh_api_url_var_name" {
