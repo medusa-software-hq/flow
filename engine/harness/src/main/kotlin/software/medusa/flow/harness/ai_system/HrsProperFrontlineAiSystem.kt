@@ -144,6 +144,11 @@ class HrsProperFrontlineAiSystem(
       when (entityAdjustment) {
         VedFileAdjustment.Open -> openedFilePaths += pathPrefix
 
+        // Exposure toggles (leader/assistant engine only) open no files and expand no directories,
+        // so they contribute no scouting-round paths. The classic engine never emits them.
+        VedFileAdjustment.Expose,
+        VedFileAdjustment.Hide -> Unit
+
         VedDirectoryAdjustment.Expand -> expandedDirectoryPaths += pathPrefix
 
         is VedDirectoryAdjustment.Dive ->
