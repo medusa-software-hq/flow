@@ -30,10 +30,12 @@ class Reconciler(
     private val observer: PipelineObserver,
     private val picker: PipelinePicker,
     private val repoLock: RepoLock,
-    // Repos the scheduler (no-arg) reconcile always scans for `ready` candidates, even with no live
-    // pipeline or pending outbox yet. Without this, a brand-new repo's *first* pick can only happen
-    // via a webhook's repo-scoped reconcile — the scheduler backstop would never discover it.
-    private val discoveryRepos: Set<String> = emptySet(),
+    // Discovers repos with an open `flow:ready` issue (one installation-wide GitHub search), so the
+    // scheduler (no-arg) reconcile can pick a fresh repo whose only signal so far is a ready issue
+    // —
+    // without this a brand-new repo's *first* pick could only come from a webhook. Defaults to
+    // none.
+    private val discoverReadyRepos: suspend () -> Set<String> = { emptySet() },
 ) {
   private val log = LoggerFactory.getLogger(Reconciler::class.java)
 
@@ -57,14 +59,25 @@ class Reconciler(
   }
 
   /**
-   * "Relevant" for a full run = repos with a live pipeline ∪ repos with pending outbox ∪ the
-   * configured [discoveryRepos]. The first two keep in-flight work converging; [discoveryRepos] is
-   * what lets the scheduler *discover* a repo whose only signal so far is a `ready` issue.
+   * "Relevant" for a full run = repos with a live pipeline ∪ repos with pending outbox ∪ repos with
+   * an open `flow:ready` issue ([discoverReadyRepos]). The first two keep in-flight work
+   * converging; the third lets the scheduler *discover* a repo whose only signal so far is a ready
+   * issue.
+   *
+   * Discovery is best-effort: a failing search (rate limit, transient error) must not stop the
+   * backstop from converging repos that are already relevant, so it's caught and logged.
    */
   private suspend fun relevantRepos(): List<String> {
     val fromLivePipelines = pipelineStore.listLive().map { it.repoFullName }
     val fromPendingOutbox = outboxStore.reposWithPendingEntries()
-    return (fromLivePipelines + fromPendingOutbox + discoveryRepos).distinct()
+    val fromDiscovery =
+        try {
+          discoverReadyRepos()
+        } catch (e: Exception) {
+          log.warn("ready-repo discovery failed; reconciling only already-relevant repos", e)
+          emptySet()
+        }
+    return (fromLivePipelines + fromPendingOutbox + fromDiscovery).distinct()
   }
 
   private suspend fun reconcileRepo(

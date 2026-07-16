@@ -13,7 +13,6 @@ private const val workerSaEmailsEnvVarName = "WORKER_SA_EMAILS"
 private const val schedulerSaEmailsEnvVarName = "SCHEDULER_SA_EMAILS"
 private const val workerTokenAudienceEnvVarName = "WORKER_TOKEN_AUDIENCE"
 private const val gitHubWebhookSecretEnvVarName = "GITHUB_WEBHOOK_SECRET"
-private const val reconcileReposEnvVarName = "RECONCILE_REPOS"
 
 fun main() {
   val port =
@@ -56,17 +55,6 @@ fun main() {
   // cadence.
   val gitHubWebhookSecret = System.getenv(gitHubWebhookSecretEnvVarName).orEmpty()
 
-  // Repos the scheduler always scans for `ready` issues (comma-separated `owner/name`), so a fresh
-  // repo's first pick doesn't depend on a webhook delivery. Optional/empty (webhook-only discovery)
-  // until configured.
-  val reconcileDiscoveryRepos =
-      System.getenv(reconcileReposEnvVarName)
-          .orEmpty()
-          .split(",")
-          .map { it.trim() }
-          .filter { it.isNotEmpty() }
-          .toSet()
-
   // One database (pool + migrations) shared by every Postgres-backed store.
   val database = buildFlowDatabase(databaseUrl)
 
@@ -94,7 +82,6 @@ fun main() {
           gitHubCandidateClient = GitHubAppCandidateClient(gitHubAppClient),
           reconcileAuthorizer = buildWorkerAuthorizer("$workerSaEmails,$schedulerSaEmails"),
           gitHubWebhookSecret = gitHubWebhookSecret,
-          reconcileDiscoveryRepos = reconcileDiscoveryRepos,
       )
       .start()
       .join()

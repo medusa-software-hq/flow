@@ -9,7 +9,7 @@ import kotlinx.serialization.json.put
 
 /**
  * [GitHubCandidateClient] backed by GitHub's GraphQL search via [GitHubAppClient]. One query
- * returns every open `ready` issue *and* its blocked-by states (the spike confirmed this is a
+ * returns every open `flow:ready` issue *and* its blocked-by states (the spike confirmed this is a
  * single call, ~1 rate-limit point); the zero-open-blockers filter is applied client-side.
  */
 class GitHubAppCandidateClient(
@@ -18,13 +18,12 @@ class GitHubAppCandidateClient(
   override suspend fun findReadyCandidates(
       repoFullName: String,
   ): List<CandidateIssue> {
-    val searchQuery =
-        "repo:$repoFullName is:issue is:open label:${GitHubCandidateClient.readyLabel}"
-
+    // The `\"` are literal in this raw string; they quote the label (which contains a colon) inside
+    // the GraphQL search-query string. The JSON encoder below escapes them for transport.
     val graphQlQuery =
         """
         query {
-          search(query: "$searchQuery", type: ISSUE, first: 50) {
+          search(query: "repo:$repoFullName is:issue is:open label:\"${GitHubCandidateClient.readyLabel}\"", type: ISSUE, first: 50) {
             nodes {
               ... on Issue {
                 number
@@ -70,7 +69,51 @@ class GitHubAppCandidateClient(
         }
         .sortedBy { it.createdAt } // oldest first
   }
+
+  override suspend fun findReposWithReadyIssues(): Set<String> {
+    // No `repo:` qualifier -> the search spans every repo the installation token can see, in one
+    // call. We only need the distinct repositories, not the issues themselves.
+    val graphQlQuery =
+        """
+        query {
+          search(query: "is:issue is:open label:\"${GitHubCandidateClient.readyLabel}\"", type: ISSUE, first: 100) {
+            nodes {
+              ... on Issue {
+                repository { nameWithOwner }
+              }
+            }
+          }
+        }
+        """
+            .trimIndent()
+
+    val body = gitHubJson.encodeToString(buildJsonObject { put("query", graphQlQuery) })
+    val response = client.post("/graphql", body)
+    check(response.status() == HttpStatus.OK) {
+      "GitHub ready-repo discovery search failed: ${response.status()} ${response.contentUtf8()}"
+    }
+
+    return gitHubJson
+        .decodeFromString<RepoDiscoveryEnvelope>(response.contentUtf8())
+        .data
+        ?.search
+        ?.nodes
+        .orEmpty()
+        .filterNotNull()
+        .mapNotNull { it.repository?.nameWithOwner }
+        .toSet()
+  }
 }
+
+@Serializable private data class RepoDiscoveryEnvelope(val data: RepoDiscoveryData? = null)
+
+@Serializable private data class RepoDiscoveryData(val search: RepoDiscoverySearch? = null)
+
+@Serializable private data class RepoDiscoverySearch(val nodes: List<RepoDiscoveryNode?>? = null)
+
+@Serializable private data class RepoDiscoveryNode(val repository: RepoDiscoveryRepo? = null)
+
+@Serializable private data class RepoDiscoveryRepo(val nameWithOwner: String? = null)
 
 @Serializable private data class CandidateEnvelope(val data: CandidateData? = null)
 

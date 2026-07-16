@@ -8,7 +8,13 @@ package software.medusa.flow.server
 class FakeGitHubCandidateClient : GitHubCandidateClient {
   val candidatesByRepo = mutableMapOf<String, List<CandidateIssue>>()
 
+  /** Repos [findReposWithReadyIssues] reports; defaults to those with configured candidates. */
+  var reposWithReadyIssues: Set<String>? = null
+
   override suspend fun findReadyCandidates(
       repoFullName: String,
   ): List<CandidateIssue> = candidatesByRepo[repoFullName].orEmpty()
+
+  override suspend fun findReposWithReadyIssues(): Set<String> =
+      reposWithReadyIssues ?: candidatesByRepo.filterValues { it.isNotEmpty() }.keys
 }

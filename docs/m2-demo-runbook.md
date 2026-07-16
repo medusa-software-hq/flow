@@ -39,11 +39,11 @@ a valid `project.yaml` and a green baseline.
          - run: ./gradlew build
    ```
 
-2. **The A ← B ← C chain.** Three issues, each labeled `ready`, whose tasks the
+2. **The A ← B ← C chain.** Three issues, each labeled `flow:ready`, whose tasks the
    engine reliably completes (small, self-verifying changes), wired with native
    dependencies:
    - B **blocked by** A, C **blocked by** B (Issue → Relationships → *Blocked by*).
-   - All three labeled `ready`.
+   - All three labeled `flow:ready`.
 
    Start from a clean slate (no open `flow:*` labels, A/B/C open and unblocked in
    graph order).
