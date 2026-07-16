@@ -141,3 +141,24 @@ resource "github_repository_environment_deployment_policy" "production_trunk" {
   environment    = github_repository_environment.production.environment
   branch_pattern = module.common.gh_default_branch_name
 }
+
+# Staging deployment environment (M2.5). Same shape as production: it holds the
+# environment-scoped CI/CD variables (GCP project id, API URL, CI/CD SA/WIF,
+# Neon key) that distinguish the staging deploy from prod, and — like every
+# deploy here — only the trunk drives it.
+resource "github_repository_environment" "staging" {
+  repository  = github_repository.this.name
+  environment = "staging"
+
+  deployment_branch_policy {
+    protected_branches     = false
+    custom_branch_policies = true
+  }
+}
+
+# Only the trunk may deploy to staging.
+resource "github_repository_environment_deployment_policy" "staging_trunk" {
+  repository     = github_repository.this.name
+  environment    = github_repository_environment.staging.environment
+  branch_pattern = module.common.gh_default_branch_name
+}
