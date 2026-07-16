@@ -8,9 +8,11 @@ import reactLogo from './assets/react.svg';
 import viteLogo from './assets/vite.svg';
 import { CounterService } from './gen/medusa/counter/v1/counter_service_pb.ts';
 import { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
+import { PipelineService } from './gen/medusa/pipeline/v1/pipeline_service_pb.ts';
 import { SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
 import { GitHubIssues } from './GitHubIssues.tsx';
 import { NewSessionForm } from './NewSessionForm.tsx';
+import { PipelinesListPage } from './PipelinesListPage.tsx';
 import { SessionDetailPage } from './SessionDetailPage.tsx';
 import { SessionsListPage } from './SessionsListPage.tsx';
 import { SignInWall } from './SignInWall.tsx';
@@ -30,6 +32,7 @@ const transport = createGrpcWebTransport({
 const client = createClient(CounterService, transport);
 const gitHubClient = createClient(GitHubService, transport);
 const sessionClient = createClient(SessionService, transport);
+const pipelineClient = createClient(PipelineService, transport);
 
 const socialLinks = [
   { label: 'GitHub', href: 'https://github.com/vitejs/vite', icon: 'github-icon' },
@@ -226,6 +229,9 @@ function AuthenticatedApp({ token }: { token: string }) {
         <Anchor component={Link} to="/sessions" fw={600}>
           Sessions
         </Anchor>
+        <Anchor component={Link} to="/pipelines" fw={600}>
+          Pipelines
+        </Anchor>
       </Group>
 
       <Routes>
@@ -261,6 +267,18 @@ function AuthenticatedApp({ token }: { token: string }) {
             <Box p="md">
               <SessionDetailPage
                 client={sessionClient}
+                headers={headers}
+                onUnauthorized={handleUnauthorized}
+              />
+            </Box>
+          }
+        />
+        <Route
+          path="/pipelines"
+          element={
+            <Box p="md">
+              <PipelinesListPage
+                client={pipelineClient}
                 headers={headers}
                 onUnauthorized={handleUnauthorized}
               />

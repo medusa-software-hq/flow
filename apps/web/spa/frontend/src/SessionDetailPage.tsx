@@ -14,7 +14,7 @@ import {
 } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import {
   SessionState,
   type Session,
@@ -146,6 +146,18 @@ export function SessionDetailPage({
         <Text c="dimmed" size="sm">
           Created {formatTimestamp(session.createdAt)} by {session.createdBy}
         </Text>
+        {session.issueNumber > 0 && (
+          <Group gap="xs">
+            <Anchor href={session.issueUrl} target="_blank" rel="noreferrer">
+              <Badge color="grape" variant="light">
+                Issue #{session.issueNumber}
+              </Badge>
+            </Anchor>
+            <Anchor component={Link} to="/pipelines" size="sm">
+              View pipeline
+            </Anchor>
+          </Group>
+        )}
         {isSessionActive(session.state) && latestEventKind !== null && (
           <Text size="sm">Current phase: {sessionEventKindLabel[latestEventKind]}</Text>
         )}
