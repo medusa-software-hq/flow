@@ -92,6 +92,14 @@ resource "google_project_iam_member" "cicd_sa_secretmanager_admin" {
   member  = "serviceAccount:${google_service_account.cicd_sa.email}"
 }
 
+# Grant CI/CD SA Cloud Scheduler admin (manage the periodic reconcile job — see
+# backend/api/infra/gcp-scheduler.tf, applied by this same SA).
+resource "google_project_iam_member" "cicd_sa_cloudscheduler_admin" {
+  project = local.gcp_project_id
+  role    = "roles/cloudscheduler.admin"
+  member  = "serviceAccount:${google_service_account.cicd_sa.email}"
+}
+
 # Grant CI/CD SA project IAM admin (manage project-level IAM bindings)
 resource "google_project_iam_member" "cicd_sa_project_iam_admin" {
   project = local.gcp_project_id
