@@ -87,6 +87,21 @@ class GoogleIdTokenAuthDecorator_tests {
   }
 
   @Test
+  fun `a worker token whose audience omits the configured trailing slash is authorized`() {
+    // Configured workerTokenAudience is "https://api.example.com/"; the token's aud has no slash.
+    val result =
+        decorator.resolveAuthorizedEmail(
+            claims(
+                audience = "https://api.example.com",
+                email = "flow-worker@project.iam.gserviceaccount.com",
+                hd = null,
+            ),
+        )
+
+    assertEquals("flow-worker@project.iam.gserviceaccount.com", result)
+  }
+
+  @Test
   fun `a token matching neither audience is rejected`() {
     val result = decorator.resolveAuthorizedEmail(claims(audience = "https://someone-elses-app/"))
 
