@@ -71,7 +71,7 @@ state, a failed or crashed run is simply retried as a new session.
 ## Auto mode
 
 Beyond the manual flow above, Flow can watch a repository's **issues** and work
-them on its own: label an issue `ready`, and Flow picks it, runs a session,
+them on its own: label an issue `flow:ready`, and Flow picks it, runs a session,
 opens a PR, and — once you merge it — closes the issue and moves to whatever it
 unblocked. One issue per repo at a time; native GitHub "blocked by" orders the
 work; failures stop the repo until a human clears them in the web app.

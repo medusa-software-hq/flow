@@ -30,7 +30,7 @@ class Reconciler_tests {
       observer: PipelineObserver = PipelineObserver.Noop,
       picker: PipelinePicker = PipelinePicker.Noop,
       repoLock: RepoLock = InMemoryRepoLock(),
-      discoveryRepos: Set<String> = emptySet(),
+      discoverReadyRepos: suspend () -> Set<String> = { emptySet() },
   ): Reconciler =
       Reconciler(
           pipelineStore = pipelines,
@@ -39,7 +39,7 @@ class Reconciler_tests {
           observer = observer,
           picker = picker,
           repoLock = repoLock,
-          discoveryRepos = discoveryRepos,
+          discoverReadyRepos = discoverReadyRepos,
       )
 
   @Test
@@ -81,13 +81,31 @@ class Reconciler_tests {
                     outbox,
                     github,
                     picker = PipelinePicker { 1 },
-                    discoveryRepos = setOf("acme/fresh"),
+                    discoverReadyRepos = { setOf("acme/fresh") },
                 )
                 .reconcile(repoFullName = null)
 
         assertEquals(setOf("acme/fresh"), summaries.map { it.repoFullName }.toSet())
         assertEquals(1, summaries.single().pickedCount)
       }
+
+  @Test
+  fun `a failing discovery search still reconciles already-relevant repos`() = runBlocking {
+    val (pipelines, outbox, github) = fixture()
+    pipelines.pick("acme/live", 1, "t", "u", SessionId("s1")) // a live pipeline → relevant
+
+    val summaries =
+        reconciler(
+                pipelines,
+                outbox,
+                github,
+                discoverReadyRepos = { error("GitHub search is down") },
+            )
+            .reconcile(repoFullName = null)
+
+    // Discovery blew up, but the live repo is still reconciled (backstop stays robust).
+    assertEquals(setOf("acme/live"), summaries.map { it.repoFullName }.toSet())
+  }
 
   @Test
   fun `the phase counts are reported per repo`() = runBlocking {

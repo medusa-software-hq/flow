@@ -11,23 +11,23 @@ auto mode.
 
 ## For issue authors
 
-### Opt an issue in: the `ready` label
+### Opt an issue in: the `flow:ready` label
 
-Add the **`ready`** label to an issue to make it eligible for autonomous pickup.
+Add the **`flow:ready`** label to an issue to make it eligible for autonomous pickup.
 The issue's **title + body become the task** — write them the way you'd write a
 task for the manual flow: a clear title (it becomes the PR title) and a body
 that says what "done" looks like. Everything the engine needs to verify itself
 must come from the repo's own `project.yaml` build/test tooling, exactly as in
 manual mode.
 
-An issue with no `ready` label is invisible to auto mode.
+An issue with no `flow:ready` label is invisible to auto mode.
 
 ### Order work with native "blocked by"
 
 Flow respects GitHub's **native issue dependencies**. If issue B is *blocked by*
 A (Issue → **Relationships** → *Blocked by*), Flow will not pick B until A is
 **closed**. A chain A ← B ← C is worked strictly in order: A, then B once A
-closes, then C once B closes — you can label all three `ready` up front and
+closes, then C once B closes — you can label all three `flow:ready` up front and
 leave them.
 
 "Unblocked" means *every* blocker is closed. A blocker that's still open (even
@@ -84,7 +84,7 @@ Reconciles — the passes that observe PR/merge state, close done issues, pick t
 next issue, and flush the GitHub outbox — are driven by:
 
 - **GitHub webhooks** (`POST /webhook/github`): latency. An issue labeled
-  `ready`, a merged PR, or a finished check wakes the reconciler within seconds.
+  `flow:ready`, a merged PR, or a finished check wakes the reconciler within seconds.
   Purely an accelerant — see [../backend/api/infra/github-webhook.md](../backend/api/infra/github-webhook.md)
   for setup. With webhooks off, everything still works, just slower.
 - **Cloud Scheduler** (`api-reconcile`, every ~3 min): the correctness backstop.
