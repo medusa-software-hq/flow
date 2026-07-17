@@ -20,8 +20,21 @@ env:
 
 jobs:
   apply-config:
-    name: Apply Terraform configuration
+    name: Apply Terraform configuration (${{ matrix.environment }})
     runs-on: ubuntu-latest
+
+    # See apply-api-infra.yml for the environment/workspace split. Production's workspace is
+    # `default` — its state predates the prod/staging split.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: production
+            workspace: default
+          - environment: staging
+            workspace: staging
+
+    environment: ${{ matrix.environment }}
 
     permissions:
       contents: read
@@ -48,4 +61,5 @@ jobs:
           TF_VAR_gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
         run: |
           terraform init
+          terraform workspace select -or-create=true ${{ matrix.workspace }}
           terraform apply -auto-approve
