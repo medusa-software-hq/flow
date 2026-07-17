@@ -55,3 +55,20 @@ import {
   to = github_actions_secret.gh_releases_app_pem_content
   id = "${module.common.gh_repo_name}:GH_RELEASES_APP_PEM_CONTENT"
 }
+
+# The `medusa-flow-nightly` App's private key (Client ID Iv23liKTj6dtBHWRnzeg), owned by the sandbox
+# org medusa-software-test-hq and installed on flow-sandbox-fixture. The nightly real-stack workflow
+# mints a short-lived installation token from it (via actions/create-github-app-token) for both the
+# worker's git/PR operations and the fixture reset. A dedicated App keeps CI's blast radius to the
+# fixture repo and off the control-plane App (medusa-flow-test) whose key CI must never hold. New
+# secret (no live value to adopt), so no import block: Terraform creates it with the placeholder and
+# the real PEM is set by hand afterward. The raw GitHub-issued PEM (PKCS#1) is used as-is.
+resource "github_actions_secret" "nightly_app_pem_content" {
+  repository  = github_repository.this.name
+  secret_name = "NIGHTLY_APP_PEM_CONTENT"
+  value       = local.secret_placeholder
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
