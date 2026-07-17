@@ -1,0 +1,90 @@
+name: Check hermetic loop
+
+# The M1 demo as an automated test: real control plane, real shipped worker binary, real git, real
+# engine on cheap models — only GitHub is a local stub. It costs real model credits, so it runs only
+# for changes that can plausibly break the loop, and it is NOT part of `check`.
+#
+# Deliberately standalone rather than a job in check-pr.yml: that workflow path-filters nothing, so
+# the loop would burn model credits on documentation-only PRs. It is also deliberately NOT in the
+# branch ruleset's required checks yet — it becomes required only after the calibration burn-in
+# (10 consecutive greens on trunk).
+#
+# workflow_dispatch is deliberate too: it re-runs the loop without pushing an empty commit, which is
+# how that burn-in gets measured.
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "cli/**"
+      - "e2e/**"
+      - "engine/**"
+      - "worker/**"
+      - "proto/**"
+      - "gradle/**"
+      - "settings.gradle.kts"
+      - ".github/workflows/check-hermetic-loop.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: 21
+  NO_COLOR: 1
+
+jobs:
+  hermetic-loop:
+    name: Hermetic loop (${{ matrix.fixture }})
+    runs-on: ubuntu-latest
+
+    # One job per fixture. Only `gradle` today: the loop is toolchain-agnostic and each toolchain
+    # already has its own integration tests, so a second full loop would mostly re-run the same loop
+    # while doubling the AI-flake surface. Adding one is an entry here plus a resource directory.
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [gradle]
+
+    # A model call per round plus nested Gradle builds for the fixture's checks; the test's own
+    # budget is 8 minutes per attempt, and it may retry once.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The worker binary locates npm AND yarn at startup, whatever the project it is handed —
+      # Flow cannot know in advance which toolchain a task needs, so a real worker host has both.
+      # Installing them here reproduces that environment rather than working around it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable yarn
+        run: corepack enable
+
+      - name: Verify the worker's toolchain is present
+        run: |
+          for tool in git java npm yarn; do
+            command -v "$tool" >/dev/null || { echo "::error::$tool is required by the worker binary but is not on PATH"; exit 1; }
+            echo "$tool -> $(command -v "$tool")"
+          done
+
+      - name: Run the hermetic loop
+        env:
+          # Budget-capped and engine-test scoped: not an application credential.
+          OPENROUTER_API_KEY: ${{ secrets.ENGINE_TESTS_OPENROUTER_API_KEY }}
+        run: ./gradlew :e2e:integrationTest --stacktrace
+
+      - name: Report the flake line
+        # Always: a failed run's LOOP_RESULT is exactly the datapoint the flake budget needs.
+        if: always()
+        run: echo "See the LOOP_RESULT line in the step above for outcome/retry accounting."
