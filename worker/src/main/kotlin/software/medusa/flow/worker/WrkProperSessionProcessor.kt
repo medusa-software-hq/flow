@@ -11,15 +11,18 @@ import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
 
-private const val defaultHeartbeatIntervalMillis = 30_000L
-
 /** Clones the repo, runs the engine pipeline, publishes, and reports progress. */
 class WrkProperSessionProcessor(
     private val gitCloner: WrkGitCloner,
     private val taskCompleter: HrsTaskCompleter,
     private val publisher: WrkPublisher,
-    private val heartbeatIntervalMillis: Long = defaultHeartbeatIntervalMillis,
+    private val heartbeatIntervalMillis: Long = Companion.defaultHeartbeatIntervalMillis,
     private val log: (String) -> Unit = ::println,
+    // Runs after a successful publish (branch pushed, PR opened) but before the session is marked
+    // complete. Production leaves it a no-op; the scripted "crash mid-publish" sad-path test
+    // injects
+    // a hard halt here, so the control plane never hears the work landed — see the sad-path suite.
+    private val beforeCompleteSession: suspend () -> Unit = {},
 ) : WrkSessionProcessor {
   override suspend fun process(
       session: Session,
@@ -96,8 +99,10 @@ class WrkProperSessionProcessor(
                   }
 
               when (publishResult) {
-                is WrkPublishResult.Published ->
-                    apiClient.completeSession(sessionId = session.id, prUrl = publishResult.prUrl)
+                is WrkPublishResult.Published -> {
+                  beforeCompleteSession()
+                  apiClient.completeSession(sessionId = session.id, prUrl = publishResult.prUrl)
+                }
 
                 WrkPublishResult.NoChanges ->
                     apiClient.failSession(
@@ -144,5 +149,9 @@ class WrkProperSessionProcessor(
         log("Session $sessionId: heartbeat failed ($e)")
       }
     }
+  }
+
+  companion object {
+    const val defaultHeartbeatIntervalMillis = 30_000L
   }
 }

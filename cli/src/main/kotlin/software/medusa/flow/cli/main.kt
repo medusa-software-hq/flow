@@ -11,6 +11,8 @@ import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
 import software.medusa.flow.harness.HrsProperTaskCompleter
+import software.medusa.flow.harness.HrsScriptedTaskCompleter
+import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsAiPatchInterpreter
 import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
 import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
@@ -31,12 +33,6 @@ suspend fun main(
     args: Array<String>,
 ) {
   coroutineScope {
-    val openRouterApiKey =
-        OaiApiKey(
-            System.getenv("OPENROUTER_API_KEY")
-                ?: error("OPENROUTER_API_KEY environment variable is not set"),
-        )
-
     val npmExecutableHandle = SysExecutableHandle.locate(commandName = "npm")
 
     val yarnExecutableHandle = SysExecutableHandle.locate(commandName = "yarn")
@@ -69,6 +65,27 @@ suspend fun main(
             connectorHub = connectorHub,
         )
 
+    // Test-only, hard-gated: a deterministic engine for the sad-path suite. Selected before the
+    // OpenRouter client is even built, so it needs no API key — these flows never call a model.
+    val scriptedBehavior = scriptedEngineBehaviorOrNull()
+    if (scriptedBehavior != null) {
+      runScriptedWorkerCommand(
+          args = args,
+          taskCompleter =
+              HrsScriptedTaskCompleter(
+                  physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+                  behavior = scriptedBehavior,
+              ),
+      )
+      return@coroutineScope
+    }
+
+    val openRouterApiKey =
+        OaiApiKey(
+            System.getenv("OPENROUTER_API_KEY")
+                ?: error("OPENROUTER_API_KEY environment variable is not set"),
+        )
+
     val openRouterClient =
         OaiProperClient.withTarget(
             targetBaseUrl = OaiConfiguredClient.openRouterBaseUrl,
@@ -96,6 +113,48 @@ suspend fun main(
       }
     }
   }
+}
+
+/**
+ * Resolves the scripted worker engine from the environment, or null for the normal AI engine.
+ *
+ * Hard-gated: selecting it requires `FLOW_ALLOW_SCRIPTED_ENGINE=1` in addition to
+ * `FLOW_WORKER_ENGINE=scripted`, so a production worker — which sets neither — can never reach it.
+ * `crash-after-publish` produces a real patch; the crash itself is applied in [WorkCommand] after
+ * the push.
+ */
+private fun scriptedEngineBehaviorOrNull(): HrsScriptedTaskCompleter.Behavior? {
+  if (System.getenv("FLOW_WORKER_ENGINE") != "scripted") return null
+
+  require(System.getenv("FLOW_ALLOW_SCRIPTED_ENGINE") == "1") {
+    "The scripted worker engine is a test-only engine; it is refused unless FLOW_ALLOW_SCRIPTED_ENGINE=1."
+  }
+
+  return when (val behaviorName = System.getenv("FLOW_SCRIPTED_ENGINE_BEHAVIOR")) {
+    "patch",
+    "crash-after-publish" -> HrsScriptedTaskCompleter.Behavior.Patch
+    "empty-diff" -> HrsScriptedTaskCompleter.Behavior.EmptyDiff
+    "attempts-exhausted" -> HrsScriptedTaskCompleter.Behavior.AttemptsExhausted
+    "hang" -> HrsScriptedTaskCompleter.Behavior.Hang
+    else -> error("Unknown FLOW_SCRIPTED_ENGINE_BEHAVIOR: $behaviorName")
+  }
+}
+
+/** The scripted engine only ever drives `work`; scouting/planning need a real model. */
+private fun runScriptedWorkerCommand(
+    args: Array<String>,
+    taskCompleter: HrsTaskCompleter,
+) {
+  val terminal = Terminal()
+
+  RootCommand()
+      .subcommands(
+          WorkCommand(
+              terminal = terminal,
+              taskCompleter = taskCompleter,
+          ),
+      )
+      .main(args)
 }
 
 private fun runMainCommand(
