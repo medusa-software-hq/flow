@@ -35,6 +35,11 @@ locals {
       # Suffix appended to the GCP project's display name. Empty for prod: its
       # project predates the split and must not be renamed.
       gcp_project_name_suffix = ""
+
+      # Google OAuth 2.0 client ID — the audience of the *user* tokens this
+      # environment's API accepts, and the client its SPA signs in with.
+      # https://console.cloud.google.com/auth/clients/852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com?project=ms-auth-284371d2
+      google_client_id = "852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com"
     }
     staging = {
       # Sandbox org — the staging App's credential boundary is the env boundary.
@@ -48,6 +53,16 @@ locals {
       gh_environment_name = "staging"
 
       gcp_project_name_suffix = " - staging"
+
+      # A *separate* OAuth client, whose authorized origin is staging's own domain — not a second
+      # origin bolted onto prod's client. The API authenticates a user by checking `aud` against
+      # this ID (see GoogleIdTokenAuthDecorator), so a shared client would mean a token minted
+      # through staging's SPA is indistinguishable from a production one and accepted by the
+      # production API. Staging is where not-yet-promoted code runs; it must not hold a credential
+      # production honours. Same rule as the GitHub App and WORKER_TOKEN_AUDIENCE: the credential
+      # boundary is the environment boundary.
+      # https://console.cloud.google.com/auth/clients/852264381191-rdl0nh865f1m51a7ufkb4i7vbo5nbrqt.apps.googleusercontent.com?project=ms-auth-284371d2
+      google_client_id = "852264381191-rdl0nh865f1m51a7ufkb4i7vbo5nbrqt.apps.googleusercontent.com"
     }
   }
   selected_environment = local.environment_config[local.environment]
@@ -91,9 +106,10 @@ locals {
   project_base_name = "flow"
   project_variant   = "baseline"
 
-  # Google OAuth 2.0 client ID
-  # https://console.cloud.google.com/auth/clients/852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com?project=ms-auth-284371d2
-  google_client_id = "852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com"
+  # Google OAuth 2.0 client ID — per environment (see environment_config). The clients live in the
+  # shared auth project (ms-auth-284371d2), but each environment gets its own: it is the audience of
+  # the user tokens that environment's API accepts.
+  google_client_id = local.selected_environment.google_client_id
 }
 
 output "environment" {
