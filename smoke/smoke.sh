@@ -31,17 +31,20 @@ fail() {
 }
 
 # --- Auth: mint a worker-audience ID token by impersonating the worker SA ---
-# 2>/dev/null: gcloud prints an impersonation notice to stderr that would otherwise corrupt the
-# token; tr strips any stray whitespace.
+# gcloud prints the token to stdout and everything else (its impersonation notice, and any error)
+# to stderr, so `$(...)` captures a clean token while errors stay visible in the log — do NOT
+# redirect stderr away, or a mint failure (e.g. the CI/CD SA lacking tokenCreator on the worker SA,
+# or an IAM grant that hasn't propagated yet) becomes an unexplained "could not mint". `tr` strips a
+# possible trailing newline.
 echo "Minting a worker-SA ID token (impersonating $WORKER_SA_EMAIL, aud=$API_URL)"
 TOKEN="$(
   gcloud auth print-identity-token \
     --impersonate-service-account="$WORKER_SA_EMAIL" \
     --audiences="$API_URL" \
-    --include-email 2>/dev/null | tr -d '[:space:]'
+    --include-email | tr -d '[:space:]'
 )"
 [ -n "$TOKEN" ] || {
-  echo "FATAL: could not mint an ID token as $WORKER_SA_EMAIL"
+  echo "FATAL: could not mint an ID token as $WORKER_SA_EMAIL (see the gcloud error above)"
   exit 1
 }
 
