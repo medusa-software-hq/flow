@@ -23,6 +23,27 @@ class WorkCommand(
 
     val apiClient = WrkGrpcApiClient.create(apiUrl = config.apiUrl)
 
+    // Test-only, and inert in production: a faster heartbeat lets the sad-path tests reach lazy
+    // session expiry in seconds instead of minutes. Unset → the production default.
+    val heartbeatIntervalMillis =
+        System.getenv("FLOW_WORKER_HEARTBEAT_INTERVAL_MILLIS")?.toLong()
+            ?: WrkProperSessionProcessor.defaultHeartbeatIntervalMillis
+
+    // Test-only, and hard-gated behind the same flag as the scripted engine: the "crash
+    // mid-publish"
+    // sad path halts the process after the push but before CompleteSession, so the control plane
+    // never learns the work landed. `halt` (not exit) skips shutdown hooks — a real crash.
+    val crashAfterPublish =
+        System.getenv("FLOW_ALLOW_SCRIPTED_ENGINE") == "1" &&
+            System.getenv("FLOW_SCRIPTED_ENGINE_BEHAVIOR") == "crash-after-publish"
+
+    val beforeCompleteSession: suspend () -> Unit = {
+      if (crashAfterPublish) {
+        terminal.println("Scripted crash: halting after publish, before CompleteSession")
+        Runtime.getRuntime().halt(137)
+      }
+    }
+
     // Test-only: point the PR-creation HTTP at a local GitHub stub (the hermetic loop test). Unset
     // in production → the publisher uses the real GitHub API base URL. Git clone/push is redirected
     // separately via git's `insteadOf` (env), so no override is needed here for that.
@@ -42,6 +63,8 @@ class WorkCommand(
             taskCompleter = taskCompleter,
             publisher = publisher,
             log = { terminal.println(it) },
+            beforeCompleteSession = beforeCompleteSession,
+            heartbeatIntervalMillis = heartbeatIntervalMillis,
         )
 
     val pollLoop =

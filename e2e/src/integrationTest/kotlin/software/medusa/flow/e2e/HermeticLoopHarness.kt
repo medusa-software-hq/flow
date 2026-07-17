@@ -4,6 +4,7 @@ import com.linecorp.armeria.client.WebClient
 import com.linecorp.armeria.client.grpc.GrpcClients
 import com.linecorp.armeria.server.Server
 import java.nio.file.Path
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import software.medusa.flow.githubstub.BareRepoFixture
@@ -53,6 +54,9 @@ private constructor(
         fixture: LoopFixture,
         workDirectory: Path,
         seedDirectory: Path,
+        // Shortened by the sad-path tests so a lost/hung worker's session expires in seconds, not
+        // the production 3 minutes. The hermetic loop leaves it at the default.
+        heartbeatTimeout: Duration = InMemorySessionStore.defaultHeartbeatTimeout,
     ): HermeticLoopHarness {
       val stub = FakeGitHubServer().start()
 
@@ -75,7 +79,7 @@ private constructor(
 
       val backend = InMemoryPipelineBackend()
       val pipelines = InMemoryIssuePipelineStore(backend)
-      val sessions = InMemorySessionStore()
+      val sessions = InMemorySessionStore(heartbeatTimeout = heartbeatTimeout)
 
       val server =
           buildServer(
@@ -144,9 +148,44 @@ private constructor(
 
   /**
    * Launches the shipped fat jar as `flow work`, exactly as a real worker runs — the artifact under
-   * test, not a re-wired composition root.
+   * test, not a re-wired composition root. The **real** (AI) engine; needs `OPENROUTER_API_KEY`.
    */
-  fun startWorker(): WorkerProcess {
+  fun startWorker(): WorkerProcess =
+      startWorkerProcess(
+          extraEnv =
+              mapOf(
+                  // The one credential that is genuinely real. Budget-capped and engine-test
+                  // scoped.
+                  "OPENROUTER_API_KEY" to
+                      checkNotNull(System.getenv("OPENROUTER_API_KEY")) {
+                        "OPENROUTER_API_KEY is not set — the loop test needs a real model"
+                      },
+                  "FLOW_TEST_CHEAP_MODELS" to "1",
+              ),
+      )
+
+  /**
+   * Launches the shipped binary with the **scripted** engine ([behavior]) — deterministic, no
+   * model, so the sad-path suite needs no API key. [heartbeatIntervalMillis] is shortened so a hung
+   * worker still heartbeats faster than the harness's (also shortened) expiry timeout.
+   */
+  fun startScriptedWorker(
+      behavior: String,
+      heartbeatIntervalMillis: Long,
+  ): WorkerProcess =
+      startWorkerProcess(
+          extraEnv =
+              mapOf(
+                  "FLOW_WORKER_ENGINE" to "scripted",
+                  "FLOW_ALLOW_SCRIPTED_ENGINE" to "1",
+                  "FLOW_SCRIPTED_ENGINE_BEHAVIOR" to behavior,
+                  "FLOW_WORKER_HEARTBEAT_INTERVAL_MILLIS" to heartbeatIntervalMillis.toString(),
+              ),
+      )
+
+  private fun startWorkerProcess(
+      extraEnv: Map<String, String>,
+  ): WorkerProcess {
     val cliJar =
         checkNotNull(System.getProperty("flow.cli.jar")) {
           "flow.cli.jar system property is not set (see e2e/build.gradle.kts)"
@@ -167,16 +206,8 @@ private constructor(
       put("FLOW_API_URL", apiUrl)
       put("FLOW_WORKER_GITHUB_TOKEN", "loop-test-token")
 
-      // The one credential that is genuinely real. Budget-capped and engine-test scoped.
-      put(
-          "OPENROUTER_API_KEY",
-          checkNotNull(System.getenv("OPENROUTER_API_KEY")) {
-            "OPENROUTER_API_KEY is not set — the loop test needs a real model"
-          },
-      )
-
-      // The three forced divergences (see the class doc).
-      put("FLOW_TEST_CHEAP_MODELS", "1")
+      // Forced divergences shared by both engines: GitHub is a stub, and the control plane is local
+      // (no ID token).
       put("FLOW_GITHUB_API_BASE_URL", stub.baseUrl)
       put("FLOW_TEST_SKIP_API_AUTH", "1")
 
@@ -186,6 +217,8 @@ private constructor(
       put("GIT_CONFIG_COUNT", "1")
       put("GIT_CONFIG_KEY_0", "url.${bareRepo.remoteUrl}.insteadOf")
       put("GIT_CONFIG_VALUE_0", "https://x-access-token@github.com/$repoFullName.git")
+
+      putAll(extraEnv)
     }
 
     return WorkerProcess(builder.start())
@@ -224,6 +257,11 @@ class WorkerProcess(
 
   /** The exit code if the worker has already died, else null (it should outlive the assertions). */
   fun exitCodeOrNull(): Int? = if (process.isAlive) null else process.exitValue()
+
+  /** SIGKILL the worker immediately (the "kill the worker and watch" sad path). */
+  fun kill() {
+    process.destroyForcibly()
+  }
 
   override fun close() {
     process.destroy()

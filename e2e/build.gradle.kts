@@ -4,6 +4,12 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins { alias(libs.plugins.kotlin.jvm) }
 
+repositories {
+  // The Gradle Tooling API (pulled in transitively via :engine:harness) is published to Gradle's
+  // own repository, not Maven Central.
+  maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
+}
+
 val integrationTestSourceSetName = "integrationTest"
 
 // This module holds no production code: it exists purely to orchestrate the whole system —
@@ -29,6 +35,9 @@ dependencies {
   testImplementation(project(":test-fixtures:github-stub"))
   // withMaterializedResource, for seeding the bare repo from the fixture resources.
   testImplementation(project(":engine:test-utils"))
+  // The scripted engine's public contract (behaviour names, diagnostic text) the sad paths assert
+  // on.
+  testImplementation(project(":engine:harness"))
 
   testImplementation(libs.kotlin.test)
   testImplementation(libs.kotlinx.coroutines.test)
@@ -66,3 +75,7 @@ tasks.register<Test>(integrationTestSourceSetName) {
     showStandardStreams = true
   }
 }
+
+// :engine:harness (pulled in for the sad-path assertions) drags in a conflicting slf4j-api; pin it
+// to the same version the CLI and harness modules force.
+configurations.configureEach { resolutionStrategy { force("org.slf4j:slf4j-api:2.0.17") } }
