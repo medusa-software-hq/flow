@@ -19,6 +19,16 @@ resource "google_service_account_iam_member" "worker_sa_impersonation" {
   member             = "group:flow-admins@medusa.software"
 }
 
+# Lets the CI/CD service account impersonate the worker to mint a worker-audience ID token — used
+# by the post-deploy smoke suite (story 08) to authenticate to this environment's API exactly as a
+# worker would, without adding CI's own identity to the WorkerService allowlist. The CI/CD SA is
+# created by the root infra root; referenced here by its (stable) account id.
+resource "google_service_account_iam_member" "worker_sa_cicd_impersonation" {
+  service_account_id = google_service_account.worker_sa.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:github-actions@${var.gcp_project_id}.iam.gserviceaccount.com"
+}
+
 # The worker CLI only ever authenticates via impersonated Application Default
 # Credentials (above) — it has no code path for a downloaded key file. A
 # `gcloud iam service-accounts keys create` key would work for other,
