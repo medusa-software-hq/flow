@@ -27,6 +27,14 @@ locals {
 
       # Flavor subdomain under organization_domain (e.g. api.<label>.<domain>).
       subdomain_label = "flow-baseline"
+
+      # The GitHub deployment Environment holding this environment's Actions
+      # variables (see .github/config). Note prod's is "production", not "prod".
+      gh_environment_name = "production"
+
+      # Suffix appended to the GCP project's display name. Empty for prod: its
+      # project predates the split and must not be renamed.
+      gcp_project_name_suffix = ""
     }
     staging = {
       # Sandbox org — the staging App's credential boundary is the env boundary.
@@ -36,6 +44,10 @@ locals {
       github_app_client_id = "Iv23liGENDkcxvvs8EwJ"
 
       subdomain_label = "flow-baseline-staging"
+
+      gh_environment_name = "staging"
+
+      gcp_project_name_suffix = " - staging"
     }
   }
   selected_environment = local.environment_config[local.environment]
@@ -63,7 +75,10 @@ locals {
   github_target_org    = local.selected_environment.github_target_org
   github_app_client_id = local.selected_environment.github_app_client_id
 
-  subdomain_label = local.selected_environment.subdomain_label
+  subdomain_label     = local.selected_environment.subdomain_label
+  gh_environment_name = local.selected_environment.gh_environment_name
+
+  gcp_project_name_suffix = local.selected_environment.gcp_project_name_suffix
 
   project_base_name = "flow"
   project_variant   = "baseline"
@@ -115,6 +130,14 @@ output "github_target_org" {
 
 output "subdomain_label" {
   value = local.subdomain_label
+}
+
+output "gh_environment_name" {
+  value = local.gh_environment_name
+}
+
+output "gcp_project_name_suffix" {
+  value = local.gcp_project_name_suffix
 }
 
 output "gh_repo_name" {
