@@ -13,7 +13,9 @@ val integrationTestSourceSetName = "integrationTest"
 sourceSets {
   create(integrationTestSourceSetName) {
     kotlin.srcDir("src/$integrationTestSourceSetName/kotlin")
-    resources.srcDir("src/$integrationTestSourceSetName/resources")
+    // No resources.srcDir here: creating the source set already registers
+    // src/integrationTest/resources by convention, and adding it again makes every fixture file a
+    // duplicate entry, which fails processIntegrationTestResources.
 
     compileClasspath += configurations.testRuntimeClasspath.get()
     runtimeClasspath += output + compileClasspath
