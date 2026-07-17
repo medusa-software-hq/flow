@@ -120,3 +120,45 @@ resource "github_actions_repository_permissions" "this" {
   enabled         = true
   allowed_actions = "all"
 }
+
+# Deployment environment for gated prod promotion (M2.5). Required reviewers are Enterprise-only for
+# private repos, so the promotion gate is a job dependency instead (deploy-prod needs staging smoke).
+# The Environment still earns its keep: deployment tracking, environment-scoped secrets, and a branch
+# policy that restricts prod deploys to the trunk.
+resource "github_repository_environment" "production" {
+  repository  = github_repository.this.name
+  environment = "production"
+
+  deployment_branch_policy {
+    protected_branches     = false
+    custom_branch_policies = true
+  }
+}
+
+# Only the trunk may deploy to production.
+resource "github_repository_environment_deployment_policy" "production_trunk" {
+  repository     = github_repository.this.name
+  environment    = github_repository_environment.production.environment
+  branch_pattern = module.common.gh_default_branch_name
+}
+
+# Staging deployment environment (M2.5). Same shape as production: it holds the
+# environment-scoped CI/CD variables (GCP project id, API URL, CI/CD SA/WIF,
+# Neon key) that distinguish the staging deploy from prod, and — like every
+# deploy here — only the trunk drives it.
+resource "github_repository_environment" "staging" {
+  repository  = github_repository.this.name
+  environment = "staging"
+
+  deployment_branch_policy {
+    protected_branches     = false
+    custom_branch_policies = true
+  }
+}
+
+# Only the trunk may deploy to staging.
+resource "github_repository_environment_deployment_policy" "staging_trunk" {
+  repository     = github_repository.this.name
+  environment    = github_repository_environment.staging.environment
+  branch_pattern = module.common.gh_default_branch_name
+}

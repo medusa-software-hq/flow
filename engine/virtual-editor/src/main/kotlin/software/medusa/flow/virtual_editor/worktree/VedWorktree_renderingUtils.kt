@@ -105,7 +105,13 @@ data object VedWorktree_renderingUtils {
       override val extraLabels: List<String>
         get() =
             when (file) {
-              is VedOpenedFile -> listOf("opened")
+              // The exposed annotation is additive: hidden opened files (the classic engine's only
+              // state, since it never exposes) render exactly as before — "opened".
+              is VedOpenedFile ->
+                  when (file.exposure) {
+                    VedExposure.Exposed -> listOf("opened", "exposed")
+                    VedExposure.Hidden -> listOf("opened")
+                  }
               VedClosedFile -> listOf("closed")
             }
 
