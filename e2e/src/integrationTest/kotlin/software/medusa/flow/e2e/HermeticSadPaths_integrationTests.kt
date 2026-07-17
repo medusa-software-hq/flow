@@ -109,11 +109,15 @@ class HermeticSadPaths_integrationTests {
   fun `a crash after the push leaves a stray branch, and the next reconcile converges`() =
       runSadPath("crash-after-publish") { harness, worker ->
         // The engine patched, the worker pushed and opened a PR, then halted before
-        // CompleteSession.
-        harness.awaitTrue("the branch to be pushed") { harness.bareRepo.hasBranch(branch) }
-        assertNotNull(
-            harness.stub.openPullRequest(repoFullName),
-            "the PR was opened before the crash\n${worker.output()}",
+        // CompleteSession. The halt is after publish() returns, and publish() pushes *then* opens
+        // the PR — so waiting on the PR (not the branch) is race-free: a visible PR guarantees the
+        // push already landed. Waiting on the branch instead would catch the push-before-PR window.
+        harness.awaitTrue("the PR to be opened") {
+          harness.stub.openPullRequest(repoFullName) != null
+        }
+        assertTrue(
+            harness.bareRepo.hasBranch(branch),
+            "the branch really landed before the crash\n${worker.output()}",
         )
 
         // The control plane never heard the work landed → lazy expiry → the pipeline converges to
