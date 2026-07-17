@@ -20,8 +20,24 @@ env:
 
 jobs:
   apply-config:
-    name: Apply Terraform configuration
+    name: Apply Terraform configuration (${{ matrix.environment }})
     runs-on: ubuntu-latest
+
+    # One job per environment: `environment:` points vars.GCP_PROJECT_ID at that environment's
+    # project, and the Terraform workspace keeps their states apart. Production's workspace is
+    # `default` (its state predates the prod/staging split). The domain-mapper SA, Cloudflare zone
+    # and WI provider are shared, so those vars resolve to their repository-level values for both.
+    # fail-fast off so a staging failure never cancels production.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: production
+            workspace: default
+          - environment: staging
+            workspace: staging
+
+    environment: ${{ matrix.environment }}
 
     permissions:
       contents: read
@@ -52,4 +68,5 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           terraform init
+          terraform workspace select -or-create=true ${{ matrix.workspace }}
           terraform apply -auto-approve
