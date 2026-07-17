@@ -38,8 +38,9 @@ locals {
 
       # Google OAuth 2.0 client ID — the audience of the *user* tokens this
       # environment's API accepts, and the client its SPA signs in with.
-      # https://console.cloud.google.com/auth/clients/852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com?project=ms-auth-284371d2
-      google_client_id = "852264381191-2f485kq98cucbsudhf768ccaadl8ttau.apps.googleusercontent.com"
+      # "flow baseline" web client (its own project, moved off the shared ms-auth project).
+      # https://console.cloud.google.com/auth/clients/205101361240-n29i1rv9fo7c6gfadllrs8l1ihf64gh3.apps.googleusercontent.com
+      google_client_id = "205101361240-n29i1rv9fo7c6gfadllrs8l1ihf64gh3.apps.googleusercontent.com"
     }
     staging = {
       # Sandbox org — the staging App's credential boundary is the env boundary.
@@ -61,8 +62,9 @@ locals {
       # production API. Staging is where not-yet-promoted code runs; it must not hold a credential
       # production honours. Same rule as the GitHub App and WORKER_TOKEN_AUDIENCE: the credential
       # boundary is the environment boundary.
-      # https://console.cloud.google.com/auth/clients/852264381191-rdl0nh865f1m51a7ufkb4i7vbo5nbrqt.apps.googleusercontent.com?project=ms-auth-284371d2
-      google_client_id = "852264381191-rdl0nh865f1m51a7ufkb4i7vbo5nbrqt.apps.googleusercontent.com"
+      # "flow staging" web client (its own project, moved off the shared ms-auth project).
+      # https://console.cloud.google.com/auth/clients/616510784049-8hrcuv80q2is2tcdvovqp35tfmtbh5vr.apps.googleusercontent.com
+      google_client_id = "616510784049-8hrcuv80q2is2tcdvovqp35tfmtbh5vr.apps.googleusercontent.com"
     }
   }
   selected_environment = local.environment_config[local.environment]
