@@ -82,7 +82,9 @@ jobs:
         env:
           # Budget-capped and engine-test scoped: not an application credential.
           OPENROUTER_API_KEY: ${{ secrets.ENGINE_TESTS_OPENROUTER_API_KEY }}
-        run: ./gradlew :e2e:integrationTest --stacktrace
+        # Only the loop class here: the deterministic sad paths in the same source set run in their
+        # own credit-free workflow (check-sad-paths.yml), so they aren't billed to this job.
+        run: ./gradlew :e2e:integrationTest --tests "software.medusa.flow.e2e.HermeticLoop_integrationTests" --stacktrace
 
       - name: Report the flake line
         # Always: a failed run's LOOP_RESULT is exactly the datapoint the flake budget needs.
