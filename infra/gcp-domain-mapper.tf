@@ -37,7 +37,19 @@ resource "google_project_iam_member" "domain_mapper_role" {
 
 # Let this repo's GitHub Actions impersonate the shared domain-mapper SA via WIF
 # (per-repo enrollment — additive, so each project enrolls only itself).
+#
+# Flavor-level, not per-environment: the SA is shared and the principalSet names the
+# code repo, which is the same for every environment — so this binding is byte-identical
+# across workspaces. The prod workspace owns it; a staging apply must not try to create
+# the same binding again (two states, one resource).
+moved {
+  from = google_service_account_iam_member.domain_mapper_wi_user
+  to   = google_service_account_iam_member.domain_mapper_wi_user[0]
+}
+
 resource "google_service_account_iam_member" "domain_mapper_wi_user" {
+  count = local.is_prod ? 1 : 0
+
   service_account_id = "projects/${module.common.gcp_meta_project_id}/serviceAccounts/${local.domain_mapper_sa_email}"
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${local.gcp_cicd_wi_pool_name}/attribute.repository/${module.common.gh_organization_name}/${module.common.gh_repo_name}"
@@ -46,7 +58,19 @@ resource "google_service_account_iam_member" "domain_mapper_wi_user" {
 # Let the shared domain-mapper SA read/write only this project's domain-mapping
 # Terraform state prefix. One binding per state prefix — CEL's startsWith can't
 # express "either of these two paths" in a single condition.
+#
+# Flavor-level (prod-owned), like the WIF binding above: the SA is shared and the
+# prefix is the *flavor's*, so the same grant already covers every environment's
+# workspace state (`…/domain-mapping/staging.tfstate` sits under it). Identical across
+# workspaces, so only prod creates it.
+moved {
+  from = google_storage_bucket_iam_member.domain_mapper_state
+  to   = google_storage_bucket_iam_member.domain_mapper_state[0]
+}
+
 resource "google_storage_bucket_iam_member" "domain_mapper_state" {
+  count = local.is_prod ? 1 : 0
+
   bucket = module.common.gcp_terraform_state_bucket_name
   role   = "roles/storage.objectAdmin"
   member = local.domain_mapper_sa_member
@@ -58,7 +82,14 @@ resource "google_storage_bucket_iam_member" "domain_mapper_state" {
   }
 }
 
+moved {
+  from = google_storage_bucket_iam_member.api_domain_mapper_state
+  to   = google_storage_bucket_iam_member.api_domain_mapper_state[0]
+}
+
 resource "google_storage_bucket_iam_member" "api_domain_mapper_state" {
+  count = local.is_prod ? 1 : 0
+
   bucket = module.common.gcp_terraform_state_bucket_name
   role   = "roles/storage.objectAdmin"
   member = local.domain_mapper_sa_member
