@@ -29,7 +29,27 @@ private constructor(
     private val stub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
 ) : WrkApiClient {
   companion object {
-    fun create(apiUrl: String): WrkGrpcApiClient {
+    /**
+     * Test-only: skip ID-token minting entirely, for a worker talking to a local control plane with
+     * no Google credentials around (the hermetic loop test). This weakens nothing — it only makes
+     * the *client* send no credentials. Authorization is enforced server-side by the auth decorator
+     * and [WorkerAuthorizer] allowlist, so a worker that sets this against a real deployment is
+     * simply rejected; it cannot talk its way in.
+     */
+    private const val skipAuthEnvVarName = "FLOW_TEST_SKIP_API_AUTH"
+
+    fun create(
+        apiUrl: String,
+        lookupEnv: (String) -> String? = System::getenv,
+    ): WrkGrpcApiClient {
+      val baseStub =
+          GrpcClients.builder(apiUrl)
+              .build(WorkerServiceGrpcKt.WorkerServiceCoroutineStub::class.java)
+
+      if (lookupEnv(skipAuthEnvVarName) != null) {
+        return WrkGrpcApiClient(stub = baseStub)
+      }
+
       // ADC must resolve to something implementing IdTokenProvider (impersonated, service-account,
       // and user credentials all do). INCLUDE_EMAIL is required: without it the minted token has no
       // `email` claim, which the control plane's auth decorator requires.
@@ -41,10 +61,6 @@ private constructor(
               .setTargetAudience(apiUrl)
               .setOptions(listOf(IdTokenProvider.Option.INCLUDE_EMAIL))
               .build()
-
-      val baseStub =
-          GrpcClients.builder(apiUrl)
-              .build(WorkerServiceGrpcKt.WorkerServiceCoroutineStub::class.java)
 
       val authenticatedStub =
           baseStub.withCallCredentials(MoreCallCredentials.from(idTokenCredentials))
