@@ -27,15 +27,17 @@ jobs:
     # project, and the Terraform workspace keeps their states apart. Production's workspace is
     # `default` (its state predates the prod/staging split). The domain-mapper SA, Cloudflare zone
     # and WI provider are shared, so those vars resolve to their repository-level values for both.
-    # fail-fast off so a staging failure never cancels production.
+    # Staging first (promotion ordering); fail-fast gates production on it — a failed staging apply
+    # cancels the queued production job (see apply-api-infra.yml).
     strategy:
-      fail-fast: false
+      fail-fast: true
+      max-parallel: 1
       matrix:
         include:
-          - environment: production
-            workspace: default
           - environment: staging
             workspace: staging
+          - environment: production
+            workspace: default
 
     environment: ${{ matrix.environment }}
 
