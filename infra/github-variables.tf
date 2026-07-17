@@ -16,9 +16,9 @@
 locals {
   is_prod = module.common.environment == "prod"
 
-  # Everything the CI/CD jobs read, per environment. API_URL is excluded — it is
-  # manually managed and needs its own lifecycle (below).
+  # Everything the CI/CD jobs read, per environment.
   cicd_environment_variables = {
+    API_URL                  = module.common.api_url
     GCP_PROJECT_ID           = google_project.gcp_project.project_id
     GCP_PRIMARY_LOCATION     = module.common.gcp_primary_location
     GCP_API_RUN_SERVICE_NAME = module.common.gcp_api_run_service_name
@@ -31,6 +31,13 @@ locals {
   }
 }
 
+# Note there is no placeholder-with-ignore_changes variable here. Placeholders earn their keep for
+# *secrets*, whose values Terraform cannot know — provisioning the resource still pins the name, and
+# a typo'd name is a silent CI failure. A variable whose value is derivable should just be derived:
+# a placeholder that a human must remember to overwrite is a latent outage (API_URL was exactly
+# that — the `production` environment's copy sat at `https://example.com/placeholder`, which would
+# have become a bogus WORKER_TOKEN_AUDIENCE the moment a workflow read it).
+
 # region Environment-scoped variables (the destination of the migration)
 
 # Each workspace writes only its own environment's variables: the prod workspace
@@ -42,20 +49,6 @@ resource "github_actions_environment_variable" "cicd" {
   environment   = module.common.gh_environment_name
   variable_name = each.key
   value         = each.value
-}
-
-# The API's own public URL. Terraform provisions the variable (so the name is never
-# a typo) but never owns the value — it is set by hand once the service has a URL.
-resource "github_actions_environment_variable" "api_url" {
-  repository    = data.github_repository.this.name
-  environment   = module.common.gh_environment_name
-  variable_name = module.common.gh_api_url_var_name
-
-  value = "https://example.com/placeholder"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
 }
 
 # endregion
@@ -164,13 +157,9 @@ resource "github_actions_variable" "gcp_api_url" {
   repository    = data.github_repository.this.name
   variable_name = module.common.gh_api_url_var_name
 
-  # Managed manually (for now):
-  # https://github.com/medusa-software-hq/flow/settings/variables/actions/API_URL
-  value = "https://example.com/placeholder"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
+  # Derived, not hand-maintained: it is the host the API's domain mapping publishes. Resolves to
+  # the value that was set by hand here, so adopting it is a no-op.
+  value = module.common.api_url
 }
 
 moved {
