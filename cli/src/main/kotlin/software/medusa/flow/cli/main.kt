@@ -76,7 +76,8 @@ suspend fun main(
         )
 
     // Product wiring pins the expert role to a stronger model; the hermetic loop test overrides it
-    // to the cheap model (all three roles on DeepSeekFlash) via a test-only env — the only override.
+    // to the cheap model (all three roles on DeepSeekFlash) via a test-only env — the only
+    // override.
     val expertModel =
         if (System.getenv("FLOW_TEST_CHEAP_MODELS") != null) OaiModel.DeepSeekFlash
         else OaiModel.GptMidi
