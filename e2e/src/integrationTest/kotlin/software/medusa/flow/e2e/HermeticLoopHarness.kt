@@ -1,0 +1,233 @@
+package software.medusa.flow.e2e
+
+import com.linecorp.armeria.client.WebClient
+import com.linecorp.armeria.client.grpc.GrpcClients
+import com.linecorp.armeria.server.Server
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.delay
+import software.medusa.flow.githubstub.BareRepoFixture
+import software.medusa.flow.githubstub.FakeGitHubAppKey
+import software.medusa.flow.githubstub.FakeGitHubServer
+import software.medusa.flow.server.GitHubAppCandidateClient
+import software.medusa.flow.server.GitHubAppClient
+import software.medusa.flow.server.GitHubAppConfig
+import software.medusa.flow.server.GitHubAppIssueClient
+import software.medusa.flow.server.GitHubAppPrClient
+import software.medusa.flow.server.InMemoryCounterStore
+import software.medusa.flow.server.InMemoryGithubOutboxStore
+import software.medusa.flow.server.InMemoryIssuePipelineStore
+import software.medusa.flow.server.InMemoryPipelineBackend
+import software.medusa.flow.server.InMemorySessionStore
+import software.medusa.flow.server.NoOpAuthDecorator
+import software.medusa.flow.server.WorkerAuthorizer
+import software.medusa.flow.server.buildServer
+import software.medusa.flow.v1.ReconcileServiceGrpcKt
+import software.medusa.flow.v1.reconcileRequest
+
+/**
+ * Boots every leg of the loop except GitHub: the real control plane in-process with the *real*
+ * GitHub clients pointed at [FakeGitHubServer], a real bare git repo standing in for the remote,
+ * and the *shipped* worker binary as a subprocess.
+ *
+ * Only three things diverge from production, and each is forced rather than convenient: cheap
+ * models (cost), the GitHub base URL (GitHub is a stub), and no ID token (the control plane is
+ * local). Everything else — packaging, wiring, engine, git, the loop — is the real thing.
+ */
+class HermeticLoopHarness
+private constructor(
+    val fixture: LoopFixture,
+    val stub: FakeGitHubServer,
+    val bareRepo: BareRepoFixture,
+    val sessions: InMemorySessionStore,
+    val pipelines: InMemoryIssuePipelineStore,
+    private val server: Server,
+) : AutoCloseable {
+  companion object {
+    const val repoFullName = "acme/app"
+    const val repoOwner = "acme"
+    const val issueNumber = 1
+
+    /** Boots the stub, the bare remote and the control plane. The worker starts separately. */
+    fun start(
+        fixture: LoopFixture,
+        workDirectory: Path,
+        seedDirectory: Path,
+    ): HermeticLoopHarness {
+      val stub = FakeGitHubServer().start()
+
+      val bareRepo =
+          BareRepoFixture.create(parentDirectory = workDirectory, seedDirectory = seedDirectory)
+
+      stub.seedRepo(repoFullName, remotePath = bareRepo.remotePath.toString())
+
+      // The real App client, doing the real JWT → installation-token dance against the stub.
+      val appClient =
+          GitHubAppClient(
+              GitHubAppConfig(
+                  clientId = "loop-test-client-id",
+                  pemContent = FakeGitHubAppKey.pkcs8Pem,
+                  repoOwner = repoOwner,
+                  repoName = "app",
+              ),
+              webClient = WebClient.of(stub.baseUrl),
+          )
+
+      val backend = InMemoryPipelineBackend()
+      val pipelines = InMemoryIssuePipelineStore(backend)
+      val sessions = InMemorySessionStore()
+
+      val server =
+          buildServer(
+                  originRegex = ".*",
+                  port = 0,
+                  // The worker sends no ID token (there are no Google credentials here), so the
+                  // control plane must not demand an identity. Authorization is still server-side:
+                  // this is the local-server posture, not a bypass of a real one.
+                  auth = NoOpAuthDecorator,
+                  counterStore = InMemoryCounterStore(),
+                  gitHubIssueStore = software.medusa.flow.server.FakeGitHubIssueStore(),
+                  gitHubRepositoryStore = software.medusa.flow.server.FakeGitHubRepositoryStore(),
+                  sessionStore = sessions,
+                  workerAuthorizer = WorkerAuthorizer.permissive,
+                  issuePipelineStore = pipelines,
+                  githubOutboxStore = InMemoryGithubOutboxStore(backend),
+                  // Real clients over real HTTP — only the base URL is the stub.
+                  gitHubIssueClient = GitHubAppIssueClient(appClient),
+                  gitHubPrClient = GitHubAppPrClient(appClient),
+                  gitHubCandidateClient = GitHubAppCandidateClient(appClient),
+                  reconcileAuthorizer = WorkerAuthorizer.permissive,
+              )
+              .also { it.start().join() }
+
+      return HermeticLoopHarness(
+          fixture = fixture,
+          stub = stub,
+          bareRepo = bareRepo,
+          sessions = sessions,
+          pipelines = pipelines,
+          server = server,
+      )
+    }
+  }
+
+  val apiUrl: String
+    get() = "http://127.0.0.1:${server.activeLocalPort()}"
+
+  private val reconcileClient by lazy {
+    GrpcClients.newClient(
+        "$apiUrl/",
+        ReconcileServiceGrpcKt.ReconcileServiceCoroutineStub::class.java,
+    )
+  }
+
+  /** One reconcile pass over the stub's repo, through the real RPC surface. */
+  suspend fun reconcile() {
+    reconcileClient.reconcile(reconcileRequest { repoFullName = HermeticLoopHarness.repoFullName })
+  }
+
+  /**
+   * Reconciles repeatedly (bounded) until [done] — the reconciler drains one outbox entry per pass.
+   */
+  suspend fun reconcileUntil(
+      what: String,
+      maxPasses: Int = 15,
+      done: () -> Boolean,
+  ) {
+    repeat(maxPasses) {
+      if (done()) return
+      reconcile()
+      delay(200)
+    }
+    check(done()) { "$what: not reached after $maxPasses reconcile passes" }
+  }
+
+  /**
+   * Launches the shipped fat jar as `flow work`, exactly as a real worker runs — the artifact under
+   * test, not a re-wired composition root.
+   */
+  fun startWorker(): WorkerProcess {
+    val cliJar =
+        checkNotNull(System.getProperty("flow.cli.jar")) {
+          "flow.cli.jar system property is not set (see e2e/build.gradle.kts)"
+        }
+
+    val builder =
+        ProcessBuilder(
+                "java",
+                // The application plugin passes this; running the jar directly must too (JNA).
+                "--enable-native-access=ALL-UNNAMED",
+                "-jar",
+                cliJar,
+                "work",
+            )
+            .redirectErrorStream(true)
+
+    builder.environment().apply {
+      put("FLOW_API_URL", apiUrl)
+      put("FLOW_WORKER_GITHUB_TOKEN", "loop-test-token")
+
+      // The one credential that is genuinely real. Budget-capped and engine-test scoped.
+      put(
+          "OPENROUTER_API_KEY",
+          checkNotNull(System.getenv("OPENROUTER_API_KEY")) {
+            "OPENROUTER_API_KEY is not set — the loop test needs a real model"
+          },
+      )
+
+      // The three forced divergences (see the class doc).
+      put("FLOW_TEST_CHEAP_MODELS", "1")
+      put("FLOW_GITHUB_API_BASE_URL", stub.baseUrl)
+      put("FLOW_TEST_SKIP_API_AUTH", "1")
+
+      // Send the worker's clone/push at the bare repo instead of github.com. The worker builds
+      // exactly this URL (WrkProcessGitCloner), and git applies insteadOf to pushes too, so the
+      // `origin` it clones from is rewritten in both directions without the worker knowing.
+      put("GIT_CONFIG_COUNT", "1")
+      put("GIT_CONFIG_KEY_0", "url.${bareRepo.remoteUrl}.insteadOf")
+      put("GIT_CONFIG_VALUE_0", "https://x-access-token@github.com/$repoFullName.git")
+    }
+
+    return WorkerProcess(builder.start())
+  }
+
+  override fun close() {
+    runCatching { server.stop().join() }
+    runCatching { stub.close() }
+  }
+}
+
+/** The worker subprocess, with its output retained so a failure can say what it was doing. */
+class WorkerProcess(
+    private val process: Process,
+) : AutoCloseable {
+  private val output = StringBuilder()
+
+  private val pump =
+      Thread {
+            runCatching {
+              process.inputStream.bufferedReader().forEachLine { line ->
+                synchronized(output) { output.appendLine(line) }
+              }
+            }
+          }
+          .apply {
+            isDaemon = true
+            start()
+          }
+
+  /** Everything the worker has printed so far — the first thing to read when the loop fails. */
+  fun output(): String = synchronized(output) { output.toString() }
+
+  val isAlive: Boolean
+    get() = process.isAlive
+
+  /** The exit code if the worker has already died, else null (it should outlive the assertions). */
+  fun exitCodeOrNull(): Int? = if (process.isAlive) null else process.exitValue()
+
+  override fun close() {
+    process.destroy()
+    if (!process.waitFor(20, TimeUnit.SECONDS)) process.destroyForcibly()
+    pump.interrupt()
+  }
+}
