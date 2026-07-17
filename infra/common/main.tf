@@ -78,6 +78,14 @@ locals {
   subdomain_label     = local.selected_environment.subdomain_label
   gh_environment_name = local.selected_environment.gh_environment_name
 
+  # The API's public host, defined once: the domain mapping publishes it (DNS record + Cloud Run
+  # mapping), and CI/CD hands it to the service as the audience its workers' ID tokens must be
+  # minted for. Two definitions of the same string would silently drift the moment an environment's
+  # subdomain changed.
+  api_subdomain_name = "api.${local.subdomain_label}"
+  api_host_name      = "${local.api_subdomain_name}.${local.organization_domain}"
+  api_url            = "https://${local.api_host_name}"
+
   gcp_project_name_suffix = local.selected_environment.gcp_project_name_suffix
 
   project_base_name = "flow"
@@ -134,6 +142,18 @@ output "subdomain_label" {
 
 output "gh_environment_name" {
   value = local.gh_environment_name
+}
+
+output "api_subdomain_name" {
+  value = local.api_subdomain_name
+}
+
+output "api_host_name" {
+  value = local.api_host_name
+}
+
+output "api_url" {
+  value = local.api_url
 }
 
 output "gcp_project_name_suffix" {
