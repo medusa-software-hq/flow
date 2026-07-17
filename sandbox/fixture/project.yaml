@@ -1,0 +1,4 @@
+modules:
+  - kind: gradle
+    name: greeter
+    path: /

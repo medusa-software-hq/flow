@@ -1,0 +1,9 @@
+analyze:
+  steps:
+    - name: compile
+      task: compileJava
+
+test:
+  steps:
+    - name: verify greeting
+      task: verifyGreeting
