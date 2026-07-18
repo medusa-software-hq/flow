@@ -72,3 +72,23 @@ resource "github_actions_secret" "nightly_app_pem_content" {
     ignore_changes = [value]
   }
 }
+
+# The operator's long-lived Claude subscription token from `claude setup-token` — the claude
+# engine's rung-1 credential (per the M4 auth pivot in plan/m4/design/02-auth-and-modes.md, this is
+# the default everywhere: CI, and the hosted worker). Used by the claude CLI contract check (M4 A1)
+# and, later, the hermetic --engine claude test (A7). Set out-of-band (`gh secret set` / UI), so it
+# holds a live value and is adopted here with `import` rather than overwritten with the placeholder.
+resource "github_actions_secret" "claude_code_oauth_token" {
+  repository  = github_repository.this.name
+  secret_name = "CLAUDE_CODE_OAUTH_TOKEN"
+  value       = local.secret_placeholder
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+import {
+  to = github_actions_secret.claude_code_oauth_token
+  id = "${module.common.gh_repo_name}:CLAUDE_CODE_OAUTH_TOKEN"
+}
