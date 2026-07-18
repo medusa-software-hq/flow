@@ -1,0 +1,95 @@
+name: Check claude CLI contract
+
+# M4 A1 — verifies the pinned `claude` CLI runs headlessly in the exact non-interactive posture the
+# claude engine will use (stream-json, project-only settings, acceptEdits, tool allow/deny, budget
+# cap), authenticated with the operator's subscription token (rung 1 — the M4 auth default, see
+# plan/m4/design/02-auth-and-modes.md). This is the live half of the A1 spike as a *kept* check —
+# a GitHub runner is not a Claude Code session, so the nested-session guard that blocks local
+# verification never fires here. Story A7 grows this into the full hermetic `--engine claude` loop.
+#
+# workflow_dispatch-only for now (no claude-engine code exists yet to path-filter on); A7 wires it
+# into Check PR.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Pinned deliberately; bumps are explicit PRs (design decision 7). Verified surface in
+  # plan/m4/design/03-cli-notes.md was 2.1.52; this check re-verifies against the pinned version.
+  CLAUDE_CLI_VERSION: "2.1.214"
+  NO_COLOR: 1
+
+jobs:
+  contract:
+    name: claude CLI contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the pinned claude CLI
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          echo "installed: $(claude --version)"
+
+      - name: Run the claude CLI contract probe
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          set -uo pipefail
+          work="$RUNNER_TEMP/claude-contract"
+          rm -rf "$work"; mkdir -p "$work"; cd "$work"
+          git init -q
+          printf 'hello\n' > README.md
+          git -c user.email=ci@flow -c user.name=ci add -A
+          git -c user.email=ci@flow -c user.name=ci commit -qm init
+
+          stream="$work/stream.ndjson"
+          # Non-interactive + hermetic posture (plan/m4/design/03-cli-notes.md). If ANY of this
+          # prompted, a headless run would hang until the job timeout — so completing at all IS the
+          # "never prompts" assertion, covering both the Edit and the Bash (`cat`) tool.
+          claude -p "Append a line containing exactly the word bye to README.md, then run the shell command: cat README.md. Do not use git." \
+            --output-format stream-json --verbose \
+            --setting-sources project \
+            --permission-mode acceptEdits \
+            --allowedTools "Read Edit Write Bash" \
+            --disallowedTools "Bash(git push:*)" \
+            --max-budget-usd 0.50 \
+            > "$stream" 2> "$work/stderr.txt" \
+            || { echo "::error::claude exited non-zero"; sed -n '1,60p' "$work/stderr.txt"; exit 1; }
+
+          # The edit landing proves the run did real work end to end.
+          grep -qx 'bye' README.md || { echo "::error::the edit was not applied"; cat README.md; exit 1; }
+
+          # Surface the real message shapes (the A1 deliverable) and assert the result is not an error.
+          python3 - "$stream" <<'PY'
+          import json, os, sys
+          msgs = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+          init = next((m for m in msgs if m.get("type") == "system" and m.get("subtype") == "init"), None)
+          result = next((m for m in msgs if m.get("type") == "result"), None)
+          tool_uses = [m for m in msgs if m.get("type") == "assistant"]
+          out = ["## claude CLI contract — captured message shapes\n"]
+          out.append(f"- CLI version: `{os.environ.get('CLAUDE_CLI_VERSION','?')}`")
+          out.append(f"- message types seen: `{sorted({m.get('type') for m in msgs})}`")
+          out.append(f"- assistant messages: {len(tool_uses)}\n")
+          def block(title, obj):
+              out.append(f"### {title}\n\n```json\n{json.dumps(obj, indent=2)[:2500]}\n```\n")
+          if init: block("system/init", init)
+          if result: block("result", result)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("\n".join(out))
+          assert init, "no system/init message in the stream"
+          assert result, "no result message in the stream"
+          assert result.get("is_error") in (False, None), f"result reported an error: {result}"
+          print("OK: headless run completed; init + non-error result captured")
+          PY
