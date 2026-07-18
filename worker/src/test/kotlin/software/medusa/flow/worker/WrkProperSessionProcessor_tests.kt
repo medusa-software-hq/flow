@@ -17,6 +17,7 @@ import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
+import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.session
 
 private fun tempGitWorktree(): GitWorktree = runBlocking {
@@ -75,7 +76,7 @@ class WrkProperSessionProcessor_tests {
     val processor =
         WrkProperSessionProcessor(
             gitCloner = gitCloner,
-            taskCompleter = taskCompleter,
+            engineResolver = builtinResolver(taskCompleter),
             publisher =
                 WrkPublisher { _, _, _, _, _, _, _ ->
                   WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1").also {
@@ -121,7 +122,7 @@ class WrkProperSessionProcessor_tests {
         val processor =
             WrkProperSessionProcessor(
                 gitCloner = gitCloner,
-                taskCompleter = taskCompleter,
+                engineResolver = builtinResolver(taskCompleter),
                 publisher = WrkPublisher { _, _, _, _, _, _, _ -> error("must not be called") },
                 log = {},
             )
@@ -166,7 +167,7 @@ class WrkProperSessionProcessor_tests {
     val processor =
         WrkProperSessionProcessor(
             gitCloner = gitCloner,
-            taskCompleter = taskCompleter,
+            engineResolver = builtinResolver(taskCompleter),
             publisher = WrkPublisher { _, _, _, _, _, _, _ -> error("must not be called") },
             log = {},
         )
@@ -180,6 +181,83 @@ class WrkProperSessionProcessor_tests {
     assertEquals("s1", failCall.sessionId)
     assertTrue(failCall.failureSummary.contains("Still unhealthy after 5"))
     assertTrue(failCall.failureSummary.contains("boom diagnostic"))
+  }
+
+  @Test
+  fun `dispatch routes each session to the completer for its engine, defaulting when unspecified`() =
+      runBlocking {
+        val builtin = RecordingTaskCompleter()
+        val claude = RecordingTaskCompleter()
+        val resolver =
+            WrkEngineResolver(
+                completersByEngine =
+                    mapOf(Engine.ENGINE_BUILTIN to builtin, Engine.ENGINE_CLAUDE to claude),
+                defaultEngine = Engine.ENGINE_BUILTIN,
+            )
+
+        fun run(engine: Engine) = runBlocking {
+          val worktree = tempGitWorktree()
+          val processor =
+              WrkProperSessionProcessor(
+                  gitCloner = WrkGitCloner { _, _ -> worktree },
+                  engineResolver = resolver,
+                  publisher =
+                      WrkPublisher { _, _, _, _, _, _, _ ->
+                        WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1")
+                      },
+                  log = {},
+              )
+          processor.process(
+              session =
+                  session {
+                    id = "s1"
+                    repoFullName = "acme/app"
+                    taskMarkdown = "# Do the thing"
+                    this.engine = engine
+                  },
+              apiClient = WrkFakeApiClient(),
+          )
+        }
+
+        run(Engine.ENGINE_CLAUDE)
+        assertEquals(1, claude.runs)
+        assertEquals(0, builtin.runs)
+
+        run(Engine.ENGINE_BUILTIN)
+        assertEquals(1, builtin.runs)
+
+        // UNSPECIFIED → the configured default (builtin).
+        run(Engine.ENGINE_UNSPECIFIED)
+        assertEquals(2, builtin.runs)
+        assertEquals(1, claude.runs)
+      }
+}
+
+private fun builtinResolver(
+    taskCompleter: HrsTaskCompleter,
+): WrkEngineResolver =
+    WrkEngineResolver(
+        completersByEngine = mapOf(Engine.ENGINE_BUILTIN to taskCompleter),
+        defaultEngine = Engine.ENGINE_BUILTIN,
+    )
+
+/**
+ * Records how many times it ran and returns a workspace-backed success (so publishing proceeds).
+ */
+private class RecordingTaskCompleter : HrsTaskCompleter {
+  var runs = 0
+
+  override suspend fun completeTask(
+      sourceGitWorktree: GitWorktree,
+      taskDescription: HrsTaskDescription,
+      observer: Observer,
+  ): TaskCompletionResult {
+    runs++
+    return TaskCompletionResult.Success(
+        FakeReadonlyTemporaryWorkspace(
+            rootDirectory = sourceGitWorktree.rootDirectory.asFilesystemEntity,
+        ),
+    )
   }
 }
 

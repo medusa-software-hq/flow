@@ -18,16 +18,24 @@ import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
 import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsRetryingAiClient
+import software.medusa.flow.harness.claude.HrsClaudeEngineConfig
+import software.medusa.flow.harness.claude.HrsClaudeTaskCompleter
+import software.medusa.flow.harness.claude.HrsProcessClaudeProcess
 import software.medusa.flow.integration.gradle.GrdProperProjectConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsNpmConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsPackageManagerConnectorHub
 import software.medusa.flow.integration.nodejs.package_manager.NjsYarnConnector
 import software.medusa.flow.integration.nodejs.process.NjsProcessPackageConnector
 import software.medusa.flow.physical_workspace.PhwConnectorHub
+import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.temp.PhwTempWorkspaceAllocator
 import software.medusa.flow.universal_project.gradle.UnpGradleModuleManifestLoader
 import software.medusa.flow.universal_project.nodejs.UnpNodeJsModuleManifestLoader
 import software.medusa.flow.universal_project.yaml.UnpYamlProjectManifestLoader
+import software.medusa.flow.v1.Engine
+import software.medusa.flow.worker.WrkClaudeAuthEnvironment
+import software.medusa.flow.worker.WrkConfig
+import software.medusa.flow.worker.WrkEngineResolver
 
 suspend fun main(
     args: Array<String>,
@@ -80,6 +88,8 @@ suspend fun main(
       return@coroutineScope
     }
 
+    val workerEngines = WrkConfig.parseWorkerEngines()
+
     val openRouterApiKey =
         OaiApiKey(
             System.getenv("OPENROUTER_API_KEY")
@@ -105,6 +115,7 @@ suspend fun main(
           runMainCommand(
               args = args,
               physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+              workerEngines = workerEngines,
               frontlineOpenAiClient = frontlineOpenAiClient,
               expertOpenAiClient = expertOpenAiClient,
               interpreterOpenAiClient = interpreterOpenAiClient,
@@ -151,15 +162,66 @@ private fun runScriptedWorkerCommand(
       .subcommands(
           WorkCommand(
               terminal = terminal,
-              taskCompleter = taskCompleter,
+              engineResolver = singleEngineResolver(taskCompleter),
           ),
       )
       .main(args)
 }
 
+/**
+ * A resolver that routes every session to [taskCompleter], keyed by the worker's default engine.
+ * Used where engine selection doesn't apply — the scripted sad-path engine, which only ever runs
+ * `UNSPECIFIED` sessions.
+ */
+private fun singleEngineResolver(
+    taskCompleter: HrsTaskCompleter,
+): WrkEngineResolver {
+  val defaultEngine = WrkConfig.parseWorkerEngines().first()
+  return WrkEngineResolver(
+      completersByEngine = mapOf(defaultEngine to taskCompleter),
+      defaultEngine = defaultEngine,
+  )
+}
+
+/**
+ * Assembles the per-engine completer map (A6): builtin is always available; the claude engine is
+ * constructed only when `claude` is among [workerEngines], with its auth-rung env built from
+ * `FLOW_CLAUDE_AUTH`. The default engine (for `UNSPECIFIED` sessions) is the first configured one.
+ */
+private fun buildEngineResolver(
+    workerEngines: List<Engine>,
+    builtinTaskCompleter: HrsTaskCompleter,
+    physicalWorkspaceAllocator: PhwWorkspaceAllocator,
+): WrkEngineResolver {
+  val completersByEngine = buildMap {
+    put(Engine.ENGINE_BUILTIN, builtinTaskCompleter)
+
+    if (Engine.ENGINE_CLAUDE in workerEngines) {
+      put(
+          Engine.ENGINE_CLAUDE,
+          HrsClaudeTaskCompleter(
+              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+              claudeProcess = HrsProcessClaudeProcess(),
+              config =
+                  HrsClaudeEngineConfig(
+                      authEnvironment = WrkClaudeAuthEnvironment.build(),
+                      model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
+                  ),
+          ),
+      )
+    }
+  }
+
+  return WrkEngineResolver(
+      completersByEngine = completersByEngine,
+      defaultEngine = workerEngines.first(),
+  )
+}
+
 private fun runMainCommand(
     args: Array<String>,
     physicalWorkspaceAllocator: PhwTempWorkspaceAllocator,
+    workerEngines: List<Engine>,
     frontlineOpenAiClient: OaiConfiguredClient,
     expertOpenAiClient: OaiConfiguredClient,
     interpreterOpenAiClient: OaiConfiguredClient,
@@ -185,7 +247,9 @@ private fun runMainCommand(
           nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
       )
 
-  val taskCompleter =
+  // The builtin engine (classic AI-system graph). `complete-task` always drives it directly; `work`
+  // reaches it (and the claude engine) through the engine resolver.
+  val builtinTaskCompleter =
       HrsProperTaskCompleter(
           physicalWorkspaceAllocator = physicalWorkspaceAllocator,
           projectManifestLoader = projectManifestLoader,
@@ -193,6 +257,13 @@ private fun runMainCommand(
           scoutDecisionInterpreter = scoutDecisionInterpreter,
           patchInterpreter = patchInterpreter,
           expertAiSystem = expertAiSystem,
+      )
+
+  val engineResolver =
+      buildEngineResolver(
+          workerEngines = workerEngines,
+          builtinTaskCompleter = builtinTaskCompleter,
+          physicalWorkspaceAllocator = physicalWorkspaceAllocator,
       )
 
   val terminal = Terminal()
@@ -206,11 +277,11 @@ private fun runMainCommand(
           ),
           CompleteTaskCommand(
               terminal = terminal,
-              taskCompleter = taskCompleter,
+              taskCompleter = builtinTaskCompleter,
           ),
           WorkCommand(
               terminal = terminal,
-              taskCompleter = taskCompleter,
+              engineResolver = engineResolver,
           ),
       )
       .main(args)

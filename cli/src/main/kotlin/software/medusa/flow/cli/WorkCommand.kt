@@ -6,8 +6,8 @@ import com.linecorp.armeria.client.WebClient
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.worker.WrkConfig
+import software.medusa.flow.worker.WrkEngineResolver
 import software.medusa.flow.worker.WrkGrpcApiClient
 import software.medusa.flow.worker.WrkPollLoop
 import software.medusa.flow.worker.WrkProcessGitCloner
@@ -16,12 +16,15 @@ import software.medusa.flow.worker.WrkProperSessionProcessor
 
 class WorkCommand(
     private val terminal: Terminal,
-    private val taskCompleter: HrsTaskCompleter,
+    private val engineResolver: WrkEngineResolver,
 ) : CliktCommand(name = "work") {
   override fun run() {
     val config = WrkConfig.fromEnvironment()
 
-    val apiClient = WrkGrpcApiClient.create(apiUrl = config.apiUrl)
+    // Declare the worker's engine capabilities on claim so the control plane only hands it sessions
+    // it can run (A2's claim filter).
+    val apiClient =
+        WrkGrpcApiClient.create(apiUrl = config.apiUrl, supportedEngines = config.workerEngines)
 
     // Test-only, and inert in production: a faster heartbeat lets the sad-path tests reach lazy
     // session expiry in seconds instead of minutes. Unset → the production default.
@@ -60,7 +63,7 @@ class WorkCommand(
     val sessionProcessor =
         WrkProperSessionProcessor(
             gitCloner = WrkProcessGitCloner(gitHubToken = config.workerGitHubToken),
-            taskCompleter = taskCompleter,
+            engineResolver = engineResolver,
             publisher = publisher,
             log = { terminal.println(it) },
             beforeCompleteSession = beforeCompleteSession,
