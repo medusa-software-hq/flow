@@ -12,6 +12,7 @@ class WrkFakeApiClient(
         val sessionId: String,
         val kind: SessionEventKind,
         val message: String,
+        val costUsd: Double? = null,
     ) : RecordedCall
 
     data class Heartbeat(val sessionId: String) : RecordedCall
@@ -34,8 +35,9 @@ class WrkFakeApiClient(
       sessionId: String,
       kind: SessionEventKind,
       message: String,
+      costUsd: Double?,
   ) {
-    recordedCalls.add(RecordedCall.AppendSessionEvent(sessionId, kind, message))
+    recordedCalls.add(RecordedCall.AppendSessionEvent(sessionId, kind, message, costUsd))
   }
 
   override suspend fun heartbeat(sessionId: String) {

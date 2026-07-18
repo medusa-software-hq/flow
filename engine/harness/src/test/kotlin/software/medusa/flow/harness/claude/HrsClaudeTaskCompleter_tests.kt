@@ -14,7 +14,10 @@ import software.medusa.commons.git.worktree.GitWorktreeFilter
 import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
 import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
+import software.medusa.flow.harness.HrsEngineBanner
+import software.medusa.flow.harness.HrsEngineRunMode
 import software.medusa.flow.harness.HrsPipelinePhase
+import software.medusa.flow.harness.HrsRunCost
 import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskCompleter.ScoutingObserver
 import software.medusa.flow.harness.HrsTaskCompleter.SolutionImplementationObserver
@@ -34,9 +37,30 @@ import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
  * workspace + observed phases) and each of the driver's throw-based failure modes.
  */
 class HrsClaudeTaskCompleter_tests {
-  /** Records observed phases in order — enough to assert the A3 phase sequence. */
+  /** Records observed phases + the A5 agent-action/banner/cost hooks. */
   private class RecordingObserver : Observer {
     val phases = mutableListOf<String>()
+    val agentActions = mutableListOf<String>()
+    val banners = mutableListOf<HrsEngineBanner>()
+    val costs = mutableListOf<HrsRunCost>()
+
+    override fun observeAgentAction(
+        summary: String,
+    ) {
+      agentActions += summary
+    }
+
+    override fun observeEngineBanner(
+        banner: HrsEngineBanner,
+    ) {
+      banners += banner
+    }
+
+    override fun observeRunCost(
+        cost: HrsRunCost,
+    ) {
+      costs += cost
+    }
 
     override fun observeScouting(): ScoutingObserver = ScoutingObserver.Noop
 
@@ -155,6 +179,52 @@ class HrsClaudeTaskCompleter_tests {
         observer.phases,
     )
     assertTrue(process.closed, "the run must be closed (process tree killed)")
+  }
+
+  @Test
+  fun `the stream fires banner, agent actions, and run cost through the observer`() {
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages =
+                listOf(
+                    HrsClaudeMessage.SystemInit(
+                        sessionId = "sess-1",
+                        model = "claude-sonnet-4-6",
+                        tools = listOf("Read", "Edit"),
+                    ),
+                    HrsClaudeMessage.Assistant(
+                        text = "Editing the file now.\nsecond line ignored",
+                        toolActions = listOf("edited `src/App.tsx`", "ran `gradle test`"),
+                    ),
+                    HrsClaudeMessage.Result(
+                        isError = false,
+                        subtype = "success",
+                        totalCostUsd = 0.0421,
+                        numTurns = 5,
+                        durationMs = 8123,
+                    ),
+                ),
+        )
+    val observer = RecordingObserver()
+
+    completeWith(claudeProcess = process, observer = observer)
+
+    // init → banner (CLI version from config, model from the stream, A3 manifest-less mode).
+    val banner = observer.banners.single()
+    assertEquals("Claude Agent", banner.engineName)
+    assertEquals("2.1.52 (Claude Code)", banner.cliVersion)
+    assertEquals("claude-sonnet-4-6", banner.model)
+    assertEquals(HrsEngineRunMode.ManifestLess, banner.runMode)
+
+    // assistant text → one throttled narrative summary (first non-blank line), then tool actions.
+    assertEquals(
+        listOf("Editing the file now.", "edited `src/App.tsx`", "ran `gradle test`"),
+        observer.agentActions,
+    )
+
+    // result → cost.
+    val cost = observer.costs.single()
+    assertEquals(HrsRunCost(totalCostUsd = 0.0421, numTurns = 5, durationMs = 8123), cost)
   }
 
   @Test

@@ -116,6 +116,7 @@ class PostgresSessionStore(
       id: SessionId,
       kind: SessionEventKind,
       message: String,
+      costUsd: Double?,
   ): GuardedResult<SessionEvent> =
       withContext(Dispatchers.IO) {
         val now = clock.instant()
@@ -136,6 +137,11 @@ class PostgresSessionStore(
               kind = kind.name,
               message = truncated,
           )
+
+          // Stamp cost onto the session row (RunCost events only) so the list can show it.
+          if (costUsd != null) {
+            queries.stampCostIfRunning(cost = costUsd, now = now.toOffsetDateTime(), id = id.id)
+          }
 
           GuardedResult.Applied(
               SessionEvent(seq = seq, createdAt = now, kind = kind, message = truncated),
@@ -244,6 +250,7 @@ class PostgresSessionStore(
           prUrl = pr_url,
           failureSummary = failure_summary,
           engine = parseEngine(engine),
+          totalCostUsd = total_cost_usd,
       )
 
   private fun Session_events.toDomain(): SessionEvent =

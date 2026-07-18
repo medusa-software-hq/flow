@@ -109,6 +109,7 @@ class InMemorySessionStore(
       id: SessionId,
       kind: SessionEventKind,
       message: String,
+      costUsd: Double?,
   ): GuardedResult<SessionEvent> =
       synchronized(lock) {
         val running = runningOrNull(id) ?: return@synchronized GuardedResult.PreconditionFailed
@@ -125,7 +126,11 @@ class InMemorySessionStore(
 
         events += event
 
-        sessionsById[id] = running.copy(lastHeartbeatAt = clock.instant())
+        sessionsById[id] =
+            running.copy(
+                lastHeartbeatAt = clock.instant(),
+                totalCostUsd = costUsd ?: running.totalCostUsd,
+            )
 
         GuardedResult.Applied(event)
       }

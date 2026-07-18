@@ -48,6 +48,42 @@ sealed class HrsPipelinePhase {
   ) : HrsPipelinePhase()
 }
 
+/**
+ * How an engine run is governed — surfaced once per run in the engine banner.
+ *
+ * Engine-agnostic on purpose: the classic engine is always manifest-driven ([Gated]); the claude
+ * engine reports [ManifestLess] until its A4 health gate lands, then [Gated] when a manifest drives
+ * an analyze/test gate. M3's leader can reuse the same two values.
+ */
+enum class HrsEngineRunMode {
+  /** A manifest-driven analyze/test gate governs the run. */
+  Gated,
+
+  /** No manifest gate — the agent is trusted to self-verify (claude A3 default). */
+  ManifestLess,
+}
+
+/**
+ * The opening identity of an engine run, surfaced once for the UI banner (init → banner). Fields
+ * are nullable where the underlying stream may omit them; the display layer degrades gracefully.
+ */
+data class HrsEngineBanner(
+    /** Product-facing engine name, e.g. "Claude Agent" (never "Claude Code"). */
+    val engineName: String,
+    val cliVersion: String?,
+    val model: String?,
+    val runMode: HrsEngineRunMode,
+)
+
+/**
+ * The terminal accounting of an engine run (dollar cost + usage), surfaced once (result → cost).
+ */
+data class HrsRunCost(
+    val totalCostUsd: Double?,
+    val numTurns: Int?,
+    val durationMs: Long?,
+)
+
 interface HrsTaskCompleter {
   enum class JointOperationPhase {
     ProjectBootstrapping,
@@ -107,6 +143,25 @@ interface HrsTaskCompleter {
     fun observePhase(
         phase: HrsPipelinePhase,
     )
+
+    /**
+     * A short human-readable summary of a single agent action (assistant narrative or a tool action
+     * such as "edited `x/y.kt`"). Engine-agnostic; no-op by default so classic/scripted engines and
+     * existing observers are unaffected. Volume is bounded by the reporting adapter, not here.
+     */
+    fun observeAgentAction(
+        summary: String,
+    ) {}
+
+    /** The engine's opening banner (identity + run mode); fired once. No-op by default. */
+    fun observeEngineBanner(
+        banner: HrsEngineBanner,
+    ) {}
+
+    /** The run's terminal cost/usage; fired once. No-op by default. */
+    fun observeRunCost(
+        cost: HrsRunCost,
+    ) {}
   }
 
   interface ScoutingObserver {

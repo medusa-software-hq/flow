@@ -82,6 +82,9 @@ class SessionProtoMapping_tests {
                 ProtoSessionEventKind.SESSION_EVENT_KIND_IMPLEMENTATION_ATTEMPT,
             SessionEventKind.HealthCheck to ProtoSessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK,
             SessionEventKind.Publishing to ProtoSessionEventKind.SESSION_EVENT_KIND_PUBLISHING,
+            SessionEventKind.AgentAction to ProtoSessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION,
+            SessionEventKind.EngineBanner to ProtoSessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER,
+            SessionEventKind.RunCost to ProtoSessionEventKind.SESSION_EVENT_KIND_RUN_COST,
         )
 
     expected.forEach { (domain, proto) ->
@@ -89,7 +92,34 @@ class SessionProtoMapping_tests {
           SessionEvent(seq = 1, createdAt = Instant.EPOCH, kind = domain, message = "m").toProto()
 
       assertEquals(proto, event.kind)
+
+      // And the reverse mapping round-trips.
+      assertEquals(domain, proto.toDomainOrNull())
     }
+
+    // Every domain kind is covered above (mirror of the exhaustive `when` in the mapping).
+    assertEquals(SessionEventKind.entries.toSet(), expected.keys)
+  }
+
+  @Test
+  fun `total cost is set on the proto only when known`() {
+    val base =
+        Session(
+            id = SessionId("c"),
+            repoFullName = "acme/app",
+            taskMarkdown = "t",
+            state = SessionState.Completed,
+            createdAt = Instant.EPOCH,
+            createdBy = "u@x",
+            claimedAt = Instant.EPOCH,
+            lastHeartbeatAt = Instant.EPOCH,
+            prUrl = "https://pr/1",
+            failureSummary = null,
+            engine = Engine.Claude,
+        )
+
+    assertEquals(false, base.toProto().hasTotalCostUsd())
+    assertEquals(0.0421, base.copy(totalCostUsd = 0.0421).toProto().totalCostUsd)
   }
 
   @Test

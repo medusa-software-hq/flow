@@ -42,6 +42,10 @@ message Session {
   string issue_pipeline_id = 11;
   // Requested engine (M4). UNSPECIFIED = the claiming worker's default.
   Engine engine = 12;
+  // Display-only terminal cost in USD (M4 claude engine). Present once the run's
+  // RUN_COST event has landed; absent (no presence) while unknown / for engines
+  // that don't report cost. Powers the sessions-list cost column.
+  optional double total_cost_usd = 13;
 }
 
 enum SessionEventKind {
@@ -54,6 +58,11 @@ enum SessionEventKind {
   SESSION_EVENT_KIND_IMPLEMENTATION_ATTEMPT = 6;
   SESSION_EVENT_KIND_HEALTH_CHECK = 7; // per-attempt analyze/test result
   SESSION_EVENT_KIND_PUBLISHING = 8; // branch/commit/push/PR
+  // M4 (Claude engine): live agent narrative / tool actions, the opening engine
+  // banner (CLI version + model + run mode), and the terminal cost/usage.
+  SESSION_EVENT_KIND_AGENT_ACTION = 9;
+  SESSION_EVENT_KIND_ENGINE_BANNER = 10;
+  SESSION_EVENT_KIND_RUN_COST = 11;
 }
 
 message SessionEvent {
@@ -130,6 +139,9 @@ message AppendSessionEventRequest {
   string session_id = 1;
   SessionEventKind kind = 2;
   string message = 3;
+  // Set only on a RUN_COST event (M4): the run's terminal USD cost, persisted onto
+  // the session row so the sessions list can show it without loading events.
+  optional double cost_usd = 4;
 }
 
 message AppendSessionEventResponse {}

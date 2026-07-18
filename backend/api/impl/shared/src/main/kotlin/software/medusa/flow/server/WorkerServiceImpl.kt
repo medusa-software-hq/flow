@@ -90,7 +90,12 @@ class WorkerServiceImpl(
                 .asRuntimeException()
 
     sessionStore
-        .appendEvent(id = SessionId(request.sessionId), kind = kind, message = request.message)
+        .appendEvent(
+            id = SessionId(request.sessionId),
+            kind = kind,
+            message = request.message,
+            costUsd = if (request.hasCostUsd()) request.costUsd else null,
+        )
         .orFailedPrecondition(request.sessionId)
 
     return appendSessionEventResponse {}

@@ -46,6 +46,10 @@ enum class SessionEventKind {
   ImplementationAttempt,
   HealthCheck,
   Publishing,
+  // M4 (Claude engine): live narrative / tool actions, the opening engine banner, the run cost.
+  AgentAction,
+  EngineBanner,
+  RunCost,
 }
 
 /** A session row, toolchain- and transport-agnostic (no proto types here). */
@@ -61,6 +65,8 @@ data class Session(
     val prUrl: String?,
     val failureSummary: String?,
     val engine: Engine,
+    /** Display-only terminal cost in USD; null until the run's RUN_COST event lands. */
+    val totalCostUsd: Double? = null,
 )
 
 /** A single append-only display event belonging to a session. */
@@ -138,12 +144,15 @@ interface SessionStore {
 
   /**
    * Appends a display event to a `RUNNING` session, assigning the next per-session `seq`, capping
-   * the message length, and bumping the heartbeat.
+   * the message length, and bumping the heartbeat. When [costUsd] is non-null (a `RunCost` event)
+   * it is also stamped onto the session's [Session.totalCostUsd] so the list can show cost without
+   * loading events.
    */
   suspend fun appendEvent(
       id: SessionId,
       kind: SessionEventKind,
       message: String,
+      costUsd: Double? = null,
   ): GuardedResult<SessionEvent>
 
   /** Bumps the heartbeat of a `RUNNING` session. */
@@ -175,6 +184,13 @@ interface SessionStore {
      * Maximum stored event message length; longer messages are truncated (see `design/02-api.md`).
      */
     const val maxEventMessageLength = 4096
+
+    /**
+     * Display-only cap on how many `AgentAction` events one session may emit (M4 claude engine). A
+     * chatty tool stream is coalesced against this by the worker's reporting adapter so event
+     * volume stays bounded; the phase/banner/cost events are never counted against it.
+     */
+    const val maxAgentActionEvents = 200
 
     /** Marker summary written when a session is expired for a lost heartbeat. */
     const val workerLostSummary = "Worker lost"

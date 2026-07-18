@@ -91,12 +91,14 @@ private constructor(
       sessionId: String,
       kind: SessionEventKind,
       message: String,
+      costUsd: Double?,
   ) {
     stub.appendSessionEvent(
         appendSessionEventRequest {
           this.sessionId = sessionId
           this.kind = kind
           this.message = message
+          costUsd?.let { this.costUsd = it }
         },
     )
   }

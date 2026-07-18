@@ -63,20 +63,66 @@ object HrsClaudeStreamParser {
   private fun parseAssistant(
       root: JsonObject,
   ): HrsClaudeMessage {
-    // Shape: {"type":"assistant","message":{"content":[{"type":"text","text":"…"}, …]}}
+    // Shape: {"type":"assistant","message":{"content":[
+    //   {"type":"text","text":"…"},
+    //   {"type":"tool_use","name":"Edit","input":{"file_path":"x/y.kt", …}}, … ]}}
     val content = root["message"]?.jsonObjectOrNull()?.get("content")?.jsonArrayOrNull()
-    val text =
-        content
-            ?.mapNotNull { block ->
-              val blockObject = block.jsonObjectOrNull() ?: return@mapNotNull null
-              if (blockObject.stringField("type") == "text") blockObject.stringField("text")
-              else null
-            }
-            ?.joinToString(separator = "\n")
-            .orEmpty()
 
-    return HrsClaudeMessage.Assistant(text = text)
+    val blocks = content?.mapNotNull { it.jsonObjectOrNull() }.orEmpty()
+
+    val text =
+        blocks
+            .filter { it.stringField("type") == "text" }
+            .mapNotNull { it.stringField("text") }
+            .joinToString(separator = "\n")
+
+    val toolActions =
+        blocks.filter { it.stringField("type") == "tool_use" }.mapNotNull { toolActionSummary(it) }
+
+    return HrsClaudeMessage.Assistant(text = text, toolActions = toolActions)
   }
+
+  /**
+   * Renders a `tool_use` block into a one-line human summary. All wire-field access for tool
+   * actions lives here so the driver stays protocol-agnostic; an unrecognized tool degrades to
+   * "used <name>".
+   */
+  private fun toolActionSummary(
+      block: JsonObject,
+  ): String? {
+    val name = block.stringField("name") ?: return null
+    val input = block["input"]?.jsonObjectOrNull()
+    val filePath = input?.stringField("file_path")
+    val command = input?.stringField("command")
+    val pattern = input?.stringField("pattern")
+
+    return when (name) {
+      "Edit",
+      "MultiEdit" -> filePath?.let { "edited `$it`" } ?: "edited a file"
+      "Write",
+      "NotebookEdit" -> filePath?.let { "wrote `$it`" } ?: "wrote a file"
+      "Read" -> filePath?.let { "read `$it`" } ?: "read a file"
+      "Bash" -> command?.let { "ran `${summarizeCommand(it)}`" } ?: "ran a command"
+      "Glob",
+      "Grep" -> pattern?.let { "searched `$it`" } ?: "searched the code"
+      "WebFetch",
+      "WebSearch" -> "looked something up"
+      else -> "used $name"
+    }
+  }
+
+  /**
+   * First line of a command, collapsed and truncated so a long invocation stays one readable line.
+   */
+  private fun summarizeCommand(
+      command: String,
+  ): String {
+    val firstLine = command.trim().lineSequence().firstOrNull().orEmpty().trim()
+    return if (firstLine.length <= maxCommandSummaryLength) firstLine
+    else firstLine.take(maxCommandSummaryLength).trimEnd() + "…"
+  }
+
+  private const val maxCommandSummaryLength = 60
 
   private fun parseResult(
       root: JsonObject,
