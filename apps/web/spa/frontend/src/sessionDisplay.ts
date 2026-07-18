@@ -48,7 +48,34 @@ export const sessionEventKindLabel: Record<SessionEventKind, string> = {
   [SessionEventKind.IMPLEMENTATION_ATTEMPT]: 'Implementation attempt',
   [SessionEventKind.HEALTH_CHECK]: 'Health check',
   [SessionEventKind.PUBLISHING]: 'Publishing',
+  // M4 (Claude Agent) event kinds.
+  [SessionEventKind.AGENT_ACTION]: 'Agent action',
+  [SessionEventKind.ENGINE_BANNER]: 'Engine',
+  [SessionEventKind.RUN_COST]: 'Run cost',
 };
+
+export const sessionEventKindColor: Record<SessionEventKind, string> = {
+  [SessionEventKind.UNSPECIFIED]: 'gray',
+  [SessionEventKind.WORKSPACE_PREPARING]: 'gray',
+  [SessionEventKind.HEALTH_GATE]: 'gray',
+  [SessionEventKind.SCOUTING_ROUND]: 'gray',
+  [SessionEventKind.WORKSPACE_BRIEFING]: 'gray',
+  [SessionEventKind.IMPLEMENTATION_PLANNING]: 'gray',
+  [SessionEventKind.IMPLEMENTATION_ATTEMPT]: 'gray',
+  [SessionEventKind.HEALTH_CHECK]: 'gray',
+  [SessionEventKind.PUBLISHING]: 'gray',
+  [SessionEventKind.AGENT_ACTION]: 'violet',
+  [SessionEventKind.ENGINE_BANNER]: 'violet',
+  [SessionEventKind.RUN_COST]: 'teal',
+};
+
+/** Formats a USD cost for display, e.g. 0.0123 → "$0.0123". Returns "—" for undefined. */
+export function formatCostUsd(costUsd: number | undefined): string {
+  if (costUsd === undefined) {
+    return '—';
+  }
+  return `$${costUsd.toFixed(4)}`;
+}
 
 export function formatTimestamp(timestamp: Timestamp | undefined): string {
   if (!timestamp) {

@@ -64,6 +64,32 @@ test('renders sessions with state badge, created-by, and a PR link only when com
   expect(screen.getAllByRole('link', { name: 'View PR' })).toHaveLength(1);
 });
 
+test('shows cost for a Claude session and leaves builtin rows blank', async () => {
+  const claude = create(SessionSchema, {
+    id: 'a',
+    repoFullName: 'acme/app',
+    state: SessionState.COMPLETED,
+    createdBy: 'alice@example.com',
+    createdAt: timestampFromDate(new Date('2026-01-02T03:04:05Z')),
+    engine: Engine.CLAUDE,
+    totalCostUsd: 0.0421,
+  });
+  const builtin = create(SessionSchema, {
+    id: 'b',
+    repoFullName: 'acme/other',
+    state: SessionState.COMPLETED,
+    createdBy: 'bob@example.com',
+    createdAt: timestampFromDate(new Date('2026-01-02T03:05:00Z')),
+    engine: Engine.BUILTIN,
+  });
+
+  renderAt('/sessions', fakeClient([claude, builtin]));
+
+  expect(await screen.findByText('$0.0421')).toBeInTheDocument();
+  // The builtin session reports no cost.
+  expect(screen.queryByText(/\$0\.0000/)).toBeNull();
+});
+
 test('shows an empty state when there are no sessions', async () => {
   renderAt('/sessions', fakeClient([]));
 

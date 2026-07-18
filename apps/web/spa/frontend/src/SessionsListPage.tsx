@@ -3,6 +3,7 @@ import { Anchor, Badge, Button, Group, Loader, Stack, Table, Text, Title } from 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
+  Engine,
   SessionState,
   type Session,
   type SessionService,
@@ -10,6 +11,7 @@ import {
 import {
   engineColor,
   engineLabel,
+  formatCostUsd,
   formatTimestamp,
   sessionStateColor,
   sessionStateLabel,
@@ -90,6 +92,7 @@ export function SessionsListPage({
               <Table.Th>Repository</Table.Th>
               <Table.Th>State</Table.Th>
               <Table.Th>Engine</Table.Th>
+              <Table.Th>Cost</Table.Th>
               <Table.Th>Created</Table.Th>
               <Table.Th>Created by</Table.Th>
               <Table.Th>Pull request</Table.Th>
@@ -128,6 +131,12 @@ export function SessionsListPage({
                   <Badge color={engineColor[session.engine]} variant="light">
                     {engineLabel[session.engine]}
                   </Badge>
+                </Table.Td>
+                <Table.Td>
+                  {/* Cost is a Claude Agent surface; builtin rows stay blank. */}
+                  {session.engine === Engine.CLAUDE && session.totalCostUsd !== undefined
+                    ? formatCostUsd(session.totalCostUsd)
+                    : ''}
                 </Table.Td>
                 <Table.Td>{formatTimestamp(session.createdAt)}</Table.Td>
                 <Table.Td>{session.createdBy}</Table.Td>
