@@ -1,7 +1,10 @@
 package software.medusa.flow.worker
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import software.medusa.flow.v1.Engine
 
 class WrkGrpcApiClient_tests {
   /**
@@ -22,5 +25,25 @@ class WrkGrpcApiClient_tests {
         )
 
     assertNotNull(client)
+  }
+
+  @Test
+  fun `the claim request declares the worker's supported engines`() {
+    val request =
+        WrkGrpcApiClient.buildClaimNextSessionRequest(
+            supportedEngines = listOf(Engine.ENGINE_BUILTIN, Engine.ENGINE_CLAUDE),
+        )
+
+    assertEquals(
+        listOf(Engine.ENGINE_BUILTIN, Engine.ENGINE_CLAUDE),
+        request.supportedEnginesList,
+    )
+  }
+
+  @Test
+  fun `an empty engine set claims any session (pre-M4 behavior)`() {
+    val request = WrkGrpcApiClient.buildClaimNextSessionRequest(supportedEngines = emptyList())
+
+    assertTrue(request.supportedEnginesList.isEmpty())
   }
 }

@@ -5,6 +5,8 @@ import com.google.auth.oauth2.IdTokenCredentials
 import com.google.auth.oauth2.IdTokenProvider
 import com.linecorp.armeria.client.grpc.GrpcClients
 import io.grpc.auth.MoreCallCredentials
+import software.medusa.flow.v1.ClaimNextSessionRequest
+import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.WorkerServiceGrpcKt
@@ -27,6 +29,7 @@ import software.medusa.flow.v1.sessionOrNull
 class WrkGrpcApiClient
 private constructor(
     private val stub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
+    private val supportedEngines: List<Engine>,
 ) : WrkApiClient {
   companion object {
     /**
@@ -40,6 +43,7 @@ private constructor(
 
     fun create(
         apiUrl: String,
+        supportedEngines: List<Engine> = emptyList(),
         lookupEnv: (String) -> String? = System::getenv,
     ): WrkGrpcApiClient {
       val baseStub =
@@ -47,7 +51,7 @@ private constructor(
               .build(WorkerServiceGrpcKt.WorkerServiceCoroutineStub::class.java)
 
       if (lookupEnv(skipAuthEnvVarName) != null) {
-        return WrkGrpcApiClient(stub = baseStub)
+        return WrkGrpcApiClient(stub = baseStub, supportedEngines = supportedEngines)
       }
 
       // ADC must resolve to something implementing IdTokenProvider (impersonated, service-account,
@@ -65,12 +69,23 @@ private constructor(
       val authenticatedStub =
           baseStub.withCallCredentials(MoreCallCredentials.from(idTokenCredentials))
 
-      return WrkGrpcApiClient(stub = authenticatedStub)
+      return WrkGrpcApiClient(stub = authenticatedStub, supportedEngines = supportedEngines)
+    }
+
+    /**
+     * Builds the claim request declaring the worker's engine capabilities (M4). Pure, so A6's unit
+     * test can assert on it without a live stub. An empty list keeps the pre-M4 "claim any session"
+     * behavior.
+     */
+    internal fun buildClaimNextSessionRequest(
+        supportedEngines: List<Engine>,
+    ): ClaimNextSessionRequest = claimNextSessionRequest {
+      this.supportedEngines.addAll(supportedEngines)
     }
   }
 
   override suspend fun claimNextSession(): Session? =
-      stub.claimNextSession(claimNextSessionRequest {}).sessionOrNull
+      stub.claimNextSession(buildClaimNextSessionRequest(supportedEngines)).sessionOrNull
 
   override suspend fun appendSessionEvent(
       sessionId: String,

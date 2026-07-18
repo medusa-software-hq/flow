@@ -5,7 +5,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import software.medusa.commons.markdown.MdDocument
-import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.v1.Session
@@ -14,7 +13,7 @@ import software.medusa.flow.v1.SessionEventKind
 /** Clones the repo, runs the engine pipeline, publishes, and reports progress. */
 class WrkProperSessionProcessor(
     private val gitCloner: WrkGitCloner,
-    private val taskCompleter: HrsTaskCompleter,
+    private val engineResolver: WrkEngineResolver,
     private val publisher: WrkPublisher,
     private val heartbeatIntervalMillis: Long = Companion.defaultHeartbeatIntervalMillis,
     private val log: (String) -> Unit = ::println,
@@ -56,6 +55,10 @@ class WrkProperSessionProcessor(
 
       val observer =
           WrkReportingTaskObserver(sessionId = session.id, apiClient = apiClient, log = log)
+
+      // A6: pick the completer for the session's requested engine; UNSPECIFIED → the worker
+      // default.
+      val taskCompleter = engineResolver.resolve(session.engine)
 
       val result = coroutineScope {
         val heartbeatJob = launch { heartbeatLoop(session.id, apiClient) }
