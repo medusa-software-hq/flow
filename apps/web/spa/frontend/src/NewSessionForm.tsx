@@ -3,7 +3,7 @@ import { Alert, Button, Loader, Select, Stack, Text, Textarea, Title } from '@ma
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import type { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
-import type { SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
+import { Engine, type SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
 
 /** Pre-fill values passed via navigation state by "Retry as new session" on the detail page. */
 interface PrefillState {
@@ -43,6 +43,7 @@ export function NewSessionForm({
   const [repoLoadError, setRepoLoadError] = useState<string | null>(null);
 
   const [repoFullName, setRepoFullName] = useState<string | null>(prefill?.repoFullName ?? null);
+  const [engine, setEngine] = useState<Engine>(Engine.UNSPECIFIED);
   const [taskMarkdown, setTaskMarkdown] = useState(prefill?.taskMarkdown ?? '');
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -86,7 +87,7 @@ export function NewSessionForm({
 
     try {
       const response = await sessionClient.createSession(
-        { repoFullName: repoFullName, taskMarkdown },
+        { repoFullName: repoFullName, engine, taskMarkdown },
         { headers }
       );
       await navigate(`/sessions/${response.session?.id}`);
@@ -124,6 +125,17 @@ export function NewSessionForm({
         rightSection={repoOptions === null ? <Loader size="xs" /> : undefined}
         error={touched && repoMissing ? 'Select a repository' : undefined}
         required
+      />
+
+      <Select
+        label="Engine"
+        placeholder="Select an engine"
+        data={[
+          { value: String(Engine.BUILTIN), label: 'Builtin' },
+          { value: String(Engine.CLAUDE), label: 'Claude Agent' },
+        ]}
+        value={String(engine)}
+        onChange={(value) => setEngine(value === null ? Engine.UNSPECIFIED : Number(value))}
       />
 
       <Textarea

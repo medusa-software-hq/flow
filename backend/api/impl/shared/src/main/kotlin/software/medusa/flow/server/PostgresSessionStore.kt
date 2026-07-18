@@ -33,6 +33,7 @@ class PostgresSessionStore(
       repoFullName: String,
       taskMarkdown: String,
       createdBy: String,
+      engine: Engine,
   ): Session =
       withContext(Dispatchers.IO) {
         val session =
@@ -47,6 +48,7 @@ class PostgresSessionStore(
                 lastHeartbeatAt = null,
                 prUrl = null,
                 failureSummary = null,
+                engine = engine,
             )
 
         queries.insertSession(
@@ -56,6 +58,7 @@ class PostgresSessionStore(
             state = session.state.toDbValue(),
             created_at = session.createdAt.toOffsetDateTime(),
             created_by = createdBy,
+            engine = engine.toDbValue(),
         )
 
         session
@@ -89,12 +92,24 @@ class PostgresSessionStore(
         SessionWithEvents(session = session, events = events)
       }
 
-  override suspend fun claimNext(): Session? =
+  override suspend fun claimNext(
+      supportedEngines: Set<Engine>,
+  ): Session? =
       withContext(Dispatchers.IO) {
-        queries
-            .claimNextSession(now = clock.instant().toOffsetDateTime())
-            .executeAsOneOrNull()
-            ?.toDomain()
+        val now = clock.instant().toOffsetDateTime()
+        val row =
+            if (supportedEngines.isEmpty()) {
+              // Pre-M4 worker: claim anything, and keep the empty set off the SQL IN list.
+              queries.claimNextSession(now = now).executeAsOneOrNull()
+            } else {
+              queries
+                  .claimNextSessionForEngines(
+                      now = now,
+                      supportedEngines = supportedEngines.map { it.toDbValue() },
+                  )
+                  .executeAsOneOrNull()
+            }
+        row?.toDomain()
       }
 
   override suspend fun appendEvent(
@@ -199,6 +214,23 @@ class PostgresSessionStore(
         else -> error("Unknown session state: $value")
       }
 
+  private fun Engine.toDbValue(): String =
+      when (this) {
+        Engine.Unspecified -> "UNSPECIFIED"
+        Engine.Builtin -> "BUILTIN"
+        Engine.Claude -> "CLAUDE"
+      }
+
+  private fun parseEngine(
+      value: String,
+  ): Engine =
+      when (value) {
+        "UNSPECIFIED" -> Engine.Unspecified
+        "BUILTIN" -> Engine.Builtin
+        "CLAUDE" -> Engine.Claude
+        else -> error("Unknown engine: $value")
+      }
+
   private fun Sessions.toDomain(): Session =
       Session(
           id = SessionId(id),
@@ -211,6 +243,7 @@ class PostgresSessionStore(
           lastHeartbeatAt = last_heartbeat_at?.toInstant(),
           prUrl = pr_url,
           failureSummary = failure_summary,
+          engine = parseEngine(engine),
       )
 
   private fun Session_events.toDomain(): SessionEvent =

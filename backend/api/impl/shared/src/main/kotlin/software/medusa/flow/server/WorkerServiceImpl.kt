@@ -68,7 +68,10 @@ class WorkerServiceImpl(
   ): ClaimNextSessionResponse {
     requireAuthorizedWorker()
 
-    val claimed = sessionStore.claimNext()
+    val claimed =
+        sessionStore.claimNext(
+            supportedEngines = request.supportedEnginesList.map { it.toDomain() }.toSet(),
+        )
 
     // Include the issue linkage so the worker can publish an issue-aware PR (story 09).
     return claimNextSessionResponse {

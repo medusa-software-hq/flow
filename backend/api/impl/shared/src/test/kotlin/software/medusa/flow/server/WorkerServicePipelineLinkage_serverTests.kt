@@ -74,11 +74,12 @@ class WorkerServicePipelineLinkage_serverTests {
 
   /** A running, issue-linked session with an IN_PROGRESS pipeline. */
   private suspend fun linkedRunningSession(): Pair<SessionId, IssuePipelineId> {
-    val session = sessions.create(repo, "# Issue 1\n\nbody", "flow-reconciler")
+    val session =
+        sessions.create(repo, "# Issue 1\n\nbody", "flow-reconciler", engine = Engine.Unspecified)
     val pipeline =
         (pipelines.pick(repo, 1, "Issue 1", "https://x/1", session.id) as PickResult.Picked)
             .pipeline
-    sessions.claimNext() // → RUNNING
+    sessions.claimNext(supportedEngines = emptySet()) // → RUNNING
     return session.id to pipeline.id
   }
 
@@ -123,8 +124,9 @@ class WorkerServicePipelineLinkage_serverTests {
 
   @Test
   fun `completing a manual session (no pipeline) touches no pipelines`() = runBlocking {
-    val session = sessions.create(repo, "# manual", "person@example.com")
-    sessions.claimNext()
+    val session =
+        sessions.create(repo, "# manual", "person@example.com", engine = Engine.Unspecified)
+    sessions.claimNext(supportedEngines = emptySet())
     val client = startServer()
 
     client.completeSession(

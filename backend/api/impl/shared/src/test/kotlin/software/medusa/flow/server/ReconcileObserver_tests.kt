@@ -178,9 +178,9 @@ class ReconcileObserver_tests {
   @Test
   fun `an IN_PROGRESS pipeline whose session is still running is left alone`() = runBlocking {
     val fx = Fixture(SteppableClock(Instant.parse("2026-04-01T00:00:00Z")))
-    val session = fx.sessions.create(repo, "task", "flow-reconciler")
+    val session = fx.sessions.create(repo, "task", "flow-reconciler", engine = Engine.Unspecified)
     fx.pipelines.pick(repo, 1, "Issue 1", "u", session.id)
-    fx.sessions.claimNext() // session → RUNNING
+    fx.sessions.claimNext(supportedEngines = emptySet()) // session → RUNNING
 
     assertEquals(0, fx.observer.observe(repo))
     assertEquals(IssuePipelineState.InProgress, fx.pipelines.list(repo).single().state)
@@ -190,10 +190,11 @@ class ReconcileObserver_tests {
   fun `worker-lost backstop - IN_PROGRESS with a FAILED session fails the pipeline and holds the mutex`() =
       runBlocking {
         val fx = Fixture(SteppableClock(Instant.parse("2026-04-01T00:00:00Z")))
-        val session = fx.sessions.create(repo, "task", "flow-reconciler")
+        val session =
+            fx.sessions.create(repo, "task", "flow-reconciler", engine = Engine.Unspecified)
         val p =
             (fx.pipelines.pick(repo, 1, "Issue 1", "u", session.id) as PickResult.Picked).pipeline
-        fx.sessions.claimNext()
+        fx.sessions.claimNext(supportedEngines = emptySet())
         fx.sessions.fail(session.id, "Worker lost")
 
         assertEquals(1, fx.observer.observe(repo))
@@ -204,9 +205,9 @@ class ReconcileObserver_tests {
   @Test
   fun `backstop - IN_PROGRESS with a COMPLETED session advances to PR_OPEN`() = runBlocking {
     val fx = Fixture(SteppableClock(Instant.parse("2026-04-01T00:00:00Z")))
-    val session = fx.sessions.create(repo, "task", "flow-reconciler")
+    val session = fx.sessions.create(repo, "task", "flow-reconciler", engine = Engine.Unspecified)
     val p = (fx.pipelines.pick(repo, 1, "Issue 1", "u", session.id) as PickResult.Picked).pipeline
-    fx.sessions.claimNext()
+    fx.sessions.claimNext(supportedEngines = emptySet())
     fx.sessions.complete(session.id, "https://github.com/acme/app/pull/9")
 
     assertEquals(1, fx.observer.observe(repo))

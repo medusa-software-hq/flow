@@ -2,6 +2,7 @@ package software.medusa.flow.server
 
 import com.google.protobuf.Timestamp
 import java.time.Instant
+import software.medusa.flow.v1.Engine as ProtoEngine
 import software.medusa.flow.v1.Session as ProtoSession
 import software.medusa.flow.v1.SessionEvent as ProtoSessionEvent
 import software.medusa.flow.v1.SessionEventKind as ProtoSessionEventKind
@@ -21,6 +22,22 @@ private fun SessionState.toProto(): ProtoSessionState =
       SessionState.Running -> ProtoSessionState.SESSION_STATE_RUNNING
       SessionState.Completed -> ProtoSessionState.SESSION_STATE_COMPLETED
       SessionState.Failed -> ProtoSessionState.SESSION_STATE_FAILED
+    }
+
+private fun Engine.toProto(): ProtoEngine =
+    when (this) {
+      Engine.Unspecified -> ProtoEngine.ENGINE_UNSPECIFIED
+      Engine.Builtin -> ProtoEngine.ENGINE_BUILTIN
+      Engine.Claude -> ProtoEngine.ENGINE_CLAUDE
+    }
+
+/** UNSPECIFIED / unrecognised → [Engine.Unspecified] (the claiming worker's default). */
+fun ProtoEngine.toDomain(): Engine =
+    when (this) {
+      ProtoEngine.ENGINE_BUILTIN -> Engine.Builtin
+      ProtoEngine.ENGINE_CLAUDE -> Engine.Claude
+      ProtoEngine.ENGINE_UNSPECIFIED,
+      ProtoEngine.UNRECOGNIZED -> Engine.Unspecified
     }
 
 private fun SessionEventKind.toProto(): ProtoSessionEventKind =
@@ -56,6 +73,7 @@ fun Session.toProto(
     state = domainSession.state.toProto()
     createdAt = domainSession.createdAt.toProtoTimestamp()
     createdBy = domainSession.createdBy
+    engine = domainSession.engine.toProto()
     // Proto3 strings default to empty; nulls collapse to "".
     prUrl = domainSession.prUrl.orEmpty()
     failureSummary = domainSession.failureSummary.orEmpty()

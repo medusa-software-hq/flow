@@ -15,6 +15,27 @@ enum class SessionState {
   Failed,
 }
 
+/**
+ * The agentic engine that runs a session (M4). [Unspecified] means "the claiming worker's default";
+ * such a session may be claimed by any worker. A named engine may only be claimed by a worker that
+ * declares it in its supported set (see [SessionStore.claimNext]).
+ */
+enum class Engine {
+  Unspecified,
+  Builtin,
+  Claude,
+}
+
+/**
+ * Whether a session of this engine is claimable by a worker whose capability set is
+ * [supportedEngines]. Empty set = pre-M4 worker = claims anything; otherwise [Engine.Unspecified]
+ * (the "worker default" sessions) plus the worker's declared engines. The Postgres claim query
+ * mirrors this predicate in SQL.
+ */
+fun Engine.claimableBy(
+    supportedEngines: Set<Engine>,
+): Boolean = supportedEngines.isEmpty() || this == Engine.Unspecified || this in supportedEngines
+
 /** The kind of a display-only progress event. Mirrors the proto `SessionEventKind`. */
 enum class SessionEventKind {
   WorkspacePreparing,
@@ -39,6 +60,7 @@ data class Session(
     val lastHeartbeatAt: Instant?,
     val prUrl: String?,
     val failureSummary: String?,
+    val engine: Engine,
 )
 
 /** A single append-only display event belonging to a session. */
@@ -84,6 +106,7 @@ interface SessionStore {
       repoFullName: String,
       taskMarkdown: String,
       createdBy: String,
+      engine: Engine,
   ): Session
 
   /** Returns the newest [limit] sessions, newest first, after expiring stale ones. */
@@ -101,10 +124,17 @@ interface SessionStore {
   ): SessionWithEvents?
 
   /**
-   * Atomically claims the oldest `PENDING` session, moving it to `RUNNING`; null when the queue is
-   * empty. Two concurrent claims never return the same session.
+   * Atomically claims the oldest `PENDING` session the worker can run, moving it to `RUNNING`; null
+   * when nothing is claimable. Two concurrent claims never return the same session.
+   *
+   * [supportedEngines] is the claiming worker's capability set. Empty → claim any session
+   * (back-compatible with pre-M4 workers). Non-empty → claim only sessions whose engine is
+   * [Engine.Unspecified] or in the set, oldest-first *among those* — so a worker never blocks
+   * behind a session it cannot run.
    */
-  suspend fun claimNext(): Session?
+  suspend fun claimNext(
+      supportedEngines: Set<Engine>,
+  ): Session?
 
   /**
    * Appends a display event to a `RUNNING` session, assigning the next per-session `seq`, capping

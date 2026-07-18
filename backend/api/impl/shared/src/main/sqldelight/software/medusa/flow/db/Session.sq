@@ -15,7 +15,9 @@ CREATE TABLE sessions (
   -- M2: issue linkage (V3). NULL for manual sessions. Populated by later stories.
   issue_pipeline_id TEXT,
   issue_number      INTEGER,
-  issue_url         TEXT
+  issue_url         TEXT,
+  -- M4: requested engine (V4). 'UNSPECIFIED' = the claiming worker's default.
+  engine            TEXT NOT NULL DEFAULT 'UNSPECIFIED'
 );
 
 CREATE TABLE session_events (
@@ -28,8 +30,8 @@ CREATE TABLE session_events (
 );
 
 insertSession:
-INSERT INTO sessions (id, repo_full_name, task_markdown, state, created_at, created_by)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO sessions (id, repo_full_name, task_markdown, state, created_at, created_by, engine)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 selectSessionById:
 SELECT * FROM sessions WHERE id = ?;
@@ -46,6 +48,25 @@ SET state = 'RUNNING', claimed_at = :now, last_heartbeat_at = :now
 WHERE id = (
   SELECT id FROM sessions
   WHERE state = 'PENDING'
+  ORDER BY created_at
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- M4 capability-filtered claim: like claimNextSession but only over sessions this
+-- worker can run — engine UNSPECIFIED (any worker's default) or in :supportedEngines.
+-- The filter is inside the inner SELECT so the lock / SKIP LOCKED / oldest-first all
+-- apply to the claimable subset: a worker skips a session it cannot run rather than
+-- blocking behind it. :supportedEngines is never empty (the store uses the unfiltered
+-- claimNextSession for pre-M4 workers, avoiding an empty IN list).
+claimNextSessionForEngines:
+UPDATE sessions
+SET state = 'RUNNING', claimed_at = :now, last_heartbeat_at = :now
+WHERE id = (
+  SELECT id FROM sessions
+  WHERE state = 'PENDING'
+    AND (engine = 'UNSPECIFIED' OR engine IN :supportedEngines)
   ORDER BY created_at
   LIMIT 1
   FOR UPDATE SKIP LOCKED

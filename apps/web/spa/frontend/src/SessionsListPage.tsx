@@ -7,7 +7,13 @@ import {
   type Session,
   type SessionService,
 } from './gen/medusa/session/v1/session_service_pb.ts';
-import { formatTimestamp, sessionStateColor, sessionStateLabel } from './sessionDisplay.ts';
+import {
+  engineColor,
+  engineLabel,
+  formatTimestamp,
+  sessionStateColor,
+  sessionStateLabel,
+} from './sessionDisplay.ts';
 
 const REFRESH_INTERVAL_MS = 7000;
 
@@ -83,6 +89,7 @@ export function SessionsListPage({
             <Table.Tr>
               <Table.Th>Repository</Table.Th>
               <Table.Th>State</Table.Th>
+              <Table.Th>Engine</Table.Th>
               <Table.Th>Created</Table.Th>
               <Table.Th>Created by</Table.Th>
               <Table.Th>Pull request</Table.Th>
@@ -115,6 +122,11 @@ export function SessionsListPage({
                 <Table.Td>
                   <Badge color={sessionStateColor[session.state]} variant="light">
                     {sessionStateLabel[session.state]}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={engineColor[session.engine]} variant="light">
+                    {engineLabel[session.engine]}
                   </Badge>
                 </Table.Td>
                 <Table.Td>{formatTimestamp(session.createdAt)}</Table.Td>

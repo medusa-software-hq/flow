@@ -3,6 +3,7 @@ import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { render, screen, userEvent } from '@test-utils';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import {
+  Engine,
   SessionEventKind,
   SessionEventSchema,
   SessionSchema,
@@ -18,6 +19,7 @@ interface SessionOverrides {
   failureSummary?: string;
   repoFullName?: string;
   taskMarkdown?: string;
+  engine?: Engine;
 }
 
 function baseSession(overrides: SessionOverrides = {}) {
@@ -28,6 +30,7 @@ function baseSession(overrides: SessionOverrides = {}) {
     state: SessionState.RUNNING,
     createdBy: 'alice@example.com',
     createdAt: timestampFromDate(new Date('2026-01-01T00:00:00Z')),
+    engine: Engine.CLAUDE,
     ...overrides,
   });
 }
@@ -77,6 +80,7 @@ test('renders header, task markdown, and the progress feed', async () => {
 
   expect(await screen.findByText('acme/app')).toBeInTheDocument();
   expect(screen.getByText('Running')).toBeInTheDocument();
+  expect(screen.getByText('Claude Agent')).toBeInTheDocument();
   expect(screen.getByText('Scouting')).toBeInTheDocument();
 
   // Markdown is rendered, not shown as raw source.
