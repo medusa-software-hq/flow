@@ -2,7 +2,10 @@ package software.medusa.flow.worker
 
 import kotlinx.coroutines.runBlocking
 import software.medusa.commons.openai_client.OaiConfiguredClient
+import software.medusa.flow.harness.HrsEngineBanner
+import software.medusa.flow.harness.HrsEngineRunMode
 import software.medusa.flow.harness.HrsPipelinePhase
+import software.medusa.flow.harness.HrsRunCost
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchMessage
@@ -40,6 +43,31 @@ private fun phaseToEvent(
               "Health check for attempt ${phase.attemptNumber}"
     }
 
+/** "Powered by Claude" branding line + CLI/model/mode, as short Markdown. */
+private fun formatBanner(
+    banner: HrsEngineBanner,
+): String = buildString {
+  append("**Powered by ${banner.engineName}**")
+  banner.cliVersion?.let { append(" · CLI $it") }
+  banner.model?.let { append(" · model `$it`") }
+  append(" · ")
+  append(
+      when (banner.runMode) {
+        HrsEngineRunMode.Gated -> "gated mode"
+        HrsEngineRunMode.ManifestLess -> "manifest-less mode"
+      },
+  )
+}
+
+/** Terminal cost/usage as short Markdown, e.g. "**$0.0100** · 2 turns · 1.2s". */
+private fun formatRunCost(
+    cost: HrsRunCost,
+): String = buildString {
+  append(cost.totalCostUsd?.let { "**$${"%.4f".format(it)}**" } ?: "**cost unknown**")
+  cost.numTurns?.let { append(" · $it ${if (it == 1) "turn" else "turns"}") }
+  cost.durationMs?.let { append(" · ${"%.1f".format(it / 1000.0)}s") }
+}
+
 /**
  * Maps [HrsTaskCompleter.Observer] callbacks to `AppendSessionEvent` calls, per
  * design/04-observability-and-github-layering.md: only short Markdown summaries cross the wire. Raw
@@ -54,18 +82,52 @@ class WrkReportingTaskObserver(
     private val sessionId: String,
     private val apiClient: WrkApiClient,
     private val log: (String) -> Unit,
+    private val agentActionCoalescer: WrkAgentActionCoalescer = WrkAgentActionCoalescer(),
 ) : HrsTaskCompleter.Observer {
   private fun sendEvent(
       kind: SessionEventKind,
       message: String,
+      costUsd: Double? = null,
   ) {
     try {
       runBlocking {
-        apiClient.appendSessionEvent(sessionId = sessionId, kind = kind, message = message)
+        apiClient.appendSessionEvent(
+            sessionId = sessionId,
+            kind = kind,
+            message = message,
+            costUsd = costUsd,
+        )
       }
     } catch (e: Exception) {
       log("Session $sessionId: failed to report a progress event ($e)")
     }
+  }
+
+  override fun observeAgentAction(
+      summary: String,
+  ) {
+    // Coalesce the (potentially very chatty) tool/narrative stream to a bounded event count.
+    when (val decision = agentActionCoalescer.offer(summary)) {
+      is WrkAgentActionCoalescer.Decision.Emit ->
+          sendEvent(SessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION, decision.message)
+      WrkAgentActionCoalescer.Decision.Drop -> Unit
+    }
+  }
+
+  override fun observeEngineBanner(
+      banner: HrsEngineBanner,
+  ) {
+    sendEvent(SessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER, formatBanner(banner))
+  }
+
+  override fun observeRunCost(
+      cost: HrsRunCost,
+  ) {
+    sendEvent(
+        kind = SessionEventKind.SESSION_EVENT_KIND_RUN_COST,
+        message = formatRunCost(cost),
+        costUsd = cost.totalCostUsd,
+    )
   }
 
   override fun observePhase(

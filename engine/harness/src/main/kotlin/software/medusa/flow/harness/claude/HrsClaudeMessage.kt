@@ -19,9 +19,14 @@ sealed interface HrsClaudeMessage {
       val tools: List<String>,
   ) : HrsClaudeMessage
 
-  /** An `assistant` turn, flattened to its concatenated text blocks (tool_use blocks dropped). */
+  /**
+   * An `assistant` turn: its concatenated [text] blocks plus one-line [toolActions] summaries for
+   * any `tool_use` blocks (e.g. "edited `x/y.kt`", "ran `gradle test`"). Both are pre-formatted by
+   * [HrsClaudeStreamParser] so the driver never touches wire fields. Either may be empty.
+   */
   data class Assistant(
       val text: String,
+      val toolActions: List<String> = emptyList(),
   ) : HrsClaudeMessage
 
   /**

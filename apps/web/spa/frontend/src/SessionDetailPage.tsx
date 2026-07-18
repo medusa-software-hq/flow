@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
+  SessionEventKind,
   SessionState,
   type Session,
   type SessionEvent,
@@ -24,6 +25,7 @@ import {
 import {
   engineColor,
   engineLabel,
+  formatCostUsd,
   formatTimestamp,
   isSessionActive,
   sessionEventKindLabel,
@@ -145,6 +147,20 @@ export function SessionDetailPage({
 
   const latestEventKind = events.length > 0 ? events[events.length - 1].kind : null;
 
+  // Claude-only surfaces: the pinned engine banner and the terminal run cost. Both stay absent for
+  // builtin sessions (no banner event, no cost), so their view is unchanged.
+  const bannerEvent =
+    [...events].reverse().find((event) => event.kind === SessionEventKind.ENGINE_BANNER) ?? null;
+  const hasCost = session.totalCostUsd !== undefined;
+  const isTerminal = !isSessionActive(session.state);
+
+  // The banner is pinned near the header and the cost on the terminal line, so keep them out of the
+  // progress feed itself. Builtin sessions have neither kind, so their feed is unchanged.
+  const feedEvents = events.filter(
+    (event) =>
+      event.kind !== SessionEventKind.ENGINE_BANNER && event.kind !== SessionEventKind.RUN_COST
+  );
+
   return (
     <Stack gap="lg" maw={800}>
       <Stack gap="xs">
@@ -174,8 +190,18 @@ export function SessionDetailPage({
             </Anchor>
           </Group>
         )}
+        {bannerEvent && (
+          <Paper withBorder p="xs" bg="var(--mantine-color-violet-light)">
+            <Markdown>{bannerEvent.message}</Markdown>
+          </Paper>
+        )}
         {isSessionActive(session.state) && latestEventKind !== null && (
           <Text size="sm">Current phase: {sessionEventKindLabel[latestEventKind]}</Text>
+        )}
+        {isTerminal && hasCost && (
+          <Text size="sm">
+            Cost: <strong>{formatCostUsd(session.totalCostUsd)}</strong>
+          </Text>
         )}
       </Stack>
 
@@ -205,13 +231,13 @@ export function SessionDetailPage({
 
       <Stack gap="xs">
         <Title order={3}>Progress</Title>
-        {events.length === 0 ? (
+        {feedEvents.length === 0 ? (
           <Text c="dimmed" size="sm">
             {isSessionActive(session.state) ? 'Waiting for the worker…' : 'No events recorded.'}
           </Text>
         ) : (
           <Stack gap="sm">
-            {events.map((event) => (
+            {feedEvents.map((event) => (
               <Paper key={event.seq} withBorder p="sm">
                 <Group justify="space-between" mb={4}>
                   <Text fw={600} size="sm">

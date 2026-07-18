@@ -20,6 +20,7 @@ interface SessionOverrides {
   repoFullName?: string;
   taskMarkdown?: string;
   engine?: Engine;
+  totalCostUsd?: number;
 }
 
 function baseSession(overrides: SessionOverrides = {}) {
@@ -87,6 +88,40 @@ test('renders header, task markdown, and the progress feed', async () => {
   expect(screen.getByRole('heading', { name: 'Do the thing' })).toBeInTheDocument();
   const code = screen.getByText('App.tsx');
   expect(code.tagName).toBe('CODE');
+});
+
+test('renders the Claude engine banner, agent actions, and the terminal run cost', async () => {
+  const getSession = vi.fn().mockResolvedValue({
+    session: baseSession({ state: SessionState.COMPLETED, totalCostUsd: 0.0421 }),
+    events: [
+      event(1, SessionEventKind.ENGINE_BANNER, '**Powered by Claude Agent** · manifest-less mode'),
+      event(2, SessionEventKind.AGENT_ACTION, 'edited `src/App.tsx`'),
+      event(3, SessionEventKind.RUN_COST, '**$0.0421** · 5 turns'),
+    ],
+  });
+
+  renderDetail(getSession);
+
+  // Banner is pinned (rendered as markdown, so "Powered by Claude Agent" is bold text).
+  expect(await screen.findByText(/Powered by Claude Agent/)).toBeInTheDocument();
+  // Agent action shows in the feed (the `src/App.tsx` path renders as inline code).
+  expect(screen.getByText('src/App.tsx').tagName).toBe('CODE');
+  // Terminal cost line derived from the session's total_cost_usd.
+  expect(screen.getByText('$0.0421')).toBeInTheDocument();
+});
+
+test('a builtin session renders no banner and no cost line', async () => {
+  const getSession = vi.fn().mockResolvedValue({
+    session: baseSession({ engine: Engine.BUILTIN, state: SessionState.COMPLETED }),
+    events: [event(1, SessionEventKind.SCOUTING_ROUND, 'round one')],
+  });
+
+  renderDetail(getSession);
+
+  expect(await screen.findByText('round one')).toBeInTheDocument();
+  expect(screen.queryByText(/Powered by/)).toBeNull();
+  expect(screen.queryByText(/^Cost:/)).toBeNull();
+  expect(screen.queryByText(/^\$/)).toBeNull();
 });
 
 test('does not render raw HTML embedded in task or event markdown', async () => {

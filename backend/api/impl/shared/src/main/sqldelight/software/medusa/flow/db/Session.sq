@@ -17,7 +17,9 @@ CREATE TABLE sessions (
   issue_number      INTEGER,
   issue_url         TEXT,
   -- M4: requested engine (V4). 'UNSPECIFIED' = the claiming worker's default.
-  engine            TEXT NOT NULL DEFAULT 'UNSPECIFIED'
+  engine            TEXT NOT NULL DEFAULT 'UNSPECIFIED',
+  -- M4: terminal run cost in USD (V5). NULL until the RUN_COST event lands.
+  total_cost_usd    DOUBLE PRECISION
 );
 
 CREATE TABLE session_events (
@@ -79,6 +81,14 @@ SELECT COALESCE(MAX(seq), 0) FROM session_events WHERE session_id = ?;
 insertEvent:
 INSERT INTO session_events (session_id, seq, created_at, kind, message)
 VALUES (?, ?, ?, ?, ?);
+
+-- Stamp the terminal run cost onto a RUNNING session (M4). Guarded like the other
+-- worker mutations; returns the id when it applied.
+stampCostIfRunning:
+UPDATE sessions
+SET total_cost_usd = :cost, last_heartbeat_at = :now
+WHERE id = ? AND state = 'RUNNING'
+RETURNING id;
 
 selectEventsAfterSeq:
 SELECT * FROM session_events

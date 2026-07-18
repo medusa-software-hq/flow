@@ -4,7 +4,10 @@ import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.rendering.TextStyles
 import com.github.ajalt.mordant.terminal.Terminal
 import software.medusa.commons.openai_client.OaiConfiguredClient
+import software.medusa.flow.harness.HrsEngineBanner
+import software.medusa.flow.harness.HrsEngineRunMode
 import software.medusa.flow.harness.HrsPipelinePhase
+import software.medusa.flow.harness.HrsRunCost
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchMessage
@@ -55,6 +58,47 @@ class CliTaskObserver(
   ) {
     terminal.println()
     terminal.println(heading(phaseHeadingText(phase)))
+  }
+
+  override fun observeEngineBanner(
+      banner: HrsEngineBanner,
+  ) {
+    val mode =
+        when (banner.runMode) {
+          HrsEngineRunMode.Gated -> "gated"
+          HrsEngineRunMode.ManifestLess -> "manifest-less"
+        }
+    val details =
+        listOfNotNull(
+                banner.cliVersion?.let { "CLI $it" },
+                banner.model?.let { "model $it" },
+                "$mode mode",
+            )
+            .joinToString(" · ")
+    terminal.println()
+    terminal.println((TextStyles.bold + TextColors.magenta)("Powered by ${banner.engineName}"))
+    terminal.println(TextColors.gray(details))
+  }
+
+  override fun observeAgentAction(
+      summary: String,
+  ) {
+    terminal.println(TextColors.gray("· ") + summary)
+  }
+
+  override fun observeRunCost(
+      cost: HrsRunCost,
+  ) {
+    val parts =
+        listOfNotNull(
+            cost.totalCostUsd?.let { "$${"%.4f".format(it)}" },
+            cost.numTurns?.let { "$it ${if (it == 1) "turn" else "turns"}" },
+            cost.durationMs?.let { "${"%.1f".format(it / 1000.0)}s" },
+        )
+    terminal.println()
+    terminal.println(
+        TextColors.brightCyan("Cost: ${parts.joinToString(" · ").ifEmpty { "unknown" }}")
+    )
   }
 }
 

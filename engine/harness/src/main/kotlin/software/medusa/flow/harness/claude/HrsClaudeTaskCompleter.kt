@@ -6,8 +6,11 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withTimeout
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
+import software.medusa.flow.harness.HrsEngineBanner
+import software.medusa.flow.harness.HrsEngineRunMode
 import software.medusa.flow.harness.HrsPhysicalTemporaryWorkspace
 import software.medusa.flow.harness.HrsPipelinePhase
+import software.medusa.flow.harness.HrsRunCost
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
@@ -64,7 +67,20 @@ class HrsClaudeTaskCompleter(
             workingDirectory = workspaceRoot,
         )
 
-    val outcome = runToCompletion(invocation = invocation)
+    val outcome = runToCompletion(invocation = invocation, observer = observer)
+
+    // Surface terminal cost/usage before the verdict: a cap trip or error result still spent money,
+    // so the UI should show it even when the run then throws.
+    outcome.result?.let { result ->
+      observer.observeRunCost(
+          HrsRunCost(
+              totalCostUsd = result.totalCostUsd,
+              numTurns = result.numTurns,
+              durationMs = result.durationMs,
+          ),
+      )
+    }
+
     interpretOutcome(outcome = outcome)
 
     return HrsTaskCompleter.TaskCompletionResult.Success(
@@ -111,6 +127,7 @@ class HrsClaudeTaskCompleter(
    */
   private suspend fun runToCompletion(
       invocation: HrsClaudeInvocation,
+      observer: HrsTaskCompleter.Observer,
   ): RunOutcome {
     val run = claudeProcess.spawn(invocation = invocation)
     try {
@@ -121,9 +138,14 @@ class HrsClaudeTaskCompleter(
         withTimeout(config.wallClockTimeout.toJavaDuration().toMillis()) {
           run.messages.collect { message ->
             when (message) {
-              is HrsClaudeMessage.SystemInit -> Unit // banner; A4 uses session_id for resume
-              is HrsClaudeMessage.Assistant ->
-                  if (message.text.isNotBlank()) lastAssistantText = message.text
+              is HrsClaudeMessage.SystemInit ->
+                  observer.observeEngineBanner(bannerOf(message)) // A4 uses session_id for resume
+              is HrsClaudeMessage.Assistant -> {
+                // assistant text → a throttled narrative summary; tool_use → one-line actions.
+                summarizeNarrative(message.text)?.let { observer.observeAgentAction(it) }
+                message.toolActions.forEach { observer.observeAgentAction(it) }
+                if (message.text.isNotBlank()) lastAssistantText = message.text
+              }
               is HrsClaudeMessage.Result -> result = message
               is HrsClaudeMessage.Unknown -> Unit
             }
@@ -187,6 +209,20 @@ class HrsClaudeTaskCompleter(
         else -> "personal"
       }
 
+  /** The engine banner for a run's opening `system`/`init` message. */
+  private fun bannerOf(
+      init: HrsClaudeMessage.SystemInit,
+  ): HrsEngineBanner =
+      HrsEngineBanner(
+          engineName = engineDisplayName,
+          cliVersion = config.pinnedCliVersion,
+          model = init.model ?: config.model,
+          // A3 has no manifest health gate — the run is always manifest-less; A4 flips this to
+          // Gated
+          // when a manifest drives an analyze/test gate.
+          runMode = HrsEngineRunMode.ManifestLess,
+      )
+
   private data class RunOutcome(
       val result: HrsClaudeMessage.Result?,
       val lastAssistantText: String?,
@@ -194,6 +230,25 @@ class HrsClaudeTaskCompleter(
   )
 
   private companion object {
+    /** Product-facing name (Anthropic branding: "Claude Agent", never "Claude Code"). */
+    const val engineDisplayName = "Claude Agent"
+
+    /** Longest narrative summary emitted per assistant turn; longer text is truncated. */
+    const val maxNarrativeLength = 200
+
+    /**
+     * Condenses an assistant text block to a short one-line narrative: the first non-blank line,
+     * truncated. Blank text yields `null` (nothing to narrate).
+     */
+    fun summarizeNarrative(
+        text: String,
+    ): String? {
+      val firstLine = text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }
+      return firstLine?.let {
+        if (it.length <= maxNarrativeLength) it else it.take(maxNarrativeLength).trimEnd() + "…"
+      }
+    }
+
     /** Cap trips are surfaced by the CLI as `error_max_*` result subtypes (e.g. budget). */
     fun isCapSubtype(
         subtype: String,

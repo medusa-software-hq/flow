@@ -29,6 +29,49 @@ class HrsClaudeStreamParser_tests {
   }
 
   @Test
+  fun `parses tool_use blocks into one-line action summaries`() {
+    val line =
+        """{"type":"assistant","message":{"role":"assistant","content":[
+          {"type":"text","text":"working"},
+          {"type":"tool_use","name":"Edit","input":{"file_path":"src/App.tsx"}},
+          {"type":"tool_use","name":"Write","input":{"file_path":"src/New.kt"}},
+          {"type":"tool_use","name":"Read","input":{"file_path":"README.md"}},
+          {"type":"tool_use","name":"Bash","input":{"command":"gradle test --info"}},
+          {"type":"tool_use","name":"Grep","input":{"pattern":"TODO"}},
+          {"type":"tool_use","name":"MysteryTool","input":{}}
+        ]}}"""
+            .replace("\n", "")
+
+    val message = assertIs<HrsClaudeMessage.Assistant>(HrsClaudeStreamParser.parseLine(line))
+    assertEquals("working", message.text)
+    assertEquals(
+        listOf(
+            "edited `src/App.tsx`",
+            "wrote `src/New.kt`",
+            "read `README.md`",
+            "ran `gradle test --info`",
+            "searched `TODO`",
+            "used MysteryTool",
+        ),
+        message.toolActions,
+    )
+  }
+
+  @Test
+  fun `a long bash command is truncated in the action summary`() {
+    val longCommand = "echo " + "x".repeat(200)
+    val line =
+        """{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"$longCommand"}}]}}"""
+
+    val message = assertIs<HrsClaudeMessage.Assistant>(HrsClaudeStreamParser.parseLine(line))
+    val summary = message.toolActions.single()
+    assertTrue(summary.startsWith("ran `echo "), summary)
+    assertTrue(summary.endsWith("…`"), summary)
+    // The backtick-wrapped command stays bounded (cap 60 + the "…" marker).
+    assertTrue(summary.length < 80, "summary should be truncated: ${summary.length}")
+  }
+
+  @Test
   fun `parses a successful result line with accounting fields`() {
     val line =
         """{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.0421,"num_turns":5,"duration_ms":8123}"""

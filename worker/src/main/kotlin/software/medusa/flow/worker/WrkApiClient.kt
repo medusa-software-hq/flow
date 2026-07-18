@@ -12,6 +12,7 @@ interface WrkApiClient {
       sessionId: String,
       kind: SessionEventKind,
       message: String,
+      costUsd: Double? = null,
   )
 
   suspend fun heartbeat(sessionId: String)

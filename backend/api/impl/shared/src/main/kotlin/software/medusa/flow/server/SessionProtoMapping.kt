@@ -54,6 +54,9 @@ private fun SessionEventKind.toProto(): ProtoSessionEventKind =
           ProtoSessionEventKind.SESSION_EVENT_KIND_IMPLEMENTATION_ATTEMPT
       SessionEventKind.HealthCheck -> ProtoSessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK
       SessionEventKind.Publishing -> ProtoSessionEventKind.SESSION_EVENT_KIND_PUBLISHING
+      SessionEventKind.AgentAction -> ProtoSessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION
+      SessionEventKind.EngineBanner -> ProtoSessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER
+      SessionEventKind.RunCost -> ProtoSessionEventKind.SESSION_EVENT_KIND_RUN_COST
     }
 
 /**
@@ -77,6 +80,8 @@ fun Session.toProto(
     // Proto3 strings default to empty; nulls collapse to "".
     prUrl = domainSession.prUrl.orEmpty()
     failureSummary = domainSession.failureSummary.orEmpty()
+    // Display-only cost — set the presence-tracked field only when known.
+    domainSession.totalCostUsd?.let { totalCostUsd = it }
     linkedPipeline?.let {
       issueNumber = it.issueNumber
       issueUrl = it.issueUrl
@@ -114,6 +119,9 @@ fun ProtoSessionEventKind.toDomainOrNull(): SessionEventKind? =
           SessionEventKind.ImplementationAttempt
       ProtoSessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK -> SessionEventKind.HealthCheck
       ProtoSessionEventKind.SESSION_EVENT_KIND_PUBLISHING -> SessionEventKind.Publishing
+      ProtoSessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION -> SessionEventKind.AgentAction
+      ProtoSessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER -> SessionEventKind.EngineBanner
+      ProtoSessionEventKind.SESSION_EVENT_KIND_RUN_COST -> SessionEventKind.RunCost
       ProtoSessionEventKind.SESSION_EVENT_KIND_UNSPECIFIED,
       ProtoSessionEventKind.UNRECOGNIZED -> null
     }
