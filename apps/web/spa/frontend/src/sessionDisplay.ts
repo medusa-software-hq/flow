@@ -1,5 +1,9 @@
 import { timestampDate, type Timestamp } from '@bufbuild/protobuf/wkt';
-import { SessionEventKind, SessionState } from './gen/medusa/session/v1/session_service_pb.ts';
+import {
+  Engine,
+  SessionEventKind,
+  SessionState,
+} from './gen/medusa/session/v1/session_service_pb.ts';
 
 export const sessionStateLabel: Record<SessionState, string> = {
   [SessionState.UNSPECIFIED]: 'Unknown',
@@ -15,6 +19,18 @@ export const sessionStateColor: Record<SessionState, string> = {
   [SessionState.RUNNING]: 'blue',
   [SessionState.COMPLETED]: 'green',
   [SessionState.FAILED]: 'red',
+};
+
+export const engineLabel: Record<Engine, string> = {
+  [Engine.UNSPECIFIED]: 'Builtin',
+  [Engine.BUILTIN]: 'Builtin',
+  [Engine.CLAUDE]: 'Claude Agent',
+};
+
+export const engineColor: Record<Engine, string> = {
+  [Engine.UNSPECIFIED]: 'gray',
+  [Engine.BUILTIN]: 'gray',
+  [Engine.CLAUDE]: 'violet',
 };
 
 /** A session is still in flight — the detail page should keep polling. */

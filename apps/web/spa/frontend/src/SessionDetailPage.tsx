@@ -22,6 +22,8 @@ import {
   type SessionService,
 } from './gen/medusa/session/v1/session_service_pb.ts';
 import {
+  engineColor,
+  engineLabel,
   formatTimestamp,
   isSessionActive,
   sessionEventKindLabel,
@@ -148,9 +150,14 @@ export function SessionDetailPage({
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start">
           <Title order={1}>{session.repoFullName}</Title>
-          <Badge color={sessionStateColor[session.state]} variant="light" size="lg">
-            {sessionStateLabel[session.state]}
-          </Badge>
+          <Group gap="xs">
+            <Badge color={engineColor[session.engine]} variant="light" size="lg">
+              {engineLabel[session.engine]}
+            </Badge>
+            <Badge color={sessionStateColor[session.state]} variant="light" size="lg">
+              {sessionStateLabel[session.state]}
+            </Badge>
+          </Group>
         </Group>
         <Text c="dimmed" size="sm">
           Created {formatTimestamp(session.createdAt)} by {session.createdBy}

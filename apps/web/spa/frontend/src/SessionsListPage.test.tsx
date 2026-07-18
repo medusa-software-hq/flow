@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { fireEvent, render, screen } from '@test-utils';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { SessionSchema, SessionState } from './gen/medusa/session/v1/session_service_pb.ts';
+import { Engine, SessionSchema, SessionState } from './gen/medusa/session/v1/session_service_pb.ts';
 import { SessionsListPage } from './SessionsListPage.tsx';
 
 function fakeClient(sessions: ReturnType<typeof create<typeof SessionSchema>>[]) {
@@ -33,6 +33,7 @@ test('renders sessions with state badge, created-by, and a PR link only when com
     createdBy: 'alice@example.com',
     createdAt: timestampFromDate(new Date('2026-01-02T03:04:05Z')),
     prUrl: 'https://github.com/acme/app/pull/1',
+    engine: Engine.CLAUDE,
   });
   const running = create(SessionSchema, {
     id: 'b',
@@ -40,6 +41,7 @@ test('renders sessions with state badge, created-by, and a PR link only when com
     state: SessionState.RUNNING,
     createdBy: 'bob@example.com',
     createdAt: timestampFromDate(new Date('2026-01-02T03:05:00Z')),
+    engine: Engine.BUILTIN,
   });
 
   renderAt('/sessions', fakeClient([completed, running]));
@@ -49,6 +51,10 @@ test('renders sessions with state badge, created-by, and a PR link only when com
   expect(screen.getByText('Completed')).toBeInTheDocument();
   expect(screen.getByText('Running')).toBeInTheDocument();
   expect(screen.getByText('alice@example.com')).toBeInTheDocument();
+
+  // Engine badges: the CLAUDE session reads "Claude Agent", the BUILTIN one "Builtin".
+  expect(screen.getByText('Claude Agent')).toBeInTheDocument();
+  expect(screen.getByText('Builtin')).toBeInTheDocument();
 
   // Only the completed session gets a PR link.
   expect(screen.getByRole('link', { name: 'View PR' })).toHaveAttribute(

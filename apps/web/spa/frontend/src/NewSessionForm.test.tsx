@@ -1,5 +1,6 @@
 import { render, screen, userEvent } from '@test-utils';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { Engine } from './gen/medusa/session/v1/session_service_pb.ts';
 import { NewSessionForm } from './NewSessionForm.tsx';
 
 type GitHubClient = Parameters<typeof NewSessionForm>[0]['gitHubClient'];
@@ -69,7 +70,31 @@ test('submitting with both fields filled calls CreateSession and navigates to th
 
   expect(await screen.findByText('Detail page')).toBeInTheDocument();
   expect(createSession).toHaveBeenCalledWith(
-    { repoFullName: 'acme/app', taskMarkdown: 'Fix the bug' },
+    { repoFullName: 'acme/app', engine: Engine.UNSPECIFIED, taskMarkdown: 'Fix the bug' },
+    { headers: {} }
+  );
+});
+
+test('selecting the Claude Agent engine sends the numeric CLAUDE enum on CreateSession', async () => {
+  const user = userEvent.setup();
+  const createSession = vi.fn().mockResolvedValue({ session: { id: 'new-id' } });
+  const sessionClient = { createSession } as unknown as SessionClient;
+
+  renderForm(fakeGitHubClient(['acme/app']), sessionClient);
+
+  const repoSelect = await screen.findByPlaceholderText('Select a repository');
+  await user.click(repoSelect);
+  await user.click(await screen.findByText('acme/app'));
+
+  await user.click(screen.getByPlaceholderText('Select an engine'));
+  await user.click(await screen.findByText('Claude Agent'));
+
+  await user.type(screen.getByPlaceholderText('Describe what should be done…'), 'Fix the bug');
+  await user.click(screen.getByRole('button', { name: 'Create session' }));
+
+  expect(await screen.findByText('Detail page')).toBeInTheDocument();
+  expect(createSession).toHaveBeenCalledWith(
+    { repoFullName: 'acme/app', engine: Engine.CLAUDE, taskMarkdown: 'Fix the bug' },
     { headers: {} }
   );
 });
