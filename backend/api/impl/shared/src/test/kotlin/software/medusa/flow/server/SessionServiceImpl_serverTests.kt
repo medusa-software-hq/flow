@@ -14,6 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
+import software.medusa.flow.v1.Engine as ProtoEngine
 import software.medusa.flow.v1.SessionServiceGrpcKt
 import software.medusa.flow.v1.SessionState as ProtoSessionState
 import software.medusa.flow.v1.createSessionRequest
@@ -95,6 +96,36 @@ class SessionServiceImpl_serverTests {
   }
 
   @Test
+  fun `createSession round-trips a requested engine`() = runBlocking {
+    val created =
+        client.createSession(
+            createSessionRequest {
+              repoFullName = "acme/app"
+              taskMarkdown = "# Task"
+              engine = ProtoEngine.ENGINE_CLAUDE
+            },
+        )
+
+    assertEquals(ProtoEngine.ENGINE_CLAUDE, created.session.engine)
+
+    val got = client.getSession(getSessionRequest { id = created.session.id })
+    assertEquals(ProtoEngine.ENGINE_CLAUDE, got.session.engine)
+  }
+
+  @Test
+  fun `createSession with no engine defaults to UNSPECIFIED`() = runBlocking {
+    val created =
+        client.createSession(
+            createSessionRequest {
+              repoFullName = "acme/app"
+              taskMarkdown = "# Task"
+            },
+        )
+
+    assertEquals(ProtoEngine.ENGINE_UNSPECIFIED, created.session.engine)
+  }
+
+  @Test
   fun `invalid repo_full_name and empty task are rejected`() = runBlocking {
     assertFailsWith<StatusException> {
       client.createSession(
@@ -136,7 +167,7 @@ class SessionServiceImpl_serverTests {
         )
 
     // Claim it directly on the store to move PENDING → RUNNING, then let the heartbeat go stale.
-    store.claimNext()
+    store.claimNext(supportedEngines = emptySet())
     clock.advance(heartbeatTimeout.plusSeconds(1))
 
     val got = client.getSession(getSessionRequest { id = created.session.id })

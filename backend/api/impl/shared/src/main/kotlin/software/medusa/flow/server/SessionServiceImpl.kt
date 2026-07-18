@@ -57,6 +57,7 @@ class SessionServiceImpl(
             repoFullName = repoFullName,
             taskMarkdown = taskMarkdown,
             createdBy = createdBy,
+            engine = request.engine.toDomain(),
         )
 
     return createSessionResponse { this.session = session.toProto() }

@@ -110,7 +110,13 @@ class WorkerServiceImpl_serverTests {
         val (srv, client) = startServerAs(workerEmail)
         server = srv
 
-        val created = store.create(repoFullName = "acme/app", taskMarkdown = "# Task", "u@x")
+        val created =
+            store.create(
+                repoFullName = "acme/app",
+                taskMarkdown = "# Task",
+                "u@x",
+                engine = Engine.Unspecified,
+            )
 
         val claimed = client.claimNextSession(claimNextSessionRequest {})
         assertEquals(created.id.id, claimed.session.id)
@@ -144,8 +150,14 @@ class WorkerServiceImpl_serverTests {
         val (srv, client) = startServerAs(workerEmail)
         server = srv
 
-        val created = store.create(repoFullName = "acme/app", taskMarkdown = "# Task", "u@x")
-        store.claimNext()
+        val created =
+            store.create(
+                repoFullName = "acme/app",
+                taskMarkdown = "# Task",
+                "u@x",
+                engine = Engine.Unspecified,
+            )
+        store.claimNext(supportedEngines = emptySet())
         store.fail(created.id, "boom")
 
         val failure =

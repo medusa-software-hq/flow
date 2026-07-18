@@ -22,6 +22,7 @@ class ReconcilePicker_tests {
       createdAt: String,
       title: String = "Issue $number",
       body: String = "Body $number",
+      labels: Set<String> = emptySet(),
   ) =
       CandidateIssue(
           number = number,
@@ -29,6 +30,7 @@ class ReconcilePicker_tests {
           body = body,
           url = "https://x/$number",
           createdAt = Instant.parse(createdAt),
+          labels = labels,
       )
 
   @Test
@@ -51,6 +53,38 @@ class ReconcilePicker_tests {
     assertEquals(SessionState.Pending, session.state)
     assertEquals("# Issue 1\n\nBody 1", session.taskMarkdown)
     assertEquals(repo, session.repoFullName)
+  }
+
+  @Test
+  fun `a flow-engine label stamps the linked session's engine`() = runBlocking {
+    val fx = Fixture()
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(
+            candidate(
+                1,
+                "2026-05-01T00:00:00Z",
+                labels = setOf("flow:ready", "flow:engine=claude"),
+            )
+        )
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    val session = fx.sessions.get(pipeline.sessionId!!, afterSeq = 0)!!.session
+    assertEquals(Engine.Claude, session.engine)
+  }
+
+  @Test
+  fun `a candidate with no engine label defaults to Unspecified`() = runBlocking {
+    val fx = Fixture()
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(candidate(1, "2026-05-01T00:00:00Z", labels = setOf("flow:ready")))
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    val session = fx.sessions.get(pipeline.sessionId!!, afterSeq = 0)!!.session
+    assertEquals(Engine.Unspecified, session.engine)
   }
 
   @Test

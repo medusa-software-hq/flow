@@ -32,6 +32,7 @@ class GitHubAppCandidateClient(
                 url
                 createdAt
                 blockedBy(first: 50) { nodes { state } }
+                labels(first: 20) { nodes { name } }
               }
             }
           }
@@ -65,6 +66,8 @@ class GitHubAppCandidateClient(
               body = it.body.orEmpty(),
               url = it.url,
               createdAt = Instant.parse(it.createdAt),
+              labels =
+                  it.labels?.nodes.orEmpty().filterNotNull().mapNotNull { l -> l.name }.toSet(),
           )
         }
         .sortedBy { it.createdAt } // oldest first
@@ -133,8 +136,13 @@ private data class CandidateNode(
     val url: String,
     val createdAt: String,
     val blockedBy: CandidateBlockedBy? = null,
+    val labels: CandidateLabels? = null,
 )
 
 @Serializable private data class CandidateBlockedBy(val nodes: List<CandidateBlocker?>? = null)
 
 @Serializable private data class CandidateBlocker(val state: String? = null)
+
+@Serializable private data class CandidateLabels(val nodes: List<CandidateLabel?>? = null)
+
+@Serializable private data class CandidateLabel(val name: String? = null)

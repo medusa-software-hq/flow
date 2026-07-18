@@ -41,7 +41,12 @@ class InMemorySessionStore_tests {
     val (store, _) = newStore()
 
     val session =
-        store.create(repoFullName = "acme/app", taskMarkdown = "# Task", createdBy = "u@x")
+        store.create(
+            repoFullName = "acme/app",
+            taskMarkdown = "# Task",
+            createdBy = "u@x",
+            engine = Engine.Unspecified,
+        )
 
     assertEquals(SessionState.Pending, session.state)
     assertEquals("acme/app", session.repoFullName)
@@ -56,11 +61,11 @@ class InMemorySessionStore_tests {
   fun `list returns sessions newest-first and honours the limit`() = runBlocking {
     val (store, clock) = newStore()
 
-    val first = store.create("acme/a", "t", "u@x")
+    val first = store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
     clock.advance(Duration.ofSeconds(1))
-    val second = store.create("acme/b", "t", "u@x")
+    val second = store.create("acme/b", "t", "u@x", engine = Engine.Unspecified)
     clock.advance(Duration.ofSeconds(1))
-    val third = store.create("acme/c", "t", "u@x")
+    val third = store.create("acme/c", "t", "u@x", engine = Engine.Unspecified)
 
     assertEquals(listOf(third.id, second.id, first.id), store.list(limit = 100).map { it.id })
     assertEquals(listOf(third.id, second.id), store.list(limit = 2).map { it.id })
@@ -70,19 +75,19 @@ class InMemorySessionStore_tests {
   fun `claimNext returns null on an empty queue`() = runBlocking {
     val (store, _) = newStore()
 
-    assertNull(store.claimNext())
+    assertNull(store.claimNext(supportedEngines = emptySet()))
   }
 
   @Test
   fun `claimNext claims oldest first and never returns the same session twice`() = runBlocking {
     val (store, clock) = newStore()
 
-    val first = store.create("acme/a", "t", "u@x")
+    val first = store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
     clock.advance(Duration.ofSeconds(1))
-    val second = store.create("acme/b", "t", "u@x")
+    val second = store.create("acme/b", "t", "u@x", engine = Engine.Unspecified)
 
-    val firstClaim = store.claimNext()
-    val secondClaim = store.claimNext()
+    val firstClaim = store.claimNext(supportedEngines = emptySet())
+    val secondClaim = store.claimNext(supportedEngines = emptySet())
 
     assertEquals(first.id, firstClaim?.id)
     assertEquals(SessionState.Running, firstClaim?.state)
@@ -90,14 +95,63 @@ class InMemorySessionStore_tests {
     assertNotEquals(firstClaim?.id, secondClaim?.id)
 
     // Queue now empty — everything is RUNNING.
-    assertNull(store.claimNext())
+    assertNull(store.claimNext(supportedEngines = emptySet()))
+  }
+
+  @Test
+  fun `claimNext honours the worker's supported engines and never blocks behind un-claimable work`() =
+      runBlocking {
+        val (store, clock) = newStore()
+
+        // Oldest → newest: a CLAUDE, then a BUILTIN, then an UNSPECIFIED session.
+        val claude = store.create("acme/a", "t", "u@x", engine = Engine.Claude)
+        clock.advance(Duration.ofSeconds(1))
+        val builtin = store.create("acme/b", "t", "u@x", engine = Engine.Builtin)
+        clock.advance(Duration.ofSeconds(1))
+        val unspecified = store.create("acme/c", "t", "u@x", engine = Engine.Unspecified)
+
+        // A builtin worker skips the older, un-claimable CLAUDE session and takes the BUILTIN one.
+        val builtinClaim = store.claimNext(supportedEngines = setOf(Engine.Builtin))
+        assertEquals(builtin.id, builtinClaim?.id)
+
+        // A claude worker gets the CLAUDE session.
+        val claudeClaim = store.claimNext(supportedEngines = setOf(Engine.Claude))
+        assertEquals(claude.id, claudeClaim?.id)
+
+        // The UNSPECIFIED session is claimable by any worker.
+        val unspecifiedClaim = store.claimNext(supportedEngines = setOf(Engine.Builtin))
+        assertEquals(unspecified.id, unspecifiedClaim?.id)
+      }
+
+  @Test
+  fun `claimNext with an empty set claims the oldest PENDING regardless of engine`() = runBlocking {
+    val (store, clock) = newStore()
+
+    val claude = store.create("acme/a", "t", "u@x", engine = Engine.Claude)
+    clock.advance(Duration.ofSeconds(1))
+    store.create("acme/b", "t", "u@x", engine = Engine.Builtin)
+
+    // Back-compat: a pre-M4 worker (empty set) claims the oldest, even though it is CLAUDE.
+    val claim = store.claimNext(supportedEngines = emptySet())
+    assertEquals(claude.id, claim?.id)
+  }
+
+  @Test
+  fun `a builtin-only worker facing an all-claude queue claims nothing`() = runBlocking {
+    val (store, clock) = newStore()
+
+    store.create("acme/a", "t", "u@x", engine = Engine.Claude)
+    clock.advance(Duration.ofSeconds(1))
+    store.create("acme/b", "t", "u@x", engine = Engine.Claude)
+
+    assertNull(store.claimNext(supportedEngines = setOf(Engine.Builtin)))
   }
 
   @Test
   fun `worker mutations require a running session`() = runBlocking {
     val (store, _) = newStore()
 
-    val pending = store.create("acme/a", "t", "u@x")
+    val pending = store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
 
     // Not yet claimed → still PENDING → all guarded mutations refuse.
     assertPreconditionFailed(store.appendEvent(pending.id, SessionEventKind.ScoutingRound, "hi"))
@@ -113,8 +167,8 @@ class InMemorySessionStore_tests {
   fun `completing then mutating again is a no-op precondition failure`() = runBlocking {
     val (store, _) = newStore()
 
-    store.create("acme/a", "t", "u@x")
-    val claimed = store.claimNext()!!
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext(supportedEngines = emptySet())!!
 
     assertApplied(store.complete(claimed.id, "https://pr/1"))
 
@@ -137,8 +191,8 @@ class InMemorySessionStore_tests {
   fun `failing a running session records the summary and locks it`() = runBlocking {
     val (store, _) = newStore()
 
-    store.create("acme/a", "t", "u@x")
-    val claimed = store.claimNext()!!
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext(supportedEngines = emptySet())!!
 
     assertApplied(store.fail(claimed.id, "boom"))
 
@@ -153,8 +207,8 @@ class InMemorySessionStore_tests {
   fun `appendEvent assigns increasing seq and get filters by afterSeq`() = runBlocking {
     val (store, _) = newStore()
 
-    store.create("acme/a", "t", "u@x")
-    val claimed = store.claimNext()!!
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext(supportedEngines = emptySet())!!
 
     val e1 = assertApplied(store.appendEvent(claimed.id, SessionEventKind.ScoutingRound, "a"))
     val e2 = assertApplied(store.appendEvent(claimed.id, SessionEventKind.HealthCheck, "b"))
@@ -171,8 +225,8 @@ class InMemorySessionStore_tests {
   fun `appendEvent truncates over-long messages`() = runBlocking {
     val (store, _) = newStore()
 
-    store.create("acme/a", "t", "u@x")
-    val claimed = store.claimNext()!!
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext(supportedEngines = emptySet())!!
 
     val huge = "x".repeat(SessionStore.maxEventMessageLength + 500)
     val event = assertApplied(store.appendEvent(claimed.id, SessionEventKind.ScoutingRound, huge))
@@ -184,8 +238,8 @@ class InMemorySessionStore_tests {
   fun `appendEvent and heartbeat refresh the heartbeat so expiry does not fire`() = runBlocking {
     val (store, clock) = newStore()
 
-    store.create("acme/a", "t", "u@x")
-    val claimed = store.claimNext()!!
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext(supportedEngines = emptySet())!!
 
     // Almost at the timeout, then a heartbeat resets the clock-of-death.
     clock.advance(heartbeatTimeout.minusSeconds(10))
@@ -200,8 +254,8 @@ class InMemorySessionStore_tests {
   fun `a running session with a stale heartbeat is lazily expired on read`() = runBlocking {
     val (store, clock) = newStore()
 
-    store.create("acme/a", "t", "u@x")
-    val claimed = store.claimNext()!!
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext(supportedEngines = emptySet())!!
 
     clock.advance(heartbeatTimeout.plusSeconds(1))
 
@@ -218,13 +272,13 @@ class InMemorySessionStore_tests {
   fun `expireStale only affects sessions past the timeout`() = runBlocking {
     val (store, clock) = newStore()
 
-    store.create("acme/a", "t", "u@x")
-    val staleClaim = store.claimNext()!!
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val staleClaim = store.claimNext(supportedEngines = emptySet())!!
 
     clock.advance(heartbeatTimeout.plusSeconds(1))
 
-    store.create("acme/b", "t", "u@x")
-    val freshClaim = store.claimNext()!!
+    store.create("acme/b", "t", "u@x", engine = Engine.Unspecified)
+    val freshClaim = store.claimNext(supportedEngines = emptySet())!!
 
     assertEquals(1, store.expireStale())
     assertEquals(SessionState.Failed, store.get(staleClaim.id, afterSeq = 0)!!.session.state)

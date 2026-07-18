@@ -76,8 +76,14 @@ class PipelineServiceImpl_tests {
   fun `clearing a pipeline abandons its still-running session`() = runBlocking {
     val f = newFixture()
     // A session claimed by a worker (RUNNING), linked to a pipeline that then failed.
-    val session = f.sessions.create(repoFullName = "acme/app", taskMarkdown = "t", createdBy = "r")
-    val claimed = f.sessions.claimNext()
+    val session =
+        f.sessions.create(
+            repoFullName = "acme/app",
+            taskMarkdown = "t",
+            createdBy = "r",
+            engine = Engine.Unspecified,
+        )
+    val claimed = f.sessions.claimNext(supportedEngines = emptySet())
     assertEquals(session.id, claimed?.id)
     val pipeline =
         assertIs<PickResult.Picked>(

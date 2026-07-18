@@ -23,6 +23,7 @@ class SessionProtoMapping_tests {
             lastHeartbeatAt = createdAt,
             prUrl = null,
             failureSummary = null,
+            engine = Engine.Unspecified,
         )
 
     val proto = session.toProto()
@@ -51,6 +52,7 @@ class SessionProtoMapping_tests {
             lastHeartbeatAt = Instant.EPOCH,
             prUrl = "https://pr/1",
             failureSummary = null,
+            engine = Engine.Unspecified,
         )
 
     val completed = base.toProto()
@@ -104,6 +106,7 @@ class SessionProtoMapping_tests {
             lastHeartbeatAt = null,
             prUrl = null,
             failureSummary = null,
+            engine = Engine.Unspecified,
         )
 
     val pipeline =

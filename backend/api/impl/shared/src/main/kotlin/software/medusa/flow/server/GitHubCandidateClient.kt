@@ -9,6 +9,8 @@ data class CandidateIssue(
     val body: String,
     val url: String,
     val createdAt: Instant,
+    /** The issue's label names — carries the optional `flow:engine=` pin (M4). */
+    val labels: Set<String> = emptySet(),
 )
 
 /**
@@ -35,5 +37,24 @@ interface GitHubCandidateClient {
   companion object {
     /** The opt-in label (name hardcoded in M2), namespaced like the other `flow:*` labels. */
     const val readyLabel = "flow:ready"
+
+    /** Optional per-issue engine pin, e.g. `flow:engine=claude` (M4) — same `flow:*` namespace. */
+    const val enginePrefix = "flow:engine="
+
+    /**
+     * The engine an issue pins via a `flow:engine=<value>` label, or [Engine.Unspecified] when
+     * absent/unrecognised (→ the claiming worker's default). The first client-side label scan;
+     * `flow:ready` itself is only ever a server-side search qualifier.
+     */
+    fun engineFromLabels(
+        labels: Set<String>,
+    ): Engine =
+        when (
+            labels.firstOrNull { it.startsWith(enginePrefix) }?.substringAfter('=')?.lowercase()
+        ) {
+          "claude" -> Engine.Claude
+          "builtin" -> Engine.Builtin
+          else -> Engine.Unspecified
+        }
   }
 }

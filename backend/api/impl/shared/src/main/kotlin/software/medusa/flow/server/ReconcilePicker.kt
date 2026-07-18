@@ -50,6 +50,7 @@ class ReconcilePicker(
             repoFullName = repoFullName,
             taskMarkdown = taskMarkdownFor(chosen),
             createdBy = reconcilerAuthor,
+            engine = GitHubCandidateClient.engineFromLabels(chosen.labels),
         )
 
     return when (

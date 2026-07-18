@@ -15,6 +15,15 @@ enum SessionState {
   SESSION_STATE_FAILED = 4;
 }
 
+// The agentic engine that runs a session (M4). UNSPECIFIED = "the claiming
+// worker's default" — any worker may claim it. A named engine may only be
+// claimed by a worker that lists it in ClaimNextSessionRequest.supported_engines.
+enum Engine {
+  ENGINE_UNSPECIFIED = 0;
+  ENGINE_BUILTIN = 1;
+  ENGINE_CLAUDE = 2;
+}
+
 message Session {
   string id = 1;
   string repo_full_name = 2;
@@ -31,6 +40,8 @@ message Session {
   int32 issue_number = 9;
   string issue_url = 10;
   string issue_pipeline_id = 11;
+  // Requested engine (M4). UNSPECIFIED = the claiming worker's default.
+  Engine engine = 12;
 }
 
 enum SessionEventKind {
@@ -63,6 +74,8 @@ service SessionService {
 message CreateSessionRequest {
   string repo_full_name = 1;
   string task_markdown = 2;
+  // Optional (M4). UNSPECIFIED → the claiming worker's default engine.
+  Engine engine = 3;
 }
 
 message CreateSessionResponse {
@@ -100,7 +113,13 @@ service WorkerService {
   rpc FailSession(FailSessionRequest) returns (FailSessionResponse);
 }
 
-message ClaimNextSessionRequest {}
+message ClaimNextSessionRequest {
+  // The engines this worker can run (M4). Empty → claim any session
+  // (back-compatible with pre-M4 workers). Non-empty → claim only sessions
+  // whose engine is UNSPECIFIED or in this set — oldest-first among those, so a
+  // worker never blocks behind a session it cannot run.
+  repeated Engine supported_engines = 1;
+}
 
 // Absent session means the queue is empty.
 message ClaimNextSessionResponse {

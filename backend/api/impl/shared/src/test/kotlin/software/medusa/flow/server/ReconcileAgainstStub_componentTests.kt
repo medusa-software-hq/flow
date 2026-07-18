@@ -127,6 +127,18 @@ class ReconcileAgainstStub_componentTests {
       }
 
   @Test
+  fun `reconcile stamps the session engine from a flow-engine label seen over real GraphQL`() =
+      runBlocking {
+        stub.seedIssue(repo, 1, "A", labels = setOf("flow:ready", "flow:engine=claude"))
+
+        reconcile()
+
+        val pipeline = pipelines.listLive().single()
+        val session = sessions.get(pipeline.sessionId!!, afterSeq = 0)!!.session
+        assertEquals(Engine.Claude, session.engine)
+      }
+
+  @Test
   fun `reconcile observes a merged, green PR, closes the issue in GitHub, then unblocks the dependent`() =
       runBlocking {
         stub.seedIssue(repo, 1, "A", labels = setOf("flow:ready"))

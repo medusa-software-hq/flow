@@ -33,6 +33,7 @@ class InMemorySessionStore(
       repoFullName: String,
       taskMarkdown: String,
       createdBy: String,
+      engine: Engine,
   ): Session =
       synchronized(lock) {
         val session =
@@ -47,6 +48,7 @@ class InMemorySessionStore(
                 lastHeartbeatAt = null,
                 prUrl = null,
                 failureSummary = null,
+                engine = engine,
             )
 
         sessionsById[session.id] = session
@@ -78,11 +80,15 @@ class InMemorySessionStore(
         SessionWithEvents(session = session, events = events)
       }
 
-  override suspend fun claimNext(): Session? =
+  override suspend fun claimNext(
+      supportedEngines: Set<Engine>,
+  ): Session? =
       synchronized(lock) {
         val oldestPending =
             sessionsById.values
-                .filter { it.state == SessionState.Pending }
+                .filter {
+                  it.state == SessionState.Pending && it.engine.claimableBy(supportedEngines)
+                }
                 .minByOrNull { it.createdAt } ?: return@synchronized null
 
         val now = clock.instant()

@@ -407,6 +407,19 @@ class FakeGitHubServer : AutoCloseable {
                   put("url", issue.url)
                   put("createdAt", issue.createdAt.toString())
                   put(
+                      "labels",
+                      buildJsonObject {
+                        put(
+                            "nodes",
+                            buildJsonArray {
+                              issue.labels.forEach { labelName ->
+                                add(buildJsonObject { put("name", labelName) })
+                              }
+                            },
+                        )
+                      },
+                  )
+                  put(
                       "blockedBy",
                       buildJsonObject {
                         put(
