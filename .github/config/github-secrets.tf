@@ -76,8 +76,9 @@ resource "github_actions_secret" "nightly_app_pem_content" {
 # The operator's long-lived Claude subscription token from `claude setup-token` — the claude
 # engine's rung-1 credential (per the M4 auth pivot in plan/m4/design/02-auth-and-modes.md, this is
 # the default everywhere: CI, and the hosted worker). Used by the claude CLI contract check (M4 A1)
-# and, later, the hermetic --engine claude test (A7). Set out-of-band (`gh secret set` / UI), so it
-# holds a live value and is adopted here with `import` rather than overwritten with the placeholder.
+# and, later, the hermetic --engine claude test (A7). A new secret (no live value to adopt), so no
+# import block: Terraform creates it with the placeholder and the real token is set by hand
+# afterward (`gh secret set` / UI); `ignore_changes` keeps Terraform off the value thereafter.
 resource "github_actions_secret" "claude_code_oauth_token" {
   repository  = github_repository.this.name
   secret_name = "CLAUDE_CODE_OAUTH_TOKEN"
@@ -86,9 +87,4 @@ resource "github_actions_secret" "claude_code_oauth_token" {
   lifecycle {
     ignore_changes = [value]
   }
-}
-
-import {
-  to = github_actions_secret.claude_code_oauth_token
-  id = "${module.common.gh_repo_name}:CLAUDE_CODE_OAUTH_TOKEN"
 }
