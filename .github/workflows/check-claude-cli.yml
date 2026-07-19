@@ -86,10 +86,57 @@ jobs:
               out.append(f"### {title}\n\n```json\n{json.dumps(obj, indent=2)[:2500]}\n```\n")
           if init: block("system/init", init)
           if result: block("result", result)
+          rendered = "\n".join(out)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-              f.write("\n".join(out))
+              f.write(rendered)
+          # Also to the log (the job summary is awkward to fetch via the API); this is what
+          # finalizes plan/m4/design/03-cli-notes.md and confirms the engine parser's field names.
+          print(rendered)
+          if init:
+              print("INIT_FIELDS:", sorted(init.keys()))
+          if result:
+              print("RESULT_FIELDS:", sorted(result.keys()))
           assert init, "no system/init message in the stream"
           assert result, "no result message in the stream"
           assert result.get("is_error") in (False, None), f"result reported an error: {result}"
           print("OK: headless run completed; init + non-error result captured")
+          PY
+
+      - name: Probe --resume from a fresh process
+        # A4's gate/bounce resumes a session with per-module diagnostics as the next prompt. This
+        # confirms the mechanism the design assumes: `--resume <session_id>` from a SEPARATE process
+        # continues the same conversation (vs. needing a live stdin-fed process). Turn 1 pre-assigns
+        # a session id and plants a codeword; turn 2 is a fresh process that --resumes and must recall
+        # it. Non-fatal to the contract itself, but decisive for A4 — so it runs and reports.
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          set -uo pipefail
+          work="$RUNNER_TEMP/claude-resume"
+          rm -rf "$work"; mkdir -p "$work"; cd "$work"
+          git init -q
+          printf 'one\n' > f.txt
+          git -c user.email=ci@flow -c user.name=ci add -A
+          git -c user.email=ci@flow -c user.name=ci commit -qm init
+          sid="11111111-1111-4111-8111-111111111111"
+          common=(--output-format stream-json --verbose --setting-sources project --permission-mode acceptEdits --allowedTools "Read" --max-budget-usd 0.50)
+
+          claude -p "Remember this codeword for later: BANANA7. Just acknowledge it; do not edit any files." \
+            --session-id "$sid" "${common[@]}" > turn1.ndjson 2> t1.err \
+            || { echo "::error::--session-id turn failed"; sed -n '1,40p' t1.err; exit 1; }
+
+          claude -p "What was the codeword I asked you to remember? Reply with just that word." \
+            --resume "$sid" "${common[@]}" > turn2.ndjson 2> t2.err \
+            || { echo "::error::--resume from a fresh process FAILED"; sed -n '1,40p' t2.err; exit 1; }
+
+          python3 - turn2.ndjson <<'PY'
+          import json, sys
+          msgs = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+          result = next((m for m in msgs if m.get("type") == "result"), None)
+          carried = "banana7" in json.dumps(msgs).lower()
+          print("RESUME result text:", repr((result or {}).get("result", ""))[:200])
+          print("RESUME carried context across a fresh process:", carried)
+          # A4 mechanism: True → new-process --resume works (build the bounce that way);
+          # False → the bounce needs the live stdin-fed process (A3's sendUserMessage seam).
+          sys.exit(0 if carried else 1)
           PY
