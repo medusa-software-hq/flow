@@ -12,12 +12,16 @@ import kotlinx.coroutines.runBlocking
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.git.worktree.GitWorktreeFilter
 import software.medusa.commons.markdown.MdElement
+import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
+import software.medusa.commons.unix.path.UfsAbsolutePath
+import software.medusa.commons.unix.path.UfsAbsolutePath.Companion.toLiteral
 import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
 import software.medusa.flow.harness.HrsEngineBanner
 import software.medusa.flow.harness.HrsEngineRunMode
 import software.medusa.flow.harness.HrsPipelinePhase
 import software.medusa.flow.harness.HrsRunCost
+import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskCompleter.ScoutingObserver
 import software.medusa.flow.harness.HrsTaskCompleter.SolutionImplementationObserver
@@ -30,6 +34,10 @@ import software.medusa.flow.integration.nodejs.NjsPackageConnection
 import software.medusa.flow.integration.nodejs.package_manager.NjsPackageManager
 import software.medusa.flow.physical_workspace.PhwWorkspace
 import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
+import software.medusa.flow.universal_project.UnpModuleConnection
+import software.medusa.flow.universal_project.UnpModuleManifest
+import software.medusa.flow.universal_project.UnpProjectManifest
+import software.medusa.flow.universal_project.UnpProjectManifestLoader
 
 /**
  * Story A3: drives [HrsClaudeTaskCompleter] against a [FakeHrsClaudeProcess] feeding canned
@@ -130,14 +138,17 @@ class HrsClaudeTaskCompleter_tests {
   private fun completeWith(
       claudeProcess: HrsClaudeProcess,
       observer: Observer = Observer.Noop,
+      projectManifestLoader: UnpProjectManifestLoader = UnusedProjectManifestLoader,
+      withManifest: Boolean = false,
   ): TaskCompletionResult = runBlocking {
     HrsClaudeTaskCompleter(
             physicalWorkspaceAllocator = FakePhwWorkspaceAllocator(),
+            projectManifestLoader = projectManifestLoader,
             claudeProcess = claudeProcess,
             config = config(),
         )
         .completeTask(
-            sourceGitWorktree = loadGitWorktree(),
+            sourceGitWorktree = loadGitWorktree(withManifest = withManifest),
             taskDescription = HrsTaskDescription(body = MdElement.Empty),
             observer = observer,
         )
@@ -336,6 +347,294 @@ class HrsClaudeTaskCompleter_tests {
     assertTrue(exception.message!!.contains("personal"))
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // A4: manifest probe → gated vs manifest-less mode, and the post-run gate/bounce loop.
+  // ---------------------------------------------------------------------------------------------
+
+  private companion object {
+    private val rootModulePath: UfsLiteralAbsolutePath =
+        checkNotNull(UfsAbsolutePath.parse("/").toLiteral())
+
+    /** A successful init→result stream for one `claude` run, with the given session id. */
+    private fun successRun(
+        sessionId: String,
+    ): List<HrsClaudeMessage> =
+        listOf(
+            HrsClaudeMessage.SystemInit(
+                sessionId = sessionId,
+                model = "claude-sonnet",
+                tools = listOf("Read", "Edit"),
+            ),
+            HrsClaudeMessage.Assistant(text = "done"),
+            HrsClaudeMessage.Result(
+                isError = false,
+                subtype = "success",
+                totalCostUsd = 0.01,
+                numTurns = 2,
+                durationMs = 100,
+            ),
+        )
+  }
+
+  /**
+   * Should never be loaded — used where the manifest probe is expected to skip loading entirely.
+   */
+  private object UnusedProjectManifestLoader : UnpProjectManifestLoader {
+    override suspend fun load(
+        projectDirectory: UfsReadonlyDirectory,
+    ): UnpProjectManifest = error("the manifest loader must not be called in manifest-less mode")
+  }
+
+  /** Wraps [connection] as the sole module of a manifest at the root path. */
+  private class SingleModuleManifest(
+      private val connection: UnpModuleConnection,
+  ) : UnpModuleManifest {
+    override suspend fun connect(
+        physicalWorkspace: PhwWorkspace,
+        modulePath: UfsLiteralAbsolutePath,
+    ): UnpModuleConnection = connection
+
+    companion object {
+      fun asProjectManifest(
+          connection: UnpModuleConnection,
+      ): UnpProjectManifest =
+          UnpProjectManifest(
+              moduleManifestByPath = mapOf(rootModulePath to SingleModuleManifest(connection)),
+          )
+    }
+  }
+
+  /** A loader whose single module is scripted by the given [connection] factory. */
+  private class ScriptedProjectManifestLoader(
+      private val connectionFactory: () -> UnpModuleConnection,
+  ) : UnpProjectManifestLoader {
+    override suspend fun load(
+        projectDirectory: UfsReadonlyDirectory,
+    ): UnpProjectManifest = SingleModuleManifest.asProjectManifest(connection = connectionFactory())
+  }
+
+  /** Every lifecycle phase always succeeds — the gate passes initially and after every run. */
+  private fun alwaysHealthyLoader() = ScriptedProjectManifestLoader {
+    object : UnpModuleConnection {
+      override suspend fun bootstrap() = UnpModuleConnection.Result.Success
+
+      override suspend fun analyze() = UnpModuleConnection.Result.Success
+
+      override suspend fun test() = UnpModuleConnection.Result.Success
+
+      override suspend fun normalize() = UnpModuleConnection.Result.Success
+    }
+  }
+
+  /** `analyze` fails on exactly its [failOnAnalyzeCall]-th call; passes otherwise. */
+  private fun analyzeFailsOnCallLoader(
+      failOnAnalyzeCall: Int,
+      diagnostic: String,
+  ) = ScriptedProjectManifestLoader {
+    object : UnpModuleConnection {
+      private var analyzeCalls = 0
+
+      override suspend fun bootstrap() = UnpModuleConnection.Result.Success
+
+      override suspend fun analyze(): UnpModuleConnection.Result {
+        analyzeCalls += 1
+        return if (analyzeCalls == failOnAnalyzeCall) {
+          UnpModuleConnection.Result.Failure(diagnosticOutput = diagnostic)
+        } else {
+          UnpModuleConnection.Result.Success
+        }
+      }
+
+      override suspend fun test() = UnpModuleConnection.Result.Success
+
+      override suspend fun normalize() = UnpModuleConnection.Result.Success
+    }
+  }
+
+  /**
+   * Passes `analyze` only on the initial gate (call 1); fails every call after — never recovers.
+   */
+  private fun passesGateThenAlwaysUnhealthyLoader(
+      diagnostic: String,
+  ) = ScriptedProjectManifestLoader {
+    object : UnpModuleConnection {
+      private var analyzeCalls = 0
+
+      override suspend fun bootstrap() = UnpModuleConnection.Result.Success
+
+      override suspend fun analyze(): UnpModuleConnection.Result {
+        analyzeCalls += 1
+        return if (analyzeCalls == 1) {
+          UnpModuleConnection.Result.Success
+        } else {
+          UnpModuleConnection.Result.Failure(diagnosticOutput = diagnostic)
+        }
+      }
+
+      override suspend fun test() = UnpModuleConnection.Result.Success
+
+      override suspend fun normalize() = UnpModuleConnection.Result.Success
+    }
+  }
+
+  /** `analyze` always fails — the initial gate never passes. */
+  private fun brokenBaselineLoader(
+      diagnostic: String,
+  ) = ScriptedProjectManifestLoader {
+    object : UnpModuleConnection {
+      override suspend fun bootstrap() = UnpModuleConnection.Result.Success
+
+      override suspend fun analyze() =
+          UnpModuleConnection.Result.Failure(diagnosticOutput = diagnostic)
+
+      override suspend fun test() = UnpModuleConnection.Result.Success
+
+      override suspend fun normalize() = UnpModuleConnection.Result.Success
+    }
+  }
+
+  @Test
+  fun `gated-green - manifest present and the gate passes before and after the run`() {
+    val process = FakeHrsClaudeProcess.withRuns(cannedRuns = listOf(successRun("sess-1")))
+    val observer = RecordingObserver()
+
+    val result =
+        completeWith(
+            claudeProcess = process,
+            observer = observer,
+            projectManifestLoader = alwaysHealthyLoader(),
+            withManifest = true,
+        )
+
+    assertIs<TaskCompletionResult.Success>(result)
+    // Exactly one claude run (no bounce), and the banner reports Gated mode.
+    assertEquals(1, process.spawnCount)
+    assertEquals(HrsEngineRunMode.Gated, observer.banners.single().runMode)
+    assertEquals(
+        listOf(
+            "WorkspacePreparing",
+            "HealthGate",
+            "ImplementationAttempt(1/3)",
+            "HealthCheck(1)",
+        ),
+        observer.phases,
+    )
+  }
+
+  @Test
+  fun `gated-red-recovered - a red post-run gate bounces via resume and then goes green`() {
+    val diagnostic = "analyze boom on module"
+    val process =
+        FakeHrsClaudeProcess.withRuns(
+            cannedRuns = listOf(successRun("sess-1"), successRun("sess-1")),
+        )
+    val observer = RecordingObserver()
+
+    // analyze call 1 = initial gate (pass), call 2 = post-run gate #1 (fail), call 3 = post-run
+    // gate #2 after the bounce (pass).
+    val result =
+        completeWith(
+            claudeProcess = process,
+            observer = observer,
+            projectManifestLoader =
+                analyzeFailsOnCallLoader(failOnAnalyzeCall = 2, diagnostic = diagnostic),
+            withManifest = true,
+        )
+
+    assertIs<TaskCompletionResult.Success>(result)
+    assertEquals(2, process.spawnCount)
+
+    // The 2nd (resume) invocation carries --resume <sessionId> and the diagnostics in its prompt.
+    val resumeArgs = process.invocations[1].arguments
+    assertContainsSubsequence(resumeArgs, listOf("--resume", "sess-1"))
+    val resumePrompt = resumeArgs[resumeArgs.indexOf("-p") + 1]
+    assertTrue(
+        resumePrompt.contains(diagnostic),
+        "the resume prompt must carry the failing module's diagnostics: $resumePrompt",
+    )
+
+    val attemptPhases = observer.phases.filter { it.startsWith("ImplementationAttempt") }
+    assertEquals(
+        listOf("ImplementationAttempt(1/3)", "ImplementationAttempt(2/3)"),
+        attemptPhases,
+    )
+  }
+
+  @Test
+  fun `bounce-exhausted - the gate stays red through the whole budget`() {
+    val process =
+        FakeHrsClaudeProcess.withRuns(
+            cannedRuns = listOf(successRun("sess-1"), successRun("sess-1"), successRun("sess-1")),
+        )
+    val observer = RecordingObserver()
+
+    val result =
+        completeWith(
+            claudeProcess = process,
+            observer = observer,
+            projectManifestLoader =
+                passesGateThenAlwaysUnhealthyLoader(diagnostic = "still broken"),
+            withManifest = true,
+        )
+
+    val failure = assertIs<TaskCompletionResult.Failure.AttemptsExhausted>(result)
+    // Initial run + 2 bounces = 3 attempts (bounceBudget = 2).
+    assertEquals(3, failure.attemptsMade)
+    assertEquals(3, process.spawnCount)
+    assertTrue(
+        failure.lastHealthStatus.failureReport.failure.failureByModulePath.values.any {
+          it.diagnosticOutput == "still broken"
+        },
+        "the final failure must carry the last diagnostics",
+    )
+  }
+
+  @Test
+  fun `broken baseline - the initial gate is red so claude is never spawned`() {
+    val process = FakeHrsClaudeProcess.withRuns(cannedRuns = listOf(successRun("sess-1")))
+    val observer = RecordingObserver()
+
+    val result =
+        completeWith(
+            claudeProcess = process,
+            observer = observer,
+            projectManifestLoader = brokenBaselineLoader(diagnostic = "baseline broken"),
+            withManifest = true,
+        )
+
+    val failure = assertIs<TaskCompletionResult.Failure.JointOperation>(result)
+    assertEquals(HrsTaskCompleter.JointOperationPhase.InitialProjectAnalysis, failure.phase)
+    assertEquals(0, process.spawnCount, "claude must never run on a broken baseline")
+    assertEquals(listOf("WorkspacePreparing", "HealthGate"), observer.phases)
+  }
+
+  @Test
+  fun `manifest-less - no project_yaml means no gate, one run, and an augmented prompt`() {
+    val process = FakeHrsClaudeProcess.withRuns(cannedRuns = listOf(successRun("sess-1")))
+    val observer = RecordingObserver()
+
+    val result =
+        completeWith(
+            claudeProcess = process,
+            observer = observer,
+            projectManifestLoader = UnusedProjectManifestLoader,
+            withManifest = false,
+        )
+
+    assertIs<TaskCompletionResult.Success>(result)
+    assertEquals(1, process.spawnCount)
+    assertEquals(HrsEngineRunMode.ManifestLess, observer.banners.single().runMode)
+    // No gate phases (no HealthGate / HealthCheck).
+    assertEquals(listOf("WorkspacePreparing", "ImplementationAttempt(1/1)"), observer.phases)
+
+    val args = checkNotNull(process.lastInvocation).arguments
+    val prompt = args[args.indexOf("-p") + 1]
+    assertTrue(
+        prompt.contains("run the repository's own checks"),
+        "the manifest-less prompt must instruct claude to run the repo's own checks: $prompt",
+    )
+  }
+
   private fun assertContainsSubsequence(
       actual: List<String>,
       expected: List<String>,
@@ -347,12 +646,19 @@ class HrsClaudeTaskCompleter_tests {
     assertTrue(index != null, "expected $expected as a contiguous subsequence of $actual")
   }
 
-  /** A real, minimal single-commit git repo — [GitWorktree] can only be built via load. */
-  private suspend fun loadGitWorktree(): GitWorktree {
+  /**
+   * A real, minimal single-commit git repo — [GitWorktree] can only be built via load. When
+   * [withManifest] is set it also commits a `project.yaml`, so the copied workspace has one and the
+   * completer's manifest probe selects gated mode.
+   */
+  private suspend fun loadGitWorktree(
+      withManifest: Boolean = false,
+  ): GitWorktree {
     val dir = createTempDirectory(prefix = "hrs-claude-test").toFile()
     tempGitDir = dir
 
     File(dir, "README.md").writeText("hello")
+    if (withManifest) File(dir, "project.yaml").writeText("modules: []\n")
 
     fun git(vararg args: String) {
       val process =
