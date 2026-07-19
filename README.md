@@ -11,6 +11,11 @@ that runs the engine locally, and a hosted **web app + worker** that let
 someone submit a task from a browser and get a PR back without touching a
 terminal.
 
+Flow can run a session with one of two engines — the **Builtin** engine
+described below, or the **Claude Agent** engine (Claude Code driven as a
+subprocess), which also works on repositories without a Flow manifest. You pick
+per session. See [`docs/engines.md`](docs/engines.md).
+
 ## How it works
 
 The engine keeps two views of the repository side by side:
