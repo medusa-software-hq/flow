@@ -29,9 +29,9 @@ import software.medusa.flow.integration.nodejs.process.NjsProcessPackageConnecto
 import software.medusa.flow.physical_workspace.PhwConnectorHub
 import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.temp.PhwTempWorkspaceAllocator
+import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.universal_project.gradle.UnpGradleModuleManifestLoader
 import software.medusa.flow.universal_project.nodejs.UnpNodeJsModuleManifestLoader
-import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.universal_project.yaml.UnpYamlProjectManifestLoader
 import software.medusa.flow.v1.Engine
 import software.medusa.flow.worker.WrkClaudeAuthEnvironment
