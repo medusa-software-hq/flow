@@ -31,6 +31,7 @@ import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.temp.PhwTempWorkspaceAllocator
 import software.medusa.flow.universal_project.gradle.UnpGradleModuleManifestLoader
 import software.medusa.flow.universal_project.nodejs.UnpNodeJsModuleManifestLoader
+import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.universal_project.yaml.UnpYamlProjectManifestLoader
 import software.medusa.flow.v1.Engine
 import software.medusa.flow.worker.WrkClaudeAuthEnvironment
@@ -192,6 +193,7 @@ private fun buildEngineResolver(
     workerEngines: List<Engine>,
     builtinTaskCompleter: HrsTaskCompleter,
     physicalWorkspaceAllocator: PhwWorkspaceAllocator,
+    projectManifestLoader: UnpProjectManifestLoader,
 ): WrkEngineResolver {
   val completersByEngine = buildMap {
     put(Engine.ENGINE_BUILTIN, builtinTaskCompleter)
@@ -207,6 +209,7 @@ private fun buildEngineResolver(
                       authEnvironment = WrkClaudeAuthEnvironment.build(),
                       model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
                   ),
+              projectManifestLoader = projectManifestLoader,
           ),
       )
     }
@@ -264,6 +267,7 @@ private fun runMainCommand(
           workerEngines = workerEngines,
           builtinTaskCompleter = builtinTaskCompleter,
           physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+          projectManifestLoader = projectManifestLoader,
       )
 
   val terminal = Terminal()
