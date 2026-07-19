@@ -165,6 +165,29 @@ private constructor(
       )
 
   /**
+   * Launches the shipped binary with the **claude** engine — the real `claude` CLI, in gated mode
+   * (the `gradle` fixture ships a `project.yaml`, so the engine runs the real gradle analyze+test
+   * gate). Selected via `FLOW_WORKER_ENGINES=claude` with `FLOW_CLAUDE_AUTH=personal`, so the CLI
+   * authenticates with the operator's subscription token.
+   *
+   * Everything the CLI itself needs — `CLAUDE_CODE_OAUTH_TOKEN`, `PATH`, `HOME`, and the `claude`
+   * binary on PATH — arrives by env inheritance from the CI step ([startWorkerProcess] inherits the
+   * parent env then layers `extraEnv` on top), so this method sets none of them; it only names the
+   * engine, the auth rung, and an optional model override. Requires `CLAUDE_CODE_OAUTH_TOKEN` set
+   * and `claude` on PATH in the environment that runs the test.
+   */
+  fun startClaudeWorker(): WorkerProcess =
+      startWorkerProcess(
+          extraEnv =
+              mapOf(
+                  "FLOW_WORKER_ENGINES" to "claude",
+                  "FLOW_CLAUDE_AUTH" to "personal",
+              ) +
+                  (System.getenv("FLOW_CLAUDE_MODEL")?.let { mapOf("FLOW_CLAUDE_MODEL" to it) }
+                      ?: emptyMap()),
+      )
+
+  /**
    * Launches the shipped binary with the **scripted** engine ([behavior]) — deterministic, no
    * model, so the sad-path suite needs no API key. [heartbeatIntervalMillis] is shortened so a hung
    * worker still heartbeats faster than the harness's (also shortened) expiry timeout.

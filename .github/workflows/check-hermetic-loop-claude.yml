@@ -1,0 +1,92 @@
+name: Check hermetic loop (claude)
+
+# The M1 demo as an automated test, driven by the **claude** engine (the real `claude` CLI in gated
+# mode) instead of the builtin AI one: real control plane, real shipped worker binary, real git,
+# fake-GitHub stub, `gradle` fixture. The claude sibling of check-hermetic-loop.yml.
+#
+# workflow_dispatch ONLY — deliberately NOT pull_request. Unlike the builtin loop (which spends a
+# budget-capped OpenRouter key), the claude leg authenticates as `personal` and burns the operator's
+# personal Claude *subscription* quota, which has no per-run budget cap. Firing it on every PR would
+# drain that quota, so it is dispatched by hand (which is also how the calibration burn-in — 10
+# consecutive greens on trunk — gets measured without pushing empty commits). Promote it to a
+# scheduled or PR-triggered check once the per-run quota impact is understood and deemed affordable.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: 21
+  # Pinned deliberately (M4 design decision 7); bumps are explicit PRs. Matches check-claude-cli.yml.
+  CLAUDE_CLI_VERSION: "2.1.214"
+  NO_COLOR: 1
+
+jobs:
+  hermetic-loop-claude:
+    name: Hermetic loop / claude (${{ matrix.fixture }})
+    runs-on: ubuntu-latest
+
+    # One job per fixture. Only `gradle` today — same rationale as the builtin loop: the loop is
+    # toolchain-agnostic and each toolchain has its own integration tests, so a second full loop
+    # mostly re-runs the same loop while doubling the AI-flake surface.
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [gradle]
+
+    # A claude CLI turn per round plus nested Gradle builds for the fixture's gate; the test's own
+    # budget is 8 minutes per attempt, and it may retry once.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The worker binary locates npm AND yarn at startup, whatever the project it is handed —
+      # Flow cannot know in advance which toolchain a task needs, so a real worker host has both.
+      # Installing them here reproduces that environment rather than working around it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable yarn
+        run: corepack enable
+
+      - name: Install the pinned claude CLI
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          echo "installed: $(claude --version)"
+
+      - name: Verify the worker's toolchain is present
+        run: |
+          for tool in git java npm yarn claude; do
+            command -v "$tool" >/dev/null || { echo "::error::$tool is required by the worker binary but is not on PATH"; exit 1; }
+            echo "$tool -> $(command -v "$tool")"
+          done
+
+      - name: Run the hermetic loop (claude engine)
+        env:
+          # The claude CLI's subscription auth (rung 1 / `personal`). No budget cap — see the header
+          # note on why this workflow is dispatch-only. The worker inherits this into the CLI's env.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # REQUIRED even for a claude-only worker: cli/main.kt builds the builtin engine's
+          # OpenRouter client unconditionally at startup (before any session is claimed), so the
+          # worker errors out at boot without a key — even though the claude engine never calls it.
+          OPENROUTER_API_KEY: ${{ secrets.ENGINE_TESTS_OPENROUTER_API_KEY }}
+          # Optional cheap/fast model override, forwarded to the CLI as FLOW_CLAUDE_MODEL when set.
+          FLOW_CLAUDE_MODEL: ${{ vars.FLOW_CLAUDE_MODEL }}
+        run: ./gradlew :e2e:integrationTest --tests "software.medusa.flow.e2e.HermeticLoop_claude_integrationTests" --stacktrace
+
+      - name: Report the flake line
+        # Always: a failed run's LOOP_RESULT is exactly the datapoint the flake budget needs.
+        if: always()
+        run: echo "See the LOOP_RESULT line in the step above for outcome/retry accounting."
