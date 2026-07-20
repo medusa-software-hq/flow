@@ -26,6 +26,7 @@ dependencies {
   api(libs.kotlinx.serialization.json)
   api(libs.nimbus.jose.jwt)
   api(libs.protobuf.kotlin)
+  api(project(":github-app-auth"))
   implementation(libs.flyway.core)
   implementation(libs.sqldelight.jdbc.driver)
   runtimeOnly(libs.flyway.database.postgresql)

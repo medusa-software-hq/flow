@@ -9,6 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import software.medusa.flow.githubapp.GitHubAppConfig
 import software.medusa.flow.githubstub.FakeGitHubAppKey
 import software.medusa.flow.githubstub.FakeGitHubServer
 
