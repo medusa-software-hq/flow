@@ -16,7 +16,9 @@ locals {
 # This repository
 resource "github_repository" "this" {
   name       = module.common.gh_repo_name
-  visibility = "private"
+
+  # The repository is temporarily public
+  visibility = "public"
 
   is_template = false
 
