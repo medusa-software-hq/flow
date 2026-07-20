@@ -55,15 +55,24 @@ private constructor(
       }
 
       // ADC must resolve to something implementing IdTokenProvider (impersonated, service-account,
-      // and user credentials all do). INCLUDE_EMAIL is required: without it the minted token has no
-      // `email` claim, which the control plane's auth decorator requires.
+      // compute-engine, and user credentials all do). The control plane's auth decorator requires
+      // the `email` claim, and *which option produces it depends on the credential type*: the
+      // IAM/impersonation + SA-key path honours INCLUDE_EMAIL, while the compute-engine metadata
+      // path (a GCE VM, or ms-workload's Beacon emulating one) only adds `?format=full` — the thing
+      // that embeds the email — for FORMAT_FULL, ignoring INCLUDE_EMAIL. Pass both so the token
+      // carries the email whichever way ADC resolves; each type takes the one it understands.
       val idTokenProvider = GoogleCredentials.getApplicationDefault() as IdTokenProvider
 
       val idTokenCredentials =
           IdTokenCredentials.newBuilder()
               .setIdTokenProvider(idTokenProvider)
               .setTargetAudience(apiUrl)
-              .setOptions(listOf(IdTokenProvider.Option.INCLUDE_EMAIL))
+              .setOptions(
+                  listOf(
+                      IdTokenProvider.Option.INCLUDE_EMAIL,
+                      IdTokenProvider.Option.FORMAT_FULL,
+                  ),
+              )
               .build()
 
       val authenticatedStub =
