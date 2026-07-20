@@ -109,7 +109,16 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ vars.GCP_AR_REPO_HOSTNAME }} --quiet
 
-      - name: Build and push the worker image
+      # Multi-arch (amd64 + arm64) so the same digest runs on x86 hosts and Apple-Silicon / ARM
+      # hardware without emulation — the base image and the fat jar are both arch-portable. QEMU
+      # cross-builds the arm64 variant on the amd64 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push the multi-arch worker image
         id: build
         run: |
           image="${{ vars.GCP_AR_REPO_ENDPOINT }}/worker"
@@ -117,13 +126,18 @@ jobs:
           mkdir -p "$ctx"
           cp cli/build/libs/flow-cli.jar "$ctx/flow-cli.jar"
           cp worker/Dockerfile "$ctx/Dockerfile"
-          docker build -t "$image:${{ github.sha }}" "$ctx"
-          docker push "$image:${{ github.sha }}"
-          digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$image:${{ github.sha }}" | sed 's/.*@//')"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag "$image:${{ github.sha }}" \
+            --metadata-file "$RUNNER_TEMP/meta.json" \
+            --push \
+            "$ctx"
+          # The manifest-list digest — what the ms-workload profile pins; the daemon picks the arch.
+          digest="$(python3 -c "import json; print(json.load(open('$RUNNER_TEMP/meta.json'))['containerimage.digest'])")"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           {
-            echo '## Flow worker image'
+            echo '## Flow worker image (multi-arch: amd64 + arm64)'
             echo ''
             echo "- Ref: \`$image:${{ github.sha }}\`"
-            echo "- Digest: \`$digest\`  ← pin this in the ms-workload profile"
+            echo "- Digest: \`$digest\`  ← pin this in the ms-workload profile (manifest list; the daemon selects the arch)"
           } >> "$GITHUB_STEP_SUMMARY"
