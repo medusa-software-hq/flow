@@ -14,7 +14,7 @@ installing the CLI is all that's needed — there's no separate worker binary.
 | What | Where it comes from |
 |---|---|
 | Credentials for `flow-worker` | Be a member of the `flow-admins@medusa.software` Google Group (grants `roles/iam.serviceAccountTokenCreator` on `flow-worker` — see [backend/api/infra/gcp-worker-sa.tf](../backend/api/infra/gcp-worker-sa.tf)), then run `worker/scripts/get-worker-credentials.sh` once to mint short-lived Application Default Credentials via impersonation. This is the only supported path — there's no downloaded-key-file option. ADC is a single global file on the machine (`~/.config/gcloud/application_default_credentials.json`) — running `terraform` or any other `gcloud auth application-default login` afterward overwrites it, silently un-impersonating the worker. Re-run the script if `flow work` starts getting `UNAUTHENTICATED`. |
-| A GitHub token with push + PR-create access on the target repo(s) | A classic PAT, fine-grained PAT, or GitHub App installation token — whatever your target repos accept. Used for `git clone`/`push` (via `GIT_ASKPASS`, never on the command line) and the `POST .../pulls` REST call. |
+| A GitHub App with Contents + Pull-requests write, installed on the target repo(s) | The worker mints + refreshes its **own** installation token from the App's client ID + private key — no static token or PAT. Used for `git clone`/`push` (via `GIT_ASKPASS`, never on the command line) and the `POST .../pulls` REST call. The PEM must be **PKCS#8** (`openssl pkcs8 -topk8 -nocrypt -in app.pem -out app.pk8.pem`). |
 | An OpenRouter API key | Same key the engine already uses for `complete-task`/`scout-fully`. |
 | `git` on `PATH` | The worker shells out to it directly (`medusa.commons:git` has no clone/push support). |
 
@@ -25,7 +25,8 @@ All via environment variables, no config file in M1:
 | Variable | Purpose |
 |---|---|
 | `FLOW_API_URL` | Control-plane base URL, e.g. `https://api.flow.example.com` (or `http://localhost:8081` against a local backend). Also the audience the ID token is minted for — must match the control plane's own `WORKER_TOKEN_AUDIENCE`. |
-| `FLOW_WORKER_GITHUB_TOKEN` | The GitHub token from the prerequisites step above. |
+| `FLOW_WORKER_GITHUB_APP_CLIENT_ID` | The GitHub App's client ID (the App from the prerequisites step). |
+| `FLOW_WORKER_GITHUB_APP_PEM` | The App's PKCS#8 private key. The worker signs an App JWT with it and mints a per-repo installation token, refreshing it as it nears expiry. |
 | `OPENROUTER_API_KEY` | As for every other `flow` subcommand. |
 
 Missing or blank required variables fail fast at startup with a message
@@ -42,7 +43,8 @@ M1.
 ./worker/scripts/get-worker-credentials.sh  # once per ADC expiry
 
 export FLOW_API_URL=https://api.flow.example.com
-export FLOW_WORKER_GITHUB_TOKEN=ghp_...
+export FLOW_WORKER_GITHUB_APP_CLIENT_ID=Iv1...
+export FLOW_WORKER_GITHUB_APP_PEM="$(cat app.pk8.pem)"
 export OPENROUTER_API_KEY=sk-or-...
 
 flow work
@@ -74,8 +76,9 @@ repo needs:
 - A green baseline: bootstrap/analyze/test all pass on the default branch
   *before* the engine touches anything — a broken baseline fails the session
   immediately at the initial health gate, before any AI involvement.
-- `FLOW_WORKER_GITHUB_TOKEN` needs push access to it, since the worker
-  branches (`flow/session-<id>`), commits, and pushes directly.
+- The GitHub App (`FLOW_WORKER_GITHUB_APP_*`) must be installed on it with push
+  access, since the worker branches (`flow/session-<id>`), commits, and pushes
+  directly.
 
 ## Container image (M4 Path B)
 
@@ -92,7 +95,7 @@ tool subprocesses are reaped. CI builds + pushes it to Artifact Registry
 |---|---|---|
 | **Baked (image)** | JRE, git, Node/npm/yarn, `claude` CLI, `flow-cli.jar` | in the image; no secrets |
 | **Host (mounted)** | the ms-workload **worker identity** (`workerId`/`secret`, broker URL) | `config.json` under `XDG_CONFIG_HOME`, provisioned once at VM create; **reused on restart, never re-registered** |
-| **Profile (spawn)** | `FLOW_API_URL`, `FLOW_WORKER_ENGINES` + engine knobs (env); `FLOW_WORKER_GITHUB_TOKEN`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` (secret refs, resolved worker-side) | ms-workload profile env/secretEnv |
+| **Profile (spawn)** | `FLOW_API_URL`, `FLOW_WORKER_ENGINES`, `FLOW_WORKER_GITHUB_APP_CLIENT_ID` (env); `FLOW_WORKER_GITHUB_APP_PEM`, `OPENROUTER_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` (secret refs, resolved worker-side) | ms-workload profile env/secretEnv |
 | **Beacon (spawn)** | the worker's **GCP identity** — an audience-bound `flow-worker` ID token for the Flow API | GCE-shaped metadata server under `workload run`; the worker's existing ADC path uses it unmodified (see [design/05-workload-notes.md](../../plan/m4/design/05-workload-notes.md)) |
 
 The image is environment-agnostic: the same digest runs any environment, since every

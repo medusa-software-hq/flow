@@ -69,7 +69,8 @@ class WrkPublisher_stubTests {
 
         val result =
             WrkProperGitHubPublisher(
-                    gitHubToken = "unused-for-local-remote",
+                    tokenSupplierFactory =
+                        WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
                     webClient = WebClient.of(stub.baseUrl),
                 )
                 .publish(

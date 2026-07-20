@@ -10,7 +10,7 @@ import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
  * support in `medusa.commons:git`).
  */
 class WrkProcessGitCloner(
-    private val gitHubToken: String,
+    private val tokenSupplierFactory: WrkGitHubTokenSupplierFactory,
 ) : WrkGitCloner {
   override suspend fun cloneDefaultBranch(
       repoFullName: String,
@@ -18,7 +18,7 @@ class WrkProcessGitCloner(
   ): GitWorktree {
     WrkGitProcess.run(
         workingDirectory = null,
-        gitHubToken = gitHubToken,
+        gitHubToken = tokenSupplierFactory.forRepo(repoFullName),
         "clone",
         "--depth",
         "1",

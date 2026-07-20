@@ -134,7 +134,10 @@ class WrkProperGitHubPublisher_tests {
     val workspace = fakeWorkspaceWith(fileName = "hello.txt", content = "hello from the engine\n")
 
     val publisher =
-        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+        WrkProperGitHubPublisher(
+            tokenSupplierFactory = WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+            webClient = webClient,
+        )
 
     val result =
         publisher.publish(
@@ -178,7 +181,10 @@ class WrkProperGitHubPublisher_tests {
     val workspace = PublisherFakeReadonlyTemporaryWorkspace(rootDirectory = directory)
 
     val publisher =
-        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+        WrkProperGitHubPublisher(
+            tokenSupplierFactory = WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+            webClient = webClient,
+        )
 
     publisher.publish(
         repoFullName = "acme/app",
@@ -209,7 +215,10 @@ class WrkProperGitHubPublisher_tests {
     val workspace = fakeWorkspaceWith(fileName = "README.md", content = "seed\n")
 
     val publisher =
-        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+        WrkProperGitHubPublisher(
+            tokenSupplierFactory = WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+            webClient = webClient,
+        )
 
     val result =
         publisher.publish(
@@ -245,7 +254,11 @@ class WrkProperGitHubPublisher_tests {
             fakeWorkspaceWith(fileName = "hello.txt", content = "hello from the engine\n")
 
         val publisher =
-            WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+            WrkProperGitHubPublisher(
+                tokenSupplierFactory =
+                    WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+                webClient = webClient,
+            )
 
         val result =
             publisher.publish(
@@ -288,7 +301,10 @@ class WrkProperGitHubPublisher_tests {
     val workspace = fakeWorkspaceWith(fileName = "hello.txt", content = "hi\n")
 
     val publisher =
-        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+        WrkProperGitHubPublisher(
+            tokenSupplierFactory = WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+            webClient = webClient,
+        )
 
     // The issue's own body carries a closing keyword aimed at a *different* issue.
     publisher.publish(
@@ -319,7 +335,10 @@ class WrkProperGitHubPublisher_tests {
     val workspace = fakeWorkspaceWith(fileName = "hello.txt", content = "hi\n")
 
     val publisher =
-        WrkProperGitHubPublisher(gitHubToken = "unused-for-local-remote", webClient = webClient)
+        WrkProperGitHubPublisher(
+            tokenSupplierFactory = WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+            webClient = webClient,
+        )
 
     publisher.publish(
         repoFullName = "acme/app",

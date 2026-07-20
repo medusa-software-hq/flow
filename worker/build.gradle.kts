@@ -20,6 +20,7 @@ dependencies {
   api(project(":engine:harness"))
   api(project(":engine:universal-project"))
   api(project(":engine:virtual-editor"))
+  api(project(":github-app-auth"))
 
   api(platform(libs.armeria.bom))
   api(platform(libs.grpc.bom))

@@ -16,12 +16,14 @@ import software.medusa.flow.v1.Engine
  */
 data class WrkConfig(
     val apiUrl: String,
-    val workerGitHubToken: String,
+    val githubAppClientId: String,
+    val githubAppPemContent: String,
     val workerEngines: List<Engine>,
 ) {
   companion object {
     private const val apiUrlEnvVarName = "FLOW_API_URL"
-    private const val workerGitHubTokenEnvVarName = "FLOW_WORKER_GITHUB_TOKEN"
+    private const val githubAppClientIdEnvVarName = "FLOW_WORKER_GITHUB_APP_CLIENT_ID"
+    private const val githubAppPemContentEnvVarName = "FLOW_WORKER_GITHUB_APP_PEM"
     private const val workerEnginesEnvVarName = "FLOW_WORKER_ENGINES"
 
     fun fromEnvironment(
@@ -32,7 +34,8 @@ data class WrkConfig(
 
       return WrkConfig(
           apiUrl = required(apiUrlEnvVarName),
-          workerGitHubToken = required(workerGitHubTokenEnvVarName),
+          githubAppClientId = required(githubAppClientIdEnvVarName),
+          githubAppPemContent = required(githubAppPemContentEnvVarName),
           workerEngines = parseWorkerEngines(lookup),
       )
     }

@@ -21,7 +21,7 @@ internal object WrkGitProcess {
   /** Runs `git`, throwing on a non-zero exit code. Returns combined stdout/stderr. */
   suspend fun run(
       workingDirectory: File?,
-      gitHubToken: String,
+      gitHubToken: suspend () -> String,
       vararg args: String,
   ): String {
     val result = runAllowingFailure(workingDirectory, gitHubToken, *args)
@@ -36,31 +36,35 @@ internal object WrkGitProcess {
   /** Runs `git`, returning its exit code instead of throwing -- for callers that branch on it. */
   suspend fun runAllowingFailure(
       workingDirectory: File?,
-      gitHubToken: String,
+      gitHubToken: suspend () -> String,
       vararg args: String,
-  ): Result =
-      withContext(Dispatchers.IO) {
-        val askPassScript = writeAskPassScript()
-        try {
-          val process =
-              ProcessBuilder(listOf("git") + args)
-                  .apply {
-                    workingDirectory?.let { directory(it) }
-                    environment()["GIT_ASKPASS"] = askPassScript.toString()
-                    environment()["GIT_TERMINAL_PROMPT"] = "0"
-                    environment()["WRK_GIT_ASKPASS_TOKEN"] = gitHubToken
-                    redirectErrorStream(true)
-                  }
-                  .start()
+  ): Result {
+    // Resolve a *current* token per invocation, so a refreshing supplier re-mints across the
+    // several git calls a publish makes (checkout, add, commit, push) if one nears expiry.
+    val token = gitHubToken()
+    return withContext(Dispatchers.IO) {
+      val askPassScript = writeAskPassScript()
+      try {
+        val process =
+            ProcessBuilder(listOf("git") + args)
+                .apply {
+                  workingDirectory?.let { directory(it) }
+                  environment()["GIT_ASKPASS"] = askPassScript.toString()
+                  environment()["GIT_TERMINAL_PROMPT"] = "0"
+                  environment()["WRK_GIT_ASKPASS_TOKEN"] = token
+                  redirectErrorStream(true)
+                }
+                .start()
 
-          val output = process.inputStream.bufferedReader().readText()
-          val exitCode = process.waitFor()
+        val output = process.inputStream.bufferedReader().readText()
+        val exitCode = process.waitFor()
 
-          Result(exitCode = exitCode, output = output)
-        } finally {
-          Files.deleteIfExists(askPassScript)
-        }
+        Result(exitCode = exitCode, output = output)
+      } finally {
+        Files.deleteIfExists(askPassScript)
       }
+    }
+  }
 
   private fun writeAskPassScript(): Path {
     val script = Files.createTempFile("flow-worker-askpass", ".sh")

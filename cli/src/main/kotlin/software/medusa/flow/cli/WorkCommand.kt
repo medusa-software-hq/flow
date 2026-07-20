@@ -6,8 +6,12 @@ import com.linecorp.armeria.client.WebClient
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import software.medusa.flow.githubapp.GitHubAppConfig
+import software.medusa.flow.githubapp.GitHubAppTokenMinter
+import software.medusa.flow.githubapp.RefreshingGitHubAppToken
 import software.medusa.flow.worker.WrkConfig
 import software.medusa.flow.worker.WrkEngineResolver
+import software.medusa.flow.worker.WrkGitHubTokenSupplierFactory
 import software.medusa.flow.worker.WrkGrpcApiClient
 import software.medusa.flow.worker.WrkPollLoop
 import software.medusa.flow.worker.WrkProcessGitCloner
@@ -47,22 +51,42 @@ class WorkCommand(
       }
     }
 
-    // Test-only: point the PR-creation HTTP at a local GitHub stub (the hermetic loop test). Unset
-    // in production → the publisher uses the real GitHub API base URL. Git clone/push is redirected
-    // separately via git's `insteadOf` (env), so no override is needed here for that.
-    val publisher =
+    // The worker mints its own short-lived GitHub App installation token per session (refreshing it
+    // while the session runs) rather than carrying a static token. One WebClient serves both the
+    // token mint and the PR-create call; FLOW_GITHUB_API_BASE_URL (test-only) points them at the
+    // local GitHub stub, otherwise the real GitHub API. Git clone/push is redirected separately via
+    // git's `insteadOf` (env), so it needs no base-URL override.
+    val gitHubWebClient =
         when (val baseUrl = System.getenv("FLOW_GITHUB_API_BASE_URL")) {
-          null -> WrkProperGitHubPublisher(gitHubToken = config.workerGitHubToken)
-          else ->
-              WrkProperGitHubPublisher(
-                  gitHubToken = config.workerGitHubToken,
-                  webClient = WebClient.of(baseUrl),
-              )
+          null -> WebClient.of(GitHubAppTokenMinter.GITHUB_API_BASE_URL)
+          else -> WebClient.of(baseUrl)
         }
+    val gitHubTokenSupplierFactory = WrkGitHubTokenSupplierFactory { repoFullName ->
+      val (owner, name) = repoFullName.split("/", limit = 2)
+      val refreshing =
+          RefreshingGitHubAppToken(
+              GitHubAppTokenMinter(
+                  GitHubAppConfig(
+                      clientId = config.githubAppClientId,
+                      pemContent = config.githubAppPemContent,
+                      repoOwner = owner,
+                      repoName = name,
+                  ),
+                  gitHubWebClient,
+              ),
+          )
+      refreshing::current
+    }
+
+    val publisher =
+        WrkProperGitHubPublisher(
+            tokenSupplierFactory = gitHubTokenSupplierFactory,
+            webClient = gitHubWebClient,
+        )
 
     val sessionProcessor =
         WrkProperSessionProcessor(
-            gitCloner = WrkProcessGitCloner(gitHubToken = config.workerGitHubToken),
+            gitCloner = WrkProcessGitCloner(tokenSupplierFactory = gitHubTokenSupplierFactory),
             engineResolver = engineResolver,
             publisher = publisher,
             log = { terminal.println(it) },
