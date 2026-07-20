@@ -21,7 +21,7 @@ import software.medusa.flow.harness.HrsReadonlyTemporaryWorkspace
  * the GitHub REST API, per design/04-observability-and-github-layering.md.
  */
 class WrkProperGitHubPublisher(
-    private val gitHubToken: String,
+    private val tokenSupplierFactory: WrkGitHubTokenSupplierFactory,
     private val webClient: WebClient = WebClient.of(githubApiBaseUrl),
 ) : WrkPublisher {
   companion object {
@@ -43,6 +43,9 @@ class WrkProperGitHubPublisher(
       workspace: HrsReadonlyTemporaryWorkspace,
       issueNumber: Int?,
   ): WrkPublishResult {
+    // One refreshing installation-token supplier for this session's repo, shared by the git pushes
+    // and the PR-create call below; each use resolves a current token.
+    val gitHubToken = tokenSupplierFactory.forRepo(repoFullName)
     val directoryFile = cloneDirectory.toFile()
     val branchName =
         if (issueNumber != null) "flow/issue-$issueNumber" else "flow/session-$sessionId"
@@ -100,6 +103,7 @@ class WrkProperGitHubPublisher(
                     sessionId = sessionId,
                     issueNumber = issueNumber,
                 ),
+            gitHubToken = gitHubToken,
         )
 
     return WrkPublishResult.Published(prUrl = prUrl)
@@ -145,6 +149,7 @@ class WrkProperGitHubPublisher(
       baseBranch: String,
       title: String,
       body: String,
+      gitHubToken: suspend () -> String,
   ): String {
     val requestBody =
         json.encodeToString(
@@ -156,7 +161,7 @@ class WrkProperGitHubPublisher(
         webClient
             .prepare()
             .post("/repos/$repoFullName/pulls")
-            .header(HttpHeaderNames.AUTHORIZATION, "Bearer $gitHubToken")
+            .header(HttpHeaderNames.AUTHORIZATION, "Bearer ${gitHubToken()}")
             .header(HttpHeaderNames.ACCEPT, githubAcceptHeader)
             .header(HttpHeaderNames.USER_AGENT, userAgent)
             // NB: `.content(MediaType, String)`, NOT `.content(String, Object...)` -- the latter is

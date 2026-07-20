@@ -227,7 +227,10 @@ private constructor(
 
     builder.environment().apply {
       put("FLOW_API_URL", apiUrl)
-      put("FLOW_WORKER_GITHUB_TOKEN", "loop-test-token")
+      // The worker mints its own GitHub App installation token against the stub (which serves the
+      // App endpoints), exactly as it would against real GitHub — no static token.
+      put("FLOW_WORKER_GITHUB_APP_CLIENT_ID", "loop-test-client-id")
+      put("FLOW_WORKER_GITHUB_APP_PEM", FakeGitHubAppKey.pkcs8Pem)
 
       // Forced divergences shared by both engines: GitHub is a stub, and the control plane is local
       // (no ID token).
