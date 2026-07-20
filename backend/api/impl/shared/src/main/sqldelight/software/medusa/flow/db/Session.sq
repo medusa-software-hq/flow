@@ -1,0 +1,124 @@
+-- Schema for SQLDelight compile-time query verification (Postgres dialect).
+-- The runtime schema is owned by Flyway; keep these table definitions identical
+-- to src/main/resources/db/migration/V2__create_sessions.sql.
+CREATE TABLE sessions (
+  id                TEXT NOT NULL PRIMARY KEY,
+  repo_full_name    TEXT NOT NULL,
+  task_markdown     TEXT NOT NULL,
+  state             TEXT NOT NULL,
+  created_at        TIMESTAMPTZ NOT NULL,
+  created_by        TEXT NOT NULL,
+  claimed_at        TIMESTAMPTZ,
+  last_heartbeat_at TIMESTAMPTZ,
+  pr_url            TEXT,
+  failure_summary   TEXT,
+  -- M2: issue linkage (V3). NULL for manual sessions. Populated by later stories.
+  issue_pipeline_id TEXT,
+  issue_number      INTEGER,
+  issue_url         TEXT,
+  -- M4: requested engine (V4). 'UNSPECIFIED' = the claiming worker's default.
+  engine            TEXT NOT NULL DEFAULT 'UNSPECIFIED',
+  -- M4: terminal run cost in USD (V5). NULL until the RUN_COST event lands.
+  total_cost_usd    DOUBLE PRECISION
+);
+
+CREATE TABLE session_events (
+  session_id TEXT NOT NULL REFERENCES sessions (id),
+  seq        INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  kind       TEXT NOT NULL,
+  message    TEXT NOT NULL,
+  PRIMARY KEY (session_id, seq)
+);
+
+insertSession:
+INSERT INTO sessions (id, repo_full_name, task_markdown, state, created_at, created_by, engine)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectSessionById:
+SELECT * FROM sessions WHERE id = ?;
+
+listSessions:
+SELECT * FROM sessions ORDER BY created_at DESC LIMIT ?;
+
+-- Atomically claim the oldest PENDING session (FOR UPDATE SKIP LOCKED so two
+-- workers never claim the same one); returns the claimed row, or nothing when
+-- the queue is empty.
+claimNextSession:
+UPDATE sessions
+SET state = 'RUNNING', claimed_at = :now, last_heartbeat_at = :now
+WHERE id = (
+  SELECT id FROM sessions
+  WHERE state = 'PENDING'
+  ORDER BY created_at
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- M4 capability-filtered claim: like claimNextSession but only over sessions this
+-- worker can run — engine UNSPECIFIED (any worker's default) or in :supportedEngines.
+-- The filter is inside the inner SELECT so the lock / SKIP LOCKED / oldest-first all
+-- apply to the claimable subset: a worker skips a session it cannot run rather than
+-- blocking behind it. :supportedEngines is never empty (the store uses the unfiltered
+-- claimNextSession for pre-M4 workers, avoiding an empty IN list).
+claimNextSessionForEngines:
+UPDATE sessions
+SET state = 'RUNNING', claimed_at = :now, last_heartbeat_at = :now
+WHERE id = (
+  SELECT id FROM sessions
+  WHERE state = 'PENDING'
+    AND (engine = 'UNSPECIFIED' OR engine IN :supportedEngines)
+  ORDER BY created_at
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+selectMaxEventSeq:
+SELECT COALESCE(MAX(seq), 0) FROM session_events WHERE session_id = ?;
+
+insertEvent:
+INSERT INTO session_events (session_id, seq, created_at, kind, message)
+VALUES (?, ?, ?, ?, ?);
+
+-- Stamp the terminal run cost onto a RUNNING session (M4). Guarded like the other
+-- worker mutations; returns the id when it applied.
+stampCostIfRunning:
+UPDATE sessions
+SET total_cost_usd = :cost, last_heartbeat_at = :now
+WHERE id = ? AND state = 'RUNNING'
+RETURNING id;
+
+selectEventsAfterSeq:
+SELECT * FROM session_events
+WHERE session_id = ? AND seq > ?
+ORDER BY seq;
+
+-- Guarded worker mutations: each only touches a RUNNING session and returns the
+-- id when it applied, so the caller can distinguish "applied" from
+-- "precondition failed" (absent or not RUNNING) by presence of a row.
+touchHeartbeatIfRunning:
+UPDATE sessions SET last_heartbeat_at = :now
+WHERE id = ? AND state = 'RUNNING'
+RETURNING id;
+
+completeIfRunning:
+UPDATE sessions
+SET state = 'COMPLETED', pr_url = ?, last_heartbeat_at = :now
+WHERE id = ? AND state = 'RUNNING'
+RETURNING id;
+
+failIfRunning:
+UPDATE sessions
+SET state = 'FAILED', failure_summary = ?, last_heartbeat_at = :now
+WHERE id = ? AND state = 'RUNNING'
+RETURNING id;
+
+-- Lazy expiry: RUNNING sessions whose heartbeat is older than the cutoff are
+-- transitioned to FAILED ("worker lost"). Returns the ids it expired.
+expireStaleSessions:
+UPDATE sessions
+SET state = 'FAILED', failure_summary = ?
+WHERE state = 'RUNNING' AND last_heartbeat_at < ?
+RETURNING id;

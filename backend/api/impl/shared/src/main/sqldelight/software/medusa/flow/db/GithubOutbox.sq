@@ -1,0 +1,54 @@
+-- Schema for SQLDelight compile-time query verification (Postgres dialect).
+-- Keep identical to src/main/resources/db/migration/V3__create_issue_pipelines.sql.
+CREATE TABLE github_outbox (
+  id              TEXT NOT NULL PRIMARY KEY,
+  repo_full_name  TEXT NOT NULL,
+  issue_number    INTEGER NOT NULL,
+  seq             INTEGER NOT NULL,
+  action          TEXT NOT NULL,
+  payload         TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL,
+  dispatched_at   TIMESTAMPTZ,
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  next_attempt_at TIMESTAMPTZ NOT NULL
+);
+
+-- Next per-(repo, issue) sequence number; the store inserts with it.
+selectNextSeq:
+SELECT COALESCE(MAX(seq), 0) + 1 FROM github_outbox
+WHERE repo_full_name = ? AND issue_number = ?;
+
+insertOutboxEntry:
+INSERT INTO github_outbox (
+  id, repo_full_name, issue_number, seq, action, payload, created_at, next_attempt_at
+)
+VALUES (?, ?, ?, ?, ?, ?, :now, :now);
+
+-- The head (lowest seq) undispatched entry of each issue in a repo, but only
+-- when it's due. Strict per-issue FIFO: a blocked head holds up its own issue,
+-- never others.
+dueEntries:
+SELECT * FROM (
+  SELECT DISTINCT ON (issue_number) *
+  FROM github_outbox
+  WHERE repo_full_name = ? AND dispatched_at IS NULL
+  ORDER BY issue_number, seq
+) heads
+WHERE heads.next_attempt_at <= :now
+ORDER BY issue_number, seq;
+
+markDispatched:
+UPDATE github_outbox SET dispatched_at = :now WHERE id = ?;
+
+markFailed:
+UPDATE github_outbox
+SET attempts = attempts + 1, last_error = ?, next_attempt_at = ?
+WHERE id = ?;
+
+stuckEntries:
+SELECT * FROM github_outbox
+WHERE dispatched_at IS NULL AND attempts >= ?;
+
+reposWithPendingEntries:
+SELECT DISTINCT repo_full_name FROM github_outbox WHERE dispatched_at IS NULL;

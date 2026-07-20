@@ -1,0 +1,29 @@
+version: '3'
+
+# noinspection YAMLSchemaValidation
+.kotlinSources: &kotlinSources
+  - '**/*.kt'
+  - '../engine/**/*.kt'
+
+tasks:
+  install:
+    desc: Install flow-cli
+    sources: *kotlinSources
+    generates:
+      - ./build/install/cli/bin/cli
+    cmds:
+      - ../gradlew :cli:installDist
+
+  bootstrap:
+    desc: Bootstrap user-specific cli script
+    status:
+      - test -f ./bin/user/flow-cli
+    cmds:
+      - cp ./bin/user/flow-cli.sample ./bin/user/flow-cli
+
+  run:
+    desc: Run user-specific flow-cli script
+    deps: [install, bootstrap]
+    cmds:
+      - ./bin/user/flow-cli {{.CLI_ARGS}}
+    interactive: true

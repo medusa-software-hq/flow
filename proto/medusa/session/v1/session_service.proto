@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package medusa.session.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "software.medusa.flow.v1";
+
+enum SessionState {
+  SESSION_STATE_UNSPECIFIED = 0;
+  SESSION_STATE_PENDING = 1;
+  SESSION_STATE_RUNNING = 2;
+  SESSION_STATE_COMPLETED = 3;
+  SESSION_STATE_FAILED = 4;
+}
+
+// The agentic engine that runs a session (M4). UNSPECIFIED = "the claiming
+// worker's default" — any worker may claim it. A named engine may only be
+// claimed by a worker that lists it in ClaimNextSessionRequest.supported_engines.
+enum Engine {
+  ENGINE_UNSPECIFIED = 0;
+  ENGINE_BUILTIN = 1;
+  ENGINE_CLAUDE = 2;
+}
+
+message Session {
+  string id = 1;
+  string repo_full_name = 2;
+  string task_markdown = 3;
+  SessionState state = 4;
+  google.protobuf.Timestamp created_at = 5;
+  string created_by = 6;
+  // Set when COMPLETED.
+  string pr_url = 7;
+  // Set when FAILED. Human-readable Markdown.
+  string failure_summary = 8;
+  // Issue linkage (M2). Set only for sessions the reconciler created for an
+  // issue pipeline; empty/zero for manual sessions.
+  int32 issue_number = 9;
+  string issue_url = 10;
+  string issue_pipeline_id = 11;
+  // Requested engine (M4). UNSPECIFIED = the claiming worker's default.
+  Engine engine = 12;
+  // Display-only terminal cost in USD (M4 claude engine). Present once the run's
+  // RUN_COST event has landed; absent (no presence) while unknown / for engines
+  // that don't report cost. Powers the sessions-list cost column.
+  optional double total_cost_usd = 13;
+}
+
+enum SessionEventKind {
+  SESSION_EVENT_KIND_UNSPECIFIED = 0;
+  SESSION_EVENT_KIND_WORKSPACE_PREPARING = 1; // clone + manifest load + physical workspace
+  SESSION_EVENT_KIND_HEALTH_GATE = 2; // initial bootstrap/analyze/test
+  SESSION_EVENT_KIND_SCOUTING_ROUND = 3;
+  SESSION_EVENT_KIND_WORKSPACE_BRIEFING = 4;
+  SESSION_EVENT_KIND_IMPLEMENTATION_PLANNING = 5;
+  SESSION_EVENT_KIND_IMPLEMENTATION_ATTEMPT = 6;
+  SESSION_EVENT_KIND_HEALTH_CHECK = 7; // per-attempt analyze/test result
+  SESSION_EVENT_KIND_PUBLISHING = 8; // branch/commit/push/PR
+  // M4 (Claude engine): live agent narrative / tool actions, the opening engine
+  // banner (CLI version + model + run mode), and the terminal cost/usage.
+  SESSION_EVENT_KIND_AGENT_ACTION = 9;
+  SESSION_EVENT_KIND_ENGINE_BANNER = 10;
+  SESSION_EVENT_KIND_RUN_COST = 11;
+}
+
+message SessionEvent {
+  int32 seq = 1;
+  google.protobuf.Timestamp created_at = 2;
+  SessionEventKind kind = 3;
+  // Short human-readable Markdown, control-plane-capped (e.g. 4 KiB).
+  string message = 4;
+}
+
+// User-facing service, authenticated with a Google user ID token.
+service SessionService {
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+}
+
+message CreateSessionRequest {
+  string repo_full_name = 1;
+  string task_markdown = 2;
+  // Optional (M4). UNSPECIFIED → the claiming worker's default engine.
+  Engine engine = 3;
+}
+
+message CreateSessionResponse {
+  Session session = 1;
+}
+
+// Newest-first, fixed limit.
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message GetSessionRequest {
+  string id = 1;
+  // Events with seq > after_seq; lets the detail view poll incrementally.
+  int32 after_seq = 2;
+}
+
+message GetSessionResponse {
+  Session session = 1;
+  repeated SessionEvent events = 2;
+}
+
+// Worker-facing service, authenticated with a service-account ID token
+// against an email allowlist.
+service WorkerService {
+  // Atomically claims the oldest PENDING session (SKIP LOCKED); absent session if none.
+  rpc ClaimNextSession(ClaimNextSessionRequest) returns (ClaimNextSessionResponse);
+  // Appends a display event; also bumps the heartbeat.
+  rpc AppendSessionEvent(AppendSessionEventRequest) returns (AppendSessionEventResponse);
+  // Bare heartbeat for long silent phases.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc CompleteSession(CompleteSessionRequest) returns (CompleteSessionResponse);
+  rpc FailSession(FailSessionRequest) returns (FailSessionResponse);
+}
+
+message ClaimNextSessionRequest {
+  // The engines this worker can run (M4). Empty → claim any session
+  // (back-compatible with pre-M4 workers). Non-empty → claim only sessions
+  // whose engine is UNSPECIFIED or in this set — oldest-first among those, so a
+  // worker never blocks behind a session it cannot run.
+  repeated Engine supported_engines = 1;
+}
+
+// Absent session means the queue is empty.
+message ClaimNextSessionResponse {
+  Session session = 1;
+}
+
+message AppendSessionEventRequest {
+  string session_id = 1;
+  SessionEventKind kind = 2;
+  string message = 3;
+  // Set only on a RUN_COST event (M4): the run's terminal USD cost, persisted onto
+  // the session row so the sessions list can show it without loading events.
+  optional double cost_usd = 4;
+}
+
+message AppendSessionEventResponse {}
+
+message HeartbeatRequest {
+  string session_id = 1;
+}
+
+message HeartbeatResponse {}
+
+message CompleteSessionRequest {
+  string session_id = 1;
+  string pr_url = 2;
+}
+
+message CompleteSessionResponse {}
+
+message FailSessionRequest {
+  string session_id = 1;
+  // Markdown.
+  string failure_summary = 2;
+}
+
+message FailSessionResponse {}

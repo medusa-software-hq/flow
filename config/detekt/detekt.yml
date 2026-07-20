@@ -1,0 +1,33 @@
+naming:
+  active: true
+
+  PackageNaming:
+    active: true
+    # Allow _ in package names
+    packagePattern: '[a-z_]+(\.[a-z_][A-Za-z0-9_]*)*'
+
+  TopLevelPropertyNaming:
+    active: true
+    # Enforce camelCase for top-level properties
+    constantPattern: '[a-z][A-Za-z0-9]*'
+
+  ClassNaming:
+    active: true
+    # Allow _ in class names
+    classPattern: '[A-Z][A-Za-z0-9_]*'
+
+style:
+  UseCheckOrError:
+    active: false
+
+  ReturnCount:
+    active: false
+
+complexity:
+  # TODO: Re-enable, disable only for tests
+  LongMethod:
+    active: false
+
+  # TODO: Re-enable, disable only for tests
+  LargeClass:
+    active: false

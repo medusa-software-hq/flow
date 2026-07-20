@@ -1,0 +1,55 @@
+name: Check sad paths
+
+# The deterministic failure flows (empty diff, exhausted attempts, hung worker, crash mid-publish),
+# driven through the shipped worker binary with the scripted engine. No model, no credits, no flake
+# — so unlike the hermetic loop this is a normal, always-green check, safe to make required.
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "cli/**"
+      - "e2e/**"
+      - "engine/**"
+      - "worker/**"
+      - "proto/**"
+      - "gradle/**"
+      - "settings.gradle.kts"
+      - ".github/workflows/check-sad-paths.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: 21
+  NO_COLOR: 1
+
+jobs:
+  sad-paths:
+    name: Sad paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The worker binary locates npm and yarn at startup, whatever project it is handed — a real
+      # worker host has both, so CI reproduces that rather than working around it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable yarn
+        run: corepack enable
+
+      - name: Run the sad-path suite
+        run: ./gradlew :e2e:integrationTest --tests "software.medusa.flow.e2e.HermeticSadPaths_integrationTests" --stacktrace

@@ -1,0 +1,8 @@
+version: "3"
+
+tasks:
+  run:
+    desc: Run the the API locally
+    cmds:
+      - ../../../gradlew :backend:api:impl:local:run
+    interactive: true

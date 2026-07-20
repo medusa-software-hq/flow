@@ -1,0 +1,188 @@
+name: Nightly real-stack
+
+# One real M2-style loop, nightly, against the deployed staging stack + the sandbox GitHub org, with
+# production model wiring and real money. It is the only layer that catches "GitHub changed under us"
+# and "model behaviour drifted" — everything below staging is exercised for real: a real worker
+# process, real auth, real github.com, real OpenRouter models. See nightly/real-stack.sh.
+#
+# When M3 lands, this is where FLOW_WORKER_ENGINE=leader runs unattended first — add it to the loop
+# step's env (one line) once it exists.
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # nightly, ~04:00 UTC (off-peak)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: 21
+  NO_COLOR: 1
+
+jobs:
+  real-stack:
+    name: Real-stack loop (staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # `environment: staging` resolves vars.* to staging's project/API/CI-CD identity. The trunk-only
+    # deployment branch policy allows this from the scheduled (default-branch) and dispatched runs.
+    environment: staging
+
+    permissions:
+      contents: read
+      id-token: write # WIF to GCP
+      issues: write # to open/update the failure-report issue on this repo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_CICD_WI_PROVIDER_NAME }}
+          service_account: ${{ vars.GCP_CICD_SA_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Build the worker's impersonated ADC
+        # The worker authenticates to the staging API with a Google ID token minted from Application
+        # Default Credentials — and staging only accepts a *worker-class* token (WORKER_SA_EMAILS
+        # allowlist). The auth step above leaves ADC as the CI/CD SA, which is not on that allowlist,
+        # so wrap it in an impersonated-SA credential targeting the worker SA. This reuses story 08's
+        # grant (CI/CD SA has tokenCreator on the worker SA) — no new infra. The nested external_account
+        # source refreshes its OIDC token via URL, so it stays valid for the whole run.
+        run: |
+          python3 - "$GOOGLE_APPLICATION_CREDENTIALS" \
+            "flow-worker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            "$RUNNER_TEMP/worker-adc.json" <<'PY'
+          import json, sys
+          src, worker_sa, out = sys.argv[1:4]
+          source = json.load(open(src))
+          json.dump({
+              "type": "impersonated_service_account",
+              "service_account_impersonation_url":
+                  f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{worker_sa}:generateAccessToken",
+              "source_credentials": source,
+              "delegates": [],
+          }, open(out, "w"))
+          PY
+          echo "WORKER_ADC_FILE=$RUNNER_TEMP/worker-adc.json" >> "$GITHUB_ENV"
+
+      - name: Mint a sandbox App installation token
+        id: sandbox-token
+        # medusa-flow-nightly App (Client ID below), installed on the fixture repo with Contents/
+        # Issues/PRs write. Short-lived token for the reset, the worker's git/PR ops, and assertions.
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: Iv23liKTj6dtBHWRnzeg
+          private-key: ${{ secrets.NIGHTLY_APP_PEM_CONTENT }}
+          owner: medusa-software-test-hq
+          repositories: flow-sandbox-fixture
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack (yarn)
+        run: corepack enable
+
+      - name: Verify the worker's toolchain is present
+        # The worker locates git/java/npm/yarn at startup regardless of the task.
+        run: |
+          for tool in git java npm yarn; do
+            command -v "$tool" >/dev/null || { echo "missing required tool: $tool"; exit 1; }
+          done
+
+      - name: Build the worker CLI
+        run: ./gradlew :cli:shadowJar
+
+      - name: Run the real-stack loop
+        env:
+          API_URL: ${{ vars.API_URL }}
+          WORKER_SA_EMAIL: flow-worker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          SANDBOX_TOKEN: ${{ steps.sandbox-token.outputs.token }}
+          OPENROUTER_API_KEY: ${{ secrets.ENGINE_TESTS_OPENROUTER_API_KEY }}
+          CLI_JAR: cli/build/libs/flow-cli.jar
+          WORKER_LOG: ${{ github.workspace }}/nightly-worker.log
+        # tee so the failure-report step and artifact capture the full orchestrator output (which ends
+        # with the LOOP_RESULT line and, on failure, the worker-log tail). pipefail is on by default.
+        run: ./nightly/real-stack.sh 2>&1 | tee nightly-run.log
+
+      - name: Model spend (OpenRouter)
+        if: always()
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.ENGINE_TESTS_OPENROUTER_API_KEY }}
+        run: |
+          resp="$(curl -s -H "authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/credits || true)"
+          python3 - "$resp" >> "$GITHUB_STEP_SUMMARY" <<'PY' || true
+          import json, sys
+          print("## Model spend (OpenRouter key)\n")
+          try:
+              d = json.loads(sys.argv[1])["data"]
+              used = d.get("total_usage")
+              total = d.get("total_credits")
+              print(f"- Total usage to date: **${used:.4f}**" if isinstance(used, (int, float)) else f"- Total usage: {used}")
+              if isinstance(total, (int, float)):
+                  print(f"- Key credit cap: ${total:.2f} (remaining ~${total - (used or 0):.2f})")
+              print("\n_The key's OpenRouter budget cap is the hard spend ceiling; this run is one trivial task._")
+          except Exception:
+              print("- (usage unavailable this run)")
+          PY
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-logs
+          path: |
+            nightly-run.log
+            nightly-worker.log
+          if-no-files-found: warn
+
+      - name: Report failure (deduplicated issue)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          title="nightly-real-stack failed"
+          label="nightly-failure"
+          gh label create "$label" --repo "$REPO" --color "b60205" \
+            --description "Automated nightly real-stack failure reports" 2>/dev/null || true
+          {
+            echo "The nightly real-stack loop failed. This is loud on purpose — a broken staging"
+            echo "deploy, a revoked sandbox credential, or a model/GitHub behaviour change all land here."
+            echo
+            echo "- Run: $RUN_URL"
+            echo
+            echo "<details><summary>orchestrator + worker log (tail)</summary>"
+            echo
+            echo '```'
+            tail -n 100 nightly-run.log 2>/dev/null || echo "(no orchestrator log captured)"
+            echo '```'
+            echo "</details>"
+          } > "$RUNNER_TEMP/body.md"
+          existing="$(gh issue list --repo "$REPO" --state open --label "$label" \
+            --search "\"$title\" in:title" --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body-file "$RUNNER_TEMP/body.md"
+            echo "updated existing failure issue #$existing"
+          else
+            gh issue create --repo "$REPO" --title "$title" --label "$label" --body-file "$RUNNER_TEMP/body.md"
+            echo "opened a new failure issue"
+          fi
