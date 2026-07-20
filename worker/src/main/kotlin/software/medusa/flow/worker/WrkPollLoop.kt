@@ -19,6 +19,12 @@ class WrkPollLoop(
     private val log: (String) -> Unit = ::println,
 ) {
   suspend fun run() {
+    log("Poll loop started; claiming sessions (empty-poll interval ${emptyPollDelayMillis}ms)")
+    // An empty claim is the common steady state, so we don't log every 5s poll. But we must log the
+    // *first* empty claim: otherwise a worker that's connected, authenticated, and simply finds no
+    // pending session is indistinguishable from one hung or rejected on its first RPC — the exact
+    // ambiguity that made the first hosted-worker run (M4 Path B) impossible to diagnose from logs.
+    var idleAnnounced = false
     while (coroutineContext.isActive) {
       val session =
           try {
@@ -30,9 +36,14 @@ class WrkPollLoop(
           }
 
       if (session == null) {
+        if (!idleAnnounced) {
+          log("No session available yet; polling every ${emptyPollDelayMillis}ms until one appears")
+          idleAnnounced = true
+        }
         delay(emptyPollDelayMillis)
         continue
       }
+      idleAnnounced = false
 
       log("Claimed session ${session.id}")
       processClaimedSession(session)

@@ -30,6 +30,14 @@ class WorkCommand(
     val apiClient =
         WrkGrpcApiClient.create(apiUrl = config.apiUrl, supportedEngines = config.workerEngines)
 
+    // Startup breadcrumb: the API URL doubles as the ID-token audience, so this line makes the
+    // worker's identity target visible in its own logs — the first thing to check when a hosted
+    // worker isn't claiming (is it even pointed at the right API / audience?).
+    val enginesDesc = config.workerEngines.joinToString(",").ifEmpty { "any" }
+    terminal.println(
+        "Worker starting: audience=${config.apiUrl}, engines=$enginesDesc; polling for sessions",
+    )
+
     // Test-only, and inert in production: a faster heartbeat lets the sad-path tests reach lazy
     // session expiry in seconds instead of minutes. Unset → the production default.
     val heartbeatIntervalMillis =
