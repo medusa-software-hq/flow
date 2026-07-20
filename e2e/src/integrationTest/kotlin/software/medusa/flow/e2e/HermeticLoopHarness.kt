@@ -7,12 +7,12 @@ import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
+import software.medusa.flow.githubapp.GitHubAppConfig
 import software.medusa.flow.githubstub.BareRepoFixture
 import software.medusa.flow.githubstub.FakeGitHubAppKey
 import software.medusa.flow.githubstub.FakeGitHubServer
 import software.medusa.flow.server.GitHubAppCandidateClient
 import software.medusa.flow.server.GitHubAppClient
-import software.medusa.flow.server.GitHubAppConfig
 import software.medusa.flow.server.GitHubAppIssueClient
 import software.medusa.flow.server.GitHubAppPrClient
 import software.medusa.flow.server.InMemoryCounterStore

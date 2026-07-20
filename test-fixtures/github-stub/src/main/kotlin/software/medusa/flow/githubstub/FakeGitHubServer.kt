@@ -198,7 +198,15 @@ class FakeGitHubServer : AutoCloseable {
       )
     }
     if (method == "POST" && accessTokenRegex.matches(path)) {
-      return json(HttpStatus.CREATED, buildJsonObject { put("token", "fake-installation-token") })
+      // Any bearer is accepted (this is a fake). expires_at is included because real GitHub always
+      // sends it and the App-token minter parses it (to schedule refresh in the worker's case).
+      return json(
+          HttpStatus.CREATED,
+          buildJsonObject {
+            put("token", "fake-installation-token")
+            put("expires_at", java.time.Instant.now().plusSeconds(3600).toString())
+          },
+      )
     }
     if (method == "GET" && path == "/installation/repositories") {
       return installationRepositories(query)

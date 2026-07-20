@@ -1,5 +1,7 @@
 package software.medusa.flow.server
 
+import software.medusa.flow.githubapp.GitHubAppConfig
+
 private const val portEnvVarName = "PORT"
 private const val clientIdEnvVarName = "GOOGLE_CLIENT_ID"
 private const val allowedDomainEnvVarName = "GOOGLE_ALLOWED_DOMAIN"

@@ -11,6 +11,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
+import software.medusa.flow.githubapp.GitHubAppConfig
 
 /**
  * Exercises [GitHubAppRepositoryStore] against a real (fake) HTTP server standing in for the GitHub
@@ -58,7 +59,11 @@ class GitHubAppRepositoryStore_serverTests {
               HttpResponse.of(MediaType.JSON, """{"id":42}""")
             }
             .service("/app/installations/42/access_tokens") { _, _ ->
-              HttpResponse.of(HttpStatus.CREATED, MediaType.JSON, """{"token":"fake-token"}""")
+              HttpResponse.of(
+                  HttpStatus.CREATED,
+                  MediaType.JSON,
+                  """{"token":"fake-token","expires_at":"${java.time.Instant.now().plusSeconds(3600)}"}""",
+              )
             }
             .service("/installation/repositories") { ctx, _ ->
               val page = ctx.queryParam("page")?.toInt() ?: 1

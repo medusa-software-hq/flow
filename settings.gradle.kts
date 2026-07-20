@@ -11,6 +11,7 @@ include(
     ":backend:api:impl:shared",
     ":cli",
     ":e2e",
+    ":github-app-auth",
     ":test-fixtures:github-stub",
     ":engine:harness",
     ":engine:physical-workspace",
