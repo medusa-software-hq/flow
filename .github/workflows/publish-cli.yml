@@ -70,3 +70,60 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: uv run update_formula.py --version "${VERSION}" --jar "${JAR}"
+
+  # M4 Path B / B4 — the hosted-worker container image (worker/Dockerfile). Env-agnostic (no baked
+  # config; identity/env/secrets all arrive at spawn), so one image serves every environment; the
+  # ms-workload profile pins it by digest. Published to staging's Artifact Registry — that's where
+  # the first hosted worker (B5) lives; a prod copy rides B7.
+  publish-worker-image:
+    name: Publish worker image
+    runs-on: ubuntu-latest
+
+    # `environment: staging` resolves vars.* (registry endpoint/host, CI/CD identity) to staging.
+    environment: staging
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - uses: actions/setup-java@v5.3.0
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.2.0
+
+      - name: Build the worker fat jar
+        run: ./gradlew :cli:shadowJar
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_CICD_WI_PROVIDER_NAME }}
+          service_account: ${{ vars.GCP_CICD_SA_EMAIL }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_AR_REPO_HOSTNAME }} --quiet
+
+      - name: Build and push the worker image
+        id: build
+        run: |
+          image="${{ vars.GCP_AR_REPO_ENDPOINT }}/worker"
+          ctx="$RUNNER_TEMP/worker-ctx"
+          mkdir -p "$ctx"
+          cp cli/build/libs/flow-cli.jar "$ctx/flow-cli.jar"
+          cp worker/Dockerfile "$ctx/Dockerfile"
+          docker build -t "$image:${{ github.sha }}" "$ctx"
+          docker push "$image:${{ github.sha }}"
+          digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$image:${{ github.sha }}" | sed 's/.*@//')"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Flow worker image'
+            echo ''
+            echo "- Ref: \`$image:${{ github.sha }}\`"
+            echo "- Digest: \`$digest\`  ← pin this in the ms-workload profile"
+          } >> "$GITHUB_STEP_SUMMARY"
