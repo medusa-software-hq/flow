@@ -77,6 +77,28 @@ repo needs:
 - `FLOW_WORKER_GITHUB_TOKEN` needs push access to it, since the worker
   branches (`flow/session-<id>`), commits, and pushes directly.
 
+## Container image (M4 Path B)
+
+[`worker/Dockerfile`](Dockerfile) packages the worker as a hosted, credential-free
+container run under [ms-workload](../../workload-home). It bundles a JRE, git, Node
+(npm + corepack yarn — the worker locates both at startup), and the pinned `claude`
+CLI; the worker runs as PID-1-behind-tini so `SIGTERM` reaches its shutdown hook and
+tool subprocesses are reaped. CI builds + pushes it to Artifact Registry
+(`publish-cli.yml`, job *Publish worker image*) and prints the digest to pin.
+
+**Nothing secret is baked in.** The configuration surface at runtime:
+
+| Source | Carries | How |
+|---|---|---|
+| **Baked (image)** | JRE, git, Node/npm/yarn, `claude` CLI, `flow-cli.jar` | in the image; no secrets |
+| **Host (mounted)** | the ms-workload **worker identity** (`workerId`/`secret`, broker URL) | `config.json` under `XDG_CONFIG_HOME`, provisioned once at VM create; **reused on restart, never re-registered** |
+| **Profile (spawn)** | `FLOW_API_URL`, `FLOW_WORKER_ENGINES` + engine knobs (env); `FLOW_WORKER_GITHUB_TOKEN`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` (secret refs, resolved worker-side) | ms-workload profile env/secretEnv |
+| **Beacon (spawn)** | the worker's **GCP identity** — an audience-bound `flow-worker` ID token for the Flow API | GCE-shaped metadata server under `workload run`; the worker's existing ADC path uses it unmodified (see [design/05-workload-notes.md](../../plan/m4/design/05-workload-notes.md)) |
+
+The image is environment-agnostic: the same digest runs any environment, since every
+knob above arrives at spawn. Deploying a new worker version = build a new image +
+append an ms-workload profile revision pinning its digest.
+
 ## Known M1 limitations
 
 - No PR templates, draft PRs, or review-request automation.
