@@ -6,6 +6,7 @@ import com.google.auth.oauth2.IdTokenProvider
 import com.google.auth.oauth2.ImpersonatedCredentials
 import com.linecorp.armeria.client.grpc.GrpcClients
 import io.grpc.auth.MoreCallCredentials
+import software.medusa.flow.v1.ReconcileServiceGrpcKt
 import software.medusa.flow.v1.SessionServiceGrpcKt
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 
@@ -23,6 +24,7 @@ class StagingClients
 private constructor(
     val sessionService: SessionServiceGrpcKt.SessionServiceCoroutineStub,
     val workerService: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
+    val reconcileService: ReconcileServiceGrpcKt.ReconcileServiceCoroutineStub,
 ) {
   companion object {
     private const val cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
@@ -42,7 +44,12 @@ private constructor(
               .build(WorkerServiceGrpcKt.WorkerServiceCoroutineStub::class.java)
               .withCallCredentials(callCredentials)
 
-      return StagingClients(sessionService, workerService)
+      val reconcileService =
+          GrpcClients.builder(config.apiUrl)
+              .build(ReconcileServiceGrpcKt.ReconcileServiceCoroutineStub::class.java)
+              .withCallCredentials(callCredentials)
+
+      return StagingClients(sessionService, workerService, reconcileService)
     }
 
     private fun buildIdTokenCredentials(
