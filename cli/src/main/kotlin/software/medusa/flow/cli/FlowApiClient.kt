@@ -1,10 +1,12 @@
 package software.medusa.flow.cli
 
 import com.linecorp.armeria.client.grpc.GrpcClients
+import software.medusa.flow.v1.GetSessionResponse
 import software.medusa.flow.v1.IssuePipeline
 import software.medusa.flow.v1.PipelineServiceGrpcKt
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionServiceGrpcKt
+import software.medusa.flow.v1.getSessionRequest
 import software.medusa.flow.v1.listIssuePipelinesRequest
 import software.medusa.flow.v1.listSessionsRequest
 
@@ -49,6 +51,10 @@ private constructor(
   /** Newest-first sessions, as the web app's sessions list shows them. */
   suspend fun listSessions(): List<Session> =
       sessionStub.listSessions(listSessionsRequest {}).sessionsList
+
+  /** One session with its full event log (the detail view). */
+  suspend fun getSession(id: String): GetSessionResponse =
+      sessionStub.getSession(getSessionRequest { this.id = id })
 
   /** Live + recent issue pipelines, newest-first, optionally filtered to one `owner/name` repo. */
   suspend fun listIssuePipelines(repoFullName: String? = null): List<IssuePipeline> =

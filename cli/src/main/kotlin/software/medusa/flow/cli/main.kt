@@ -76,8 +76,8 @@ suspend fun main(
                 terminal = terminal,
                 engineResolverProvider = { buildWorkerEngineResolver(this) },
             ),
-            SessionsCommand(),
-            PipelinesCommand(),
+            SessionsCommand().subcommands(SessionsListCommand(), SessionsShowCommand()),
+            PipelinesCommand().subcommands(PipelinesListCommand()),
             LoginCommand(),
             LogoutCommand(),
         )

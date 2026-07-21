@@ -1,0 +1,17 @@
+<!--
+  Without a config, logback's root logger defaults to DEBUG, so every netty/armeria line floods the
+  CLI's output. This is a user-facing tool: keep the log quiet (WARN+ only, to stderr) so command
+  output on stdout is clean. Genuine warnings/errors still surface.
+-->
+<configuration>
+  <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+    <target>System.err</target>
+    <encoder>
+      <pattern>%-5level %logger{0}: %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <root level="WARN">
+    <appender-ref ref="STDERR" />
+  </root>
+</configuration>
