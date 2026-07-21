@@ -1,0 +1,27 @@
+-- Schema for SQLDelight compile-time query verification (Postgres dialect).
+-- The runtime schema is owned by Flyway; keep these table definitions identical
+-- to src/main/resources/db/migration/V6__create_workers.sql.
+CREATE TABLE workers (
+  worker_id         TEXT NOT NULL PRIMARY KEY,
+  worker_version    TEXT NOT NULL DEFAULT '',
+  image_digest      TEXT NOT NULL DEFAULT '',
+  supported_engines TEXT NOT NULL DEFAULT '',
+  first_seen_at     TIMESTAMPTZ NOT NULL,
+  last_seen_at      TIMESTAMPTZ NOT NULL
+);
+
+-- Register (or refresh) a worker. On first sight the row is inserted with
+-- first_seen_at = last_seen_at = :now; on every later registration only the
+-- mutable columns and last_seen_at move, so first_seen_at is preserved.
+upsertWorker:
+INSERT INTO workers (worker_id, worker_version, image_digest, supported_engines, first_seen_at, last_seen_at)
+VALUES (?, ?, ?, ?, :now, :now)
+ON CONFLICT (worker_id) DO UPDATE SET
+  worker_version    = EXCLUDED.worker_version,
+  image_digest      = EXCLUDED.image_digest,
+  supported_engines = EXCLUDED.supported_engines,
+  last_seen_at      = EXCLUDED.last_seen_at;
+
+-- Freshest first, so the liveness preflight can take the head as "the worker".
+listWorkers:
+SELECT * FROM workers ORDER BY last_seen_at DESC;

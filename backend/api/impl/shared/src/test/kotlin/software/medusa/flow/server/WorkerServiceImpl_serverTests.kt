@@ -13,7 +13,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
+import software.medusa.flow.v1.Engine as ProtoEngine
 import software.medusa.flow.v1.SessionEventKind as ProtoSessionEventKind
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 import software.medusa.flow.v1.appendSessionEventRequest
@@ -21,6 +23,8 @@ import software.medusa.flow.v1.claimNextSessionRequest
 import software.medusa.flow.v1.completeSessionRequest
 import software.medusa.flow.v1.failSessionRequest
 import software.medusa.flow.v1.heartbeatRequest
+import software.medusa.flow.v1.listWorkersRequest
+import software.medusa.flow.v1.registerWorkerRequest
 import software.medusa.flow.v1.sessionOrNull
 
 /**
@@ -49,6 +53,7 @@ class WorkerServiceImpl_serverTests {
   }
 
   private val store = InMemorySessionStore()
+  private val workerStore = InMemoryWorkerStore()
   private val workerAuthorizer = WorkerAuthorizer.allowlist(setOf(workerEmail))
 
   private fun startServerAs(
@@ -64,6 +69,7 @@ class WorkerServiceImpl_serverTests {
                 gitHubRepositoryStore = FakeGitHubRepositoryStore(),
                 sessionStore = store,
                 workerAuthorizer = workerAuthorizer,
+                workerStore = workerStore,
             )
             .also { it.start().join() }
 
@@ -176,6 +182,57 @@ class WorkerServiceImpl_serverTests {
         assertEquals(SessionState.Failed, stillFailed.state)
         assertEquals("boom", stillFailed.failureSummary)
       }
+
+  @Test
+  fun `RegisterWorker then ListWorkers round-trips the worker's identity and version`() =
+      runBlocking {
+        val (srv, client) = startServerAs(workerEmail)
+        server = srv
+
+        client.registerWorker(
+            registerWorkerRequest {
+              workerId = "worker-a"
+              workerVersion = "1.2.3"
+              imageDigest = "sha256:abc"
+              supportedEngines.add(ProtoEngine.ENGINE_CLAUDE)
+            },
+        )
+
+        val listed = client.listWorkers(listWorkersRequest {}).workersList
+        assertEquals(1, listed.size)
+        assertEquals("worker-a", listed[0].workerId)
+        assertEquals("1.2.3", listed[0].workerVersion)
+        assertEquals("sha256:abc", listed[0].imageDigest)
+        assertEquals(listOf(ProtoEngine.ENGINE_CLAUDE), listed[0].supportedEnginesList)
+        assertTrue(listed[0].hasLastSeenAt())
+      }
+
+  @Test
+  fun `a user token calling RegisterWorker or ListWorkers is rejected`() = runBlocking {
+    val (srv, client) = startServerAs(userEmail)
+    server = srv
+
+    val registerFailure =
+        assertFailsWith<StatusException> {
+          client.registerWorker(registerWorkerRequest { workerId = "w" })
+        }
+    assertEquals(Status.Code.PERMISSION_DENIED, registerFailure.status.code)
+
+    val listFailure = assertFailsWith<StatusException> { client.listWorkers(listWorkersRequest {}) }
+    assertEquals(Status.Code.PERMISSION_DENIED, listFailure.status.code)
+  }
+
+  @Test
+  fun `RegisterWorker with a blank worker_id is rejected as INVALID_ARGUMENT`() = runBlocking {
+    val (srv, client) = startServerAs(workerEmail)
+    server = srv
+
+    val failure =
+        assertFailsWith<StatusException> {
+          client.registerWorker(registerWorkerRequest { workerId = "" })
+        }
+    assertEquals(Status.Code.INVALID_ARGUMENT, failure.status.code)
+  }
 
   @Test
   fun `heartbeat and fail on a non-existent session both return FAILED_PRECONDITION`() =

@@ -7,6 +7,7 @@ grpc = "1.80.0"
 grpc-kotlin = "1.5.0"
 hikari = "7.0.2"
 jib = "3.5.3"
+junit = "5.11.4"
 kotlin = "2.4.0"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
@@ -37,6 +38,9 @@ grpc-kotlin-stub = { module = "io.grpc:grpc-kotlin-stub", version.ref = "grpc-ko
 grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
 grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }

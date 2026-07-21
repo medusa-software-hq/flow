@@ -17,6 +17,8 @@ import software.medusa.flow.worker.WrkPollLoop
 import software.medusa.flow.worker.WrkProcessGitCloner
 import software.medusa.flow.worker.WrkProperGitHubPublisher
 import software.medusa.flow.worker.WrkProperSessionProcessor
+import software.medusa.flow.worker.WrkRegistrationLoop
+import software.medusa.flow.worker.WrkWorkerIdentity
 
 class WorkCommand(
     private val terminal: Terminal,
@@ -109,18 +111,34 @@ class WorkCommand(
             log = { terminal.println(it) },
         )
 
+    // Fleet registration (M5): a background loop that keeps this worker's registry entry fresh so
+    // the system-test gate can see it's alive and what build it runs — independent of, and
+    // concurrent with, the poll loop, so a long session never makes the worker look "down".
+    val registrationLoop =
+        WrkRegistrationLoop(
+            apiClient = apiClient,
+            identity = WrkWorkerIdentity.fromEnvironment(),
+            supportedEngines = config.workerEngines,
+            log = { terminal.println(it) },
+        )
+
     runBlocking {
+      val registrationJob = launch { registrationLoop.run() }
       val loopJob = launch { pollLoop.run() }
 
       Runtime.getRuntime()
           .addShutdownHook(
               Thread {
                 terminal.println("Shutting down, waiting for the current session to finish...")
-                runBlocking { loopJob.cancelAndJoin() }
+                runBlocking {
+                  registrationJob.cancelAndJoin()
+                  loopJob.cancelAndJoin()
+                }
               },
           )
 
       loopJob.join()
+      registrationJob.cancelAndJoin()
     }
   }
 }

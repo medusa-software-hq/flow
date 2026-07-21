@@ -11,12 +11,18 @@ import software.medusa.flow.v1.FailSessionRequest
 import software.medusa.flow.v1.FailSessionResponse
 import software.medusa.flow.v1.HeartbeatRequest
 import software.medusa.flow.v1.HeartbeatResponse
+import software.medusa.flow.v1.ListWorkersRequest
+import software.medusa.flow.v1.ListWorkersResponse
+import software.medusa.flow.v1.RegisterWorkerRequest
+import software.medusa.flow.v1.RegisterWorkerResponse
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 import software.medusa.flow.v1.appendSessionEventResponse
 import software.medusa.flow.v1.claimNextSessionResponse
 import software.medusa.flow.v1.completeSessionResponse
 import software.medusa.flow.v1.failSessionResponse
 import software.medusa.flow.v1.heartbeatResponse
+import software.medusa.flow.v1.listWorkersResponse
+import software.medusa.flow.v1.registerWorkerResponse
 
 /**
  * Worker-facing [WorkerService][WorkerServiceGrpcKt]: claim/append/heartbeat/complete/fail over the
@@ -34,6 +40,7 @@ class WorkerServiceImpl(
     private val sessionStore: SessionStore,
     private val workerAuthorizer: WorkerAuthorizer,
     private val issuePipelineStore: IssuePipelineStore,
+    private val workerStore: WorkerStore,
 ) : WorkerServiceGrpcKt.WorkerServiceCoroutineImplBase() {
   private companion object {
     private val prNumberRegex = Regex("""/pull/(\d+)""")
@@ -155,6 +162,35 @@ class WorkerServiceImpl(
     }
 
     return failSessionResponse {}
+  }
+
+  override suspend fun registerWorker(
+      request: RegisterWorkerRequest,
+  ): RegisterWorkerResponse {
+    requireAuthorizedWorker()
+
+    if (request.workerId.isBlank()) {
+      throw Status.INVALID_ARGUMENT.withDescription("worker_id must be set").asRuntimeException()
+    }
+
+    workerStore.register(
+        workerId = request.workerId,
+        workerVersion = request.workerVersion,
+        imageDigest = request.imageDigest,
+        supportedEngines = request.supportedEnginesList.map { it.toDomain() },
+    )
+
+    return registerWorkerResponse {}
+  }
+
+  override suspend fun listWorkers(
+      request: ListWorkersRequest,
+  ): ListWorkersResponse {
+    requireAuthorizedWorker()
+
+    val workers = workerStore.list()
+
+    return listWorkersResponse { this.workers.addAll(workers.map { it.toProto() }) }
   }
 
   /**

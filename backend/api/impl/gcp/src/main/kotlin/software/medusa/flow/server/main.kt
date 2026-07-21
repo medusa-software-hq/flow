@@ -77,6 +77,7 @@ fun main() {
           gitHubRepositoryStore = GitHubAppRepositoryStore(gitHubAppClient),
           sessionStore = PostgresSessionStore(database),
           workerAuthorizer = buildWorkerAuthorizer(workerSaEmails),
+          workerStore = PostgresWorkerStore(database),
           issuePipelineStore = PostgresIssuePipelineStore(database),
           githubOutboxStore = PostgresGithubOutboxStore(database),
           gitHubIssueClient = GitHubAppIssueClient(gitHubAppClient),
