@@ -93,6 +93,12 @@ jobs:
         env:
           # Budget-capped and engine-test scoped: not an application credential.
           OPENROUTER_API_KEY: ${{ secrets.ENGINE_TESTS_OPENROUTER_API_KEY }}
+          # Uniform workers construct the claude engine at startup (it's a hard dependency), so the
+          # worker requires a claude credential to boot even for a builtin run. This loop drives the
+          # builtin engine and never spawns claude, so the value is never used — a non-blank
+          # placeholder just satisfies the fail-fast credential check. The real claude subscription
+          # token lives only in check-hermetic-loop-claude.yml, which actually exercises claude.
+          CLAUDE_CODE_OAUTH_TOKEN: builtin-loop-does-not-use-claude
         # Only the loop class here: the deterministic sad paths in the same source set run in their
         # own credit-free workflow (check-sad-paths.yml), so they aren't billed to this job.
         run: ./gradlew :e2e:integrationTest --tests "software.medusa.flow.e2e.HermeticLoop_integrationTests" --stacktrace
