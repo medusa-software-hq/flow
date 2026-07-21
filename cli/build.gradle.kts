@@ -2,6 +2,7 @@ plugins {
   application
 
   alias(libs.plugins.kotlin.jvm)
+  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.shadow)
 }
 
@@ -17,10 +18,16 @@ dependencies {
   implementation(project(":worker"))
 
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.medusa.commons.markdown)
   implementation(libs.medusa.commons.git)
   implementation(libs.medusa.commons.unix.filesystem)
   implementation(libs.clikt)
+
+  testImplementation(platform(libs.junit.bom))
+  testImplementation(libs.kotlin.test)
+  testImplementation(libs.junit.jupiter)
+  testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 application {
