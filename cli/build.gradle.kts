@@ -47,4 +47,29 @@ tasks.shadowJar {
   archiveVersion = ""
 }
 
+// Bake the CLI's Desktop OAuth client secret (and, optionally, the API base URL) into the fat jar
+// as
+// a resource. The Publish CLI workflow passes them via `-PflowCliOauthClientSecret` (from an
+// Actions
+// secret) / `-PflowCliApiBaseUrl`, so the secret is NEVER committed to source. A local build passes
+// neither: the properties file is written empty and FlowConfig falls back to the env vars / prod
+// default. The Desktop client secret is non-confidential per Google's installed-app model.
+val flowCliBuildConfigDir = layout.buildDirectory.dir("generated/flowCliBuildConfig")
+
+val generateFlowCliBuildConfig by tasks.registering {
+  val clientSecret = providers.gradleProperty("flowCliOauthClientSecret").orElse("")
+  val apiBaseUrl = providers.gradleProperty("flowCliApiBaseUrl").orElse("")
+  inputs.property("clientSecret", clientSecret)
+  inputs.property("apiBaseUrl", apiBaseUrl)
+  outputs.dir(flowCliBuildConfigDir)
+  doLast {
+    val file = flowCliBuildConfigDir.get().file("flow-cli-build.properties").asFile
+    file.parentFile.mkdirs()
+    // Both values are properties-safe (a `GOCSPX-…` secret and an https URL).
+    file.writeText("oauthClientSecret=${clientSecret.get()}\napiBaseUrl=${apiBaseUrl.get()}\n")
+  }
+}
+
+sourceSets.named("main") { resources.srcDir(generateFlowCliBuildConfig) }
+
 configurations.configureEach { resolutionStrategy { force("org.slf4j:slf4j-api:2.0.17") } }
