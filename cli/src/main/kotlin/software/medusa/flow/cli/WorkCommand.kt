@@ -22,10 +22,15 @@ import software.medusa.flow.worker.WrkWorkerIdentity
 
 class WorkCommand(
     private val terminal: Terminal,
-    private val engineResolver: WrkEngineResolver,
+    // Lazily built so a user running a read command (`flow sessions`) never constructs the engine
+    // composition or needs model credentials — only `work` (the container entrypoint) does.
+    private val engineResolverProvider: () -> WrkEngineResolver,
 ) : CliktCommand(name = "work") {
   override fun run() {
     val config = WrkConfig.fromEnvironment()
+
+    // Build the engine composition now that we know `work` is actually running.
+    val engineResolver = engineResolverProvider()
 
     // Workers are uniform (every worker runs every engine), so the claim carries no capability set.
     val apiClient = WrkGrpcApiClient.create(apiUrl = config.apiUrl)

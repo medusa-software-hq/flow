@@ -3,9 +3,9 @@ package software.medusa.flow.cli
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.mordant.terminal.Terminal
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import software.medusa.commons.openai_client.OaiApiKey
-import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.openai_client.OaiFreeClient
 import software.medusa.commons.openai_client.OaiModel
 import software.medusa.commons.openai_client.OaiProperClient
@@ -30,7 +30,6 @@ import software.medusa.flow.integration.nodejs.package_manager.NjsPackageManager
 import software.medusa.flow.integration.nodejs.package_manager.NjsYarnConnector
 import software.medusa.flow.integration.nodejs.process.NjsProcessPackageConnector
 import software.medusa.flow.physical_workspace.PhwConnectorHub
-import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.temp.PhwTempWorkspaceAllocator
 import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.universal_project.gradle.UnpGradleModuleManifestLoader
@@ -39,108 +38,50 @@ import software.medusa.flow.universal_project.yaml.UnpYamlProjectManifestLoader
 import software.medusa.flow.worker.WrkClaudeAuthEnvironment
 import software.medusa.flow.worker.WrkEngineResolver
 
+/**
+ * The CLI is a **read-only client** for the deployed Flow API — `sessions`, `pipelines`, and the
+ * `login`/`logout` that authenticate them — plus `work`, the worker loop that is the container
+ * image's entrypoint. The old offline engine commands (`complete-task`, `scout-fully`, which ran
+ * the engine against a local directory with no control plane) were dropped.
+ *
+ * The engine composition (builtin frontline/expert/interpreter AI systems + the claude completer)
+ * is built lazily, only when the invocation is actually the worker path — so `flow sessions` needs
+ * no `OPENROUTER_API_KEY`, locates no `npm`/`yarn`/`claude`, and constructs nothing model-related.
+ */
 suspend fun main(
     args: Array<String>,
 ) {
   coroutineScope {
-    val npmExecutableHandle = SysExecutableHandle.locate(commandName = "npm")
+    val terminal = Terminal()
 
-    val yarnExecutableHandle = SysExecutableHandle.locate(commandName = "yarn")
-
-    val processSpawner = SysProcessSpawner()
-
-    val connectorHub =
-        PhwConnectorHub(
-            gradleProjectConnector = GrdProperProjectConnector(),
-            nodeJsPackageConnector =
-                NjsProcessPackageConnector(
-                    packageManagerConnectorHub =
-                        NjsPackageManagerConnectorHub(
-                            npmConnector =
-                                NjsNpmConnector(
-                                    npmExecutableHandle = npmExecutableHandle,
-                                ),
-                            yarnConnector =
-                                NjsYarnConnector(
-                                    yarnExecutableHandle = yarnExecutableHandle,
-                                ),
-                        ),
-                    processSpawner = processSpawner,
-                ),
-        )
-
-    val physicalWorkspaceAllocator =
-        PhwTempWorkspaceAllocator(
-            coroutineScope = this,
-            connectorHub = connectorHub,
-        )
-
-    // Test-only, hard-gated: a deterministic engine for the sad-path suite. Selected before the
-    // OpenRouter client is even built, so it needs no API key — these flows never call a model.
+    // Test-only, hard-gated: a deterministic engine for the sad-path suite. Selected before any
+    // OpenRouter client is built, so it needs no API key — these flows never call a model, and it
+    // only ever drives `work`.
     val scriptedBehavior = scriptedEngineBehaviorOrNull()
     if (scriptedBehavior != null) {
-      runScriptedWorkerCommand(
-          args = args,
-          taskCompleter =
-              HrsScriptedTaskCompleter(
-                  physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-                  behavior = scriptedBehavior,
+      RootCommand()
+          .subcommands(
+              WorkCommand(
+                  terminal = terminal,
+                  engineResolverProvider = { buildScriptedEngineResolver(this, scriptedBehavior) },
               ),
-      )
+          )
+          .main(args)
       return@coroutineScope
     }
 
-    // `claude` is a hard dependency of a real worker (the image ships it) — located once here, at
-    // startup, so a missing binary fails cleanly and loudly rather than deep inside the first
-    // claude session. Deliberately after the scripted-engine early return above: that test path
-    // runs on a runner without `claude` and wires an UnimplementedHrsTaskCompleter instead.
-    val claudeExecutableHandle = SysExecutableHandle.locate(commandName = "claude")
-
-    val openRouterApiKey =
-        OaiApiKey(
-            System.getenv("OPENROUTER_API_KEY")
-                ?: error("OPENROUTER_API_KEY environment variable is not set"),
-        )
-
-    // One shared reporter (0.2.0 hands the detail behind a coarse OaiResult/OaiResponse here);
-    // wired
-    // into the client at the target so every completion's anomalies are logged, not swallowed.
-    val reporter = HrsLoggingOaiReporter()
-
-    val openRouterClient =
-        OaiProperClient.targeting(
-            targetBaseUrl = OaiFreeClient.openRouterBaseUrl,
-            targetApiKey = openRouterApiKey,
-            reporter = reporter,
-        )
-
-    // Product wiring pins the expert role to a stronger model; the hermetic loop test overrides it
-    // to the cheap model (all three roles on DeepSeekFlash) via a test-only env — the only
-    // override.
-    val expertModel =
-        if (System.getenv("FLOW_TEST_CHEAP_MODELS") != null) OaiModel.DeepSeekFlash
-        else OaiModel.GptMidi
-
-    // The response format is fixed at configuration time in 0.2.0 (was per call), so the two
-    // structured interpreters get their own JSON-configured clients while frontline/expert stay
-    // plain text.
-    runMainCommand(
-        args = args,
-        physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-        claudeExecutable = claudeExecutableHandle,
-        frontlineOpenAiClient = openRouterClient.configured(model = OaiModel.DeepSeekFlash),
-        expertOpenAiClient = openRouterClient.configured(model = expertModel),
-        scoutDecisionOpenAiClient =
-            openRouterClient.configured(
-                model = OaiModel.DeepSeekFlash,
-                responseFormat = HrsAiScoutDecisionInterpreter.responseFormat,
+    RootCommand()
+        .subcommands(
+            WorkCommand(
+                terminal = terminal,
+                engineResolverProvider = { buildWorkerEngineResolver(this) },
             ),
-        patchOpenAiClient =
-            openRouterClient.configured(
-                model = OaiModel.DeepSeekFlash,
-                responseFormat = HrsAiPatchInterpreter.responseFormat,
-            ),
-    )
+            SessionsCommand(),
+            PipelinesCommand(),
+            LoginCommand(),
+            LogoutCommand(),
+        )
+        .main(args)
   }
 }
 
@@ -169,97 +110,125 @@ private fun scriptedEngineBehaviorOrNull(): HrsScriptedTaskCompleter.Behavior? {
   }
 }
 
-/** The scripted engine only ever drives `work`; scouting/planning need a real model. */
-private fun runScriptedWorkerCommand(
-    args: Array<String>,
-    taskCompleter: HrsTaskCompleter,
-) {
-  val terminal = Terminal()
+/** The physical-workspace allocator shared by both the real and scripted worker engines. */
+private fun buildPhysicalWorkspaceAllocator(
+    scope: CoroutineScope,
+): PhwTempWorkspaceAllocator {
+  val npmExecutableHandle = SysExecutableHandle.locate(commandName = "npm")
+  val yarnExecutableHandle = SysExecutableHandle.locate(commandName = "yarn")
+  val processSpawner = SysProcessSpawner()
 
-  RootCommand()
-      .subcommands(
-          WorkCommand(
-              terminal = terminal,
-              engineResolver = singleEngineResolver(taskCompleter),
-          ),
+  val connectorHub =
+      PhwConnectorHub(
+          gradleProjectConnector = GrdProperProjectConnector(),
+          nodeJsPackageConnector =
+              NjsProcessPackageConnector(
+                  packageManagerConnectorHub =
+                      NjsPackageManagerConnectorHub(
+                          npmConnector = NjsNpmConnector(npmExecutableHandle = npmExecutableHandle),
+                          yarnConnector =
+                              NjsYarnConnector(yarnExecutableHandle = yarnExecutableHandle),
+                      ),
+                  processSpawner = processSpawner,
+              ),
       )
-      .main(args)
+
+  return PhwTempWorkspaceAllocator(coroutineScope = scope, connectorHub = connectorHub)
 }
 
 /**
  * A resolver for the scripted sad-path engine, which only ever runs `UNSPECIFIED`/builtin sessions:
- * [taskCompleter] takes the builtin slot, and the claude slot is an [UnimplementedHrsTaskCompleter]
- * — this test path runs on a runner without the `claude` binary, so it must not try to build the
- * real claude engine (which would locate `claude` at startup).
+ * the scripted completer takes the builtin slot, and the claude slot is an
+ * [UnimplementedHrsTaskCompleter] — this test path runs on a runner without the `claude` binary, so
+ * it must not try to build the real claude engine (which would locate `claude` at startup).
  */
-private fun singleEngineResolver(
-    taskCompleter: HrsTaskCompleter,
+private fun buildScriptedEngineResolver(
+    scope: CoroutineScope,
+    behavior: HrsScriptedTaskCompleter.Behavior,
 ): WrkEngineResolver =
     WrkEngineResolver(
-        builtin = taskCompleter,
+        builtin =
+            HrsScriptedTaskCompleter(
+                physicalWorkspaceAllocator = buildPhysicalWorkspaceAllocator(scope),
+                behavior = behavior,
+            ),
         claude = UnimplementedHrsTaskCompleter(engineName = "claude"),
     )
 
 /**
- * Assembles the static engine resolver: workers are uniform, so **both** the builtin and claude
- * completers are always constructed. The claude engine drives the real `claude` binary
- * ([claudeExecutable], located at startup) with its auth-rung env built from `FLOW_CLAUDE_AUTH`.
+ * Assembles the full worker engine composition: the builtin AI-system graph (frontline/expert plus
+ * the scout-decision and patch interpreters, each on its own OpenRouter-configured client) and the
+ * claude completer driving the real `claude` binary. Built only when `work` actually runs — this is
+ * the only path that requires `OPENROUTER_API_KEY` and the `npm`/`yarn`/`claude` executables.
  */
-private fun buildEngineResolver(
-    claudeExecutable: SysExecutableHandle,
-    builtinTaskCompleter: HrsTaskCompleter,
-    physicalWorkspaceAllocator: PhwWorkspaceAllocator,
-    projectManifestLoader: UnpProjectManifestLoader,
-): WrkEngineResolver =
-    WrkEngineResolver(
-        builtin = builtinTaskCompleter,
-        claude =
-            HrsClaudeTaskCompleter(
-                physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-                claudeProcess = HrsProcessClaudeProcess(claudeExecutable = claudeExecutable),
-                config =
-                    HrsClaudeEngineConfig(
-                        authEnvironment = WrkClaudeAuthEnvironment.build(),
-                        model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
-                    ),
-                projectManifestLoader = projectManifestLoader,
-            ),
-    )
+private fun buildWorkerEngineResolver(
+    scope: CoroutineScope,
+): WrkEngineResolver {
+  val physicalWorkspaceAllocator = buildPhysicalWorkspaceAllocator(scope)
 
-private fun runMainCommand(
-    args: Array<String>,
-    physicalWorkspaceAllocator: PhwTempWorkspaceAllocator,
-    claudeExecutable: SysExecutableHandle,
-    frontlineOpenAiClient: OaiConfiguredClient,
-    expertOpenAiClient: OaiConfiguredClient,
-    scoutDecisionOpenAiClient: OaiConfiguredClient,
-    patchOpenAiClient: OaiConfiguredClient,
-) {
-  // Every LLM call retries a transient empty response (see HrsRetryingAiClient) — wrapping here, at
-  // the composition root, covers frontline/expert/interpreter for complete-task, scout-fully, and
-  // work alike.
-  val frontlineClient = HrsRetryingAiClient(delegate = frontlineOpenAiClient)
-  val expertClient = HrsRetryingAiClient(delegate = expertOpenAiClient)
-  val scoutDecisionClient = HrsRetryingAiClient(delegate = scoutDecisionOpenAiClient)
-  val patchClient = HrsRetryingAiClient(delegate = patchOpenAiClient)
+  // `claude` is a hard dependency of a real worker (the image ships it) — located once here so a
+  // missing binary fails cleanly and loudly rather than deep inside the first claude session.
+  val claudeExecutableHandle = SysExecutableHandle.locate(commandName = "claude")
+
+  val openRouterApiKey =
+      OaiApiKey(
+          System.getenv("OPENROUTER_API_KEY")
+              ?: error("OPENROUTER_API_KEY environment variable is not set"),
+      )
+
+  // One shared reporter so every completion's anomalies are logged, not swallowed.
+  val reporter = HrsLoggingOaiReporter()
+
+  val openRouterClient =
+      OaiProperClient.targeting(
+          targetBaseUrl = OaiFreeClient.openRouterBaseUrl,
+          targetApiKey = openRouterApiKey,
+          reporter = reporter,
+      )
+
+  // Product wiring pins the expert role to a stronger model; the hermetic loop test overrides it to
+  // the cheap model (all three roles on DeepSeekFlash) via a test-only env — the only override.
+  val expertModel =
+      if (System.getenv("FLOW_TEST_CHEAP_MODELS") != null) OaiModel.DeepSeekFlash
+      else OaiModel.GptMidi
+
+  // Every LLM call retries a transient empty response (see HrsRetryingAiClient); the response
+  // format
+  // is fixed at configuration time in commons 0.2.0, so the two structured interpreters get their
+  // own JSON-configured clients while frontline/expert stay plain text.
+  val frontlineClient =
+      HrsRetryingAiClient(delegate = openRouterClient.configured(model = OaiModel.DeepSeekFlash))
+  val expertClient =
+      HrsRetryingAiClient(delegate = openRouterClient.configured(model = expertModel))
+  val scoutDecisionClient =
+      HrsRetryingAiClient(
+          delegate =
+              openRouterClient.configured(
+                  model = OaiModel.DeepSeekFlash,
+                  responseFormat = HrsAiScoutDecisionInterpreter.responseFormat,
+              ),
+      )
+  val patchClient =
+      HrsRetryingAiClient(
+          delegate =
+              openRouterClient.configured(
+                  model = OaiModel.DeepSeekFlash,
+                  responseFormat = HrsAiPatchInterpreter.responseFormat,
+              ),
+      )
 
   val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineClient)
-
   val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertClient)
-
   val scoutDecisionInterpreter = HrsAiScoutDecisionInterpreter(openaiClient = scoutDecisionClient)
-
   val patchInterpreter = HrsAiPatchInterpreter(openaiClient = patchClient)
 
-  val projectManifestLoader =
+  val projectManifestLoader: UnpProjectManifestLoader =
       UnpYamlProjectManifestLoader(
           gradleModuleManifestLoader = UnpGradleModuleManifestLoader,
           nodeJsModuleManifestLoader = UnpNodeJsModuleManifestLoader,
       )
 
-  // The builtin engine (classic AI-system graph). `complete-task` always drives it directly; `work`
-  // reaches it (and the claude engine) through the engine resolver.
-  val builtinTaskCompleter =
+  val builtinTaskCompleter: HrsTaskCompleter =
       HrsProperTaskCompleter(
           physicalWorkspaceAllocator = physicalWorkspaceAllocator,
           projectManifestLoader = projectManifestLoader,
@@ -269,31 +238,21 @@ private fun runMainCommand(
           expertAiSystem = expertAiSystem,
       )
 
-  val engineResolver =
-      buildEngineResolver(
-          claudeExecutable = claudeExecutable,
-          builtinTaskCompleter = builtinTaskCompleter,
-          physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-          projectManifestLoader = projectManifestLoader,
-      )
-
-  val terminal = Terminal()
-
-  RootCommand()
-      .subcommands(
-          ScoutFullyCommand(
-              terminal = terminal,
-              frontlineAiSystem = frontlineAiSystem,
-              scoutDecisionInterpreter = scoutDecisionInterpreter,
+  // Workers are uniform, so both the builtin and claude completers are always constructed. The
+  // claude engine drives the real `claude` binary with its auth-rung env built from
+  // `FLOW_CLAUDE_AUTH`.
+  return WrkEngineResolver(
+      builtin = builtinTaskCompleter,
+      claude =
+          HrsClaudeTaskCompleter(
+              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+              claudeProcess = HrsProcessClaudeProcess(claudeExecutable = claudeExecutableHandle),
+              config =
+                  HrsClaudeEngineConfig(
+                      authEnvironment = WrkClaudeAuthEnvironment.build(),
+                      model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
+                  ),
+              projectManifestLoader = projectManifestLoader,
           ),
-          CompleteTaskCommand(
-              terminal = terminal,
-              taskCompleter = builtinTaskCompleter,
-          ),
-          WorkCommand(
-              terminal = terminal,
-              engineResolver = engineResolver,
-          ),
-      )
-      .main(args)
+  )
 }
