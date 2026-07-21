@@ -27,7 +27,7 @@ private val googleIssuers = setOf("https://$googleAccountsHostname", googleAccou
  *
  * Two caller classes present structurally different tokens, so audience and hosted-domain checks
  * branch on which one matched:
- * - **User** (Google Sign-In, browser): `aud` = [userTokenAudience] (the OAuth client ID), `hd`
+ * - **User** (Google Sign-In, browser SPA or the CLI): `aud` = one of [userTokenAudiences], `hd`
  *   must equal [allowedDomain].
  * - **Worker** (`flow work`, a service account, impersonated or key-based): `aud` =
  *   [workerTokenAudience] (this API's own public URL — see `WrkGrpcApiClient`, which mints the
@@ -39,7 +39,12 @@ private val googleIssuers = setOf("https://$googleAccountsHostname", googleAccou
  * not expired. Returns HTTP 401 on any failure.
  */
 class GoogleIdTokenAuthDecorator(
-    private val userTokenAudience: String,
+    // The OAuth client ids a *user* sign-in token may carry as `aud`. More than one because
+    // different Google OAuth clients mint different audiences for the same person: the browser SPA
+    // uses a Web client, while the `flow` CLI uses its own Desktop client (the loopback/PKCE flow
+    // Google only permits for Desktop clients). A token is a valid user token if its `aud` matches
+    // any of these; all still carry the `hd` hosted-domain claim, checked below.
+    private val userTokenAudiences: Set<String>,
     private val allowedDomain: String,
     private val workerTokenAudience: String,
 ) : DecoratingHttpServiceFunction {
@@ -108,7 +113,7 @@ class GoogleIdTokenAuthDecorator(
         // Worker (service-account) token: no hd claim to check; WorkerAuthorizer gates access.
       }
 
-      userTokenAudience.trimTrailingSlash() in audiences -> {
+      userTokenAudiences.any { it.trimTrailingSlash() in audiences } -> {
         val hd = claims.getStringClaim("hd")
         if (hd != allowedDomain) return null
       }

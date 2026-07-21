@@ -41,6 +41,11 @@ locals {
       # "flow baseline" web client (its own project, moved off the shared ms-auth project).
       # https://console.cloud.google.com/auth/clients/205101361240-n29i1rv9fo7c6gfadllrs8l1ihf64gh3.apps.googleusercontent.com
       google_client_id = "205101361240-n29i1rv9fo7c6gfadllrs8l1ihf64gh3.apps.googleusercontent.com"
+
+      # The `flow` CLI's Desktop OAuth client id (loopback/PKCE sign-in) — a second accepted
+      # user-token audience alongside the SPA's Web client.
+      # https://console.cloud.google.com/auth/clients/205101361240-ck8vbai6stemci1omufc1p5vqmup5562.apps.googleusercontent.com?project=ms-flow-b71f4835
+      cli_oauth_client_id = "205101361240-ck8vbai6stemci1omufc1p5vqmup5562.apps.googleusercontent.com"
     }
     staging = {
       # Sandbox org — the staging App's credential boundary is the env boundary.
@@ -65,6 +70,11 @@ locals {
       # "flow staging" web client (its own project, moved off the shared ms-auth project).
       # https://console.cloud.google.com/auth/clients/616510784049-8hrcuv80q2is2tcdvovqp35tfmtbh5vr.apps.googleusercontent.com
       google_client_id = "616510784049-8hrcuv80q2is2tcdvovqp35tfmtbh5vr.apps.googleusercontent.com"
+
+      # See prod above — the CLI Desktop OAuth client id (staging's own, per the credential-boundary
+      # rule for google_client_id).
+      # https://console.cloud.google.com/auth/clients/616510784049-sdcsi6mjajrtt6rq2ttqbs7lstf3739i.apps.googleusercontent.com?project=ms-flow-d14f8295
+      cli_oauth_client_id = "616510784049-sdcsi6mjajrtt6rq2ttqbs7lstf3739i.apps.googleusercontent.com"
     }
   }
   selected_environment = local.environment_config[local.environment]
@@ -111,7 +121,8 @@ locals {
   # Google OAuth 2.0 client ID — per environment (see environment_config). The clients live in the
   # shared auth project (ms-auth-284371d2), but each environment gets its own: it is the audience of
   # the user tokens that environment's API accepts.
-  google_client_id = local.selected_environment.google_client_id
+  google_client_id    = local.selected_environment.google_client_id
+  cli_oauth_client_id = local.selected_environment.cli_oauth_client_id
 }
 
 output "environment" {
@@ -192,6 +203,10 @@ output "gh_api_url_var_name" {
 
 output "github_app_client_id" {
   value = local.github_app_client_id
+}
+
+output "cli_oauth_client_id" {
+  value = local.cli_oauth_client_id
 }
 
 output "project_base_name" {
