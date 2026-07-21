@@ -1,9 +1,10 @@
 # `system-tests` — typed E2E suite against deployed staging (M5)
 
 Kotlin/JUnit 5 tests that exercise the **deployed** staging environment through
-the generated proto clients — the successor to `smoke/smoke.sh` and
+the generated proto clients — the successor to the retired `smoke/smoke.sh` and
 `nightly/real-stack.sh`. It runs as the promotion gate (between the staging and
-prod deploys) and ad hoc from a developer machine.
+prod deploys) and ad hoc from a developer machine. See [`../docs/testing.md`](../docs/testing.md)
+for how it fits the five-layer test map.
 
 This module is **excluded from the regular `check`/PR build** — it needs a live
 staging deploy and credentials, and (for the loop tier) real model credits. The

@@ -16,6 +16,14 @@ on:
       NIGHTLY_APP_PEM_CONTENT:
         required: false
   workflow_dispatch:
+  # Daily run (replaces the retired nightly-real-stack, M5 story 05) — catches "GitHub changed under
+  # us" / model drift on days with no promotion. The smoke tier always runs; the loop tier runs only
+  # when FLOW_LOOP_GATE=enabled (same gate as promotion), so a day with no persistent worker degrades
+  # to a smoke-only run instead of a daily false failure. On a schedule run there's no caller to pass
+  # the sandbox secret, so the loop tier asserts via prUrl only (no GitHub-side cleanup) — acceptable
+  # for the once-a-day drift check.
+  schedule:
+    - cron: "0 4 * * *" # ~04:00 UTC, off-peak (the old nightly's slot)
 
 # Serialize staging system-test runs across promotions, so two promotions never interleave their
 # loop tests (shared staging worker + sandbox org). Queue rather than cancel — a gate must complete.

@@ -27,9 +27,12 @@ then:
 - ⚠️ **Hand-test:** run a worker with `FLOW_WORKER_ENGINES=claude` +
   `FLOW_CLAUDE_AUTH=personal` + `CLAUDE_CODE_OAUTH_TOKEN` against staging, label
   a `project.yaml`-less sandbox issue `flow:ready` + `flow:engine=claude`, and
-  confirm it reaches a merge-able PR. *Automate:* fold the claude engine into the
-  M2.5-09 nightly real-stack loop once Path B lands a hosted staging worker
-  (B6 re-enables that nightly; its engine is already parameterizable).
+  confirm it reaches a merge-able PR. *Automate:* the M5 loop tier
+  (`LoopTierTest`, see [`testing.md`](testing.md)) already drives the real
+  session→worker→PR loop against staging; point it at a `claude`-engine session
+  (the engine is a per-session parameter) once the staging worker declares the
+  `claude` engine. The M2.5-09 nightly this used to reference is retired —
+  superseded by the per-promotion loop tier.
 - ℹ️ **Hand-test:** in the web app, pick "Claude Agent" on a manifest-less repo
   and confirm the action feed + banner render and the cost line reads clearly
   (A5 covers the rendering in vitest; the end-to-end UX is eyeball-only).
