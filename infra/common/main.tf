@@ -43,10 +43,9 @@ locals {
       google_client_id = "205101361240-n29i1rv9fo7c6gfadllrs8l1ihf64gh3.apps.googleusercontent.com"
 
       # The `flow` CLI's Desktop OAuth client id (loopback/PKCE sign-in) — a second accepted
-      # user-token audience alongside the SPA's Web client. Empty until the Desktop client is
-      # created in the console; while empty the API accepts only the SPA audience, so nothing
-      # regresses.
-      cli_oauth_client_id = ""
+      # user-token audience alongside the SPA's Web client.
+      # https://console.cloud.google.com/auth/clients/205101361240-ck8vbai6stemci1omufc1p5vqmup5562.apps.googleusercontent.com?project=ms-flow-b71f4835
+      cli_oauth_client_id = "205101361240-ck8vbai6stemci1omufc1p5vqmup5562.apps.googleusercontent.com"
     }
     staging = {
       # Sandbox org — the staging App's credential boundary is the env boundary.
@@ -72,8 +71,10 @@ locals {
       # https://console.cloud.google.com/auth/clients/616510784049-8hrcuv80q2is2tcdvovqp35tfmtbh5vr.apps.googleusercontent.com
       google_client_id = "616510784049-8hrcuv80q2is2tcdvovqp35tfmtbh5vr.apps.googleusercontent.com"
 
-      # See prod above — the CLI Desktop OAuth client id, empty until provisioned.
-      cli_oauth_client_id = ""
+      # See prod above — the CLI Desktop OAuth client id (staging's own, per the credential-boundary
+      # rule for google_client_id).
+      # https://console.cloud.google.com/auth/clients/616510784049-sdcsi6mjajrtt6rq2ttqbs7lstf3739i.apps.googleusercontent.com?project=ms-flow-d14f8295
+      cli_oauth_client_id = "616510784049-sdcsi6mjajrtt6rq2ttqbs7lstf3739i.apps.googleusercontent.com"
     }
   }
   selected_environment = local.environment_config[local.environment]
