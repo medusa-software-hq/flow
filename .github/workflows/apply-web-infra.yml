@@ -5,6 +5,9 @@ on:
     branches: ["trunk/*"]
     paths:
       - "apps/web/infra/foundation/**"
+      # The shared `infra/common` module this root consumes — a change there must re-apply, or the
+      # deployed config drifts silently from the code. See apply-api-infra.yml for the incident.
+      - "infra/common/**"
 
   workflow_dispatch:
 

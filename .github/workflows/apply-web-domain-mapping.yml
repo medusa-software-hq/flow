@@ -5,6 +5,9 @@ on:
     branches: ["trunk/*"]
     paths:
       - "apps/web/infra/domain-mapping/**"
+      # The shared `infra/common` module this root consumes (host names, project ids). A change
+      # there must re-apply. See apply-api-infra.yml for the incident.
+      - "infra/common/**"
 
   workflow_dispatch:
 
