@@ -1,24 +1,20 @@
 package software.medusa.flow.cli
 
+import java.util.Properties
+
 /**
- * Configuration for the read-only Flow API client and its human Google sign-in — all supplied by
- * the environment, nothing hardcoded. There is deliberately no baked-in default for the OAuth
- * client id or the API URL: the OAuth-client provisioning is being decided separately (see the
- * module's refactor notes), so an operator must point the CLI at a client id and API explicitly,
- * and gets a clear error if they haven't.
+ * Configuration for the read-only Flow API client and its human Google sign-in.
  *
- * Env vars:
- * - [apiUrlEnv] (`FLOW_API_URL`) — the deployed Flow API base URL. This doubles as the ID token's
- *   audience for the worker plane, but for the *user* sign-in the API validates `aud` against the
- *   OAuth client id, not this URL (see `GoogleIdTokenAuthDecorator`).
- * - [oauthClientIdEnv] (`FLOW_CLI_OAUTH_CLIENT_ID`) — the Google OAuth **Desktop** client id. The
- *   API accepts a user token whose `aud` equals this id.
- * - [oauthClientSecretEnv] (`FLOW_CLI_OAUTH_CLIENT_SECRET`) — the matching Desktop client secret.
- *   Google explicitly does not treat a Desktop client's secret as confidential, but the
- *   authorization-code exchange still requires it, so it's required to sign in.
- * - [allowedDomainEnv] (`FLOW_CLI_OAUTH_ALLOWED_DOMAIN`) — optional Google Workspace hosted domain.
- *   Used only as a sign-in hint (`hd`) to pre-select the right account in the browser; the API is
- *   the real enforcer of the domain, so leaving it unset changes nothing but the UX.
+ * The defaults target the **production** Flow deployment, so `flow login` / `flow sessions` work
+ * out of the box on a published build. The API URL and OAuth client id are public and live in
+ * source; the Desktop client **secret** is NOT in source — it is baked into the published fat jar
+ * at build time from an Actions secret (Publish CLI passes `-PflowCliOauthClientSecret`), so a
+ * released `flow` has it while the repo does not. A local build bakes nothing and falls back to the
+ * env var.
+ *
+ * Everything is overridable by an env var to point at another deployment (staging, local). The API
+ * URL and the client id/secret are a *matched set* — a client id is only accepted by its own
+ * environment's API — so override the trio together when switching environments.
  */
 data class FlowConfig(
     val apiUrl: String,
@@ -32,34 +28,62 @@ data class FlowConfig(
     const val oauthClientSecretEnv = "FLOW_CLI_OAUTH_CLIENT_SECRET"
     const val allowedDomainEnv = "FLOW_CLI_OAUTH_ALLOWED_DOMAIN"
 
+    // Production defaults — the "flow CLI" Desktop OAuth client in project ms-flow-b71f4835.
+    // Public,
+    // safe in source; kept in sync with infra/common's prod `cli_oauth_client_id` (the API's
+    // accepted CLI audience). The matching non-confidential Desktop secret is baked at publish, not
+    // here (see below).
+    private const val defaultApiUrl = "https://api.flow-baseline.medusa.software"
+    private const val defaultOauthClientId =
+        "205101361240-ck8vbai6stemci1omufc1p5vqmup5562.apps.googleusercontent.com"
+    private const val defaultAllowedDomain = "medusa.software"
+
+    // Values baked into the published fat jar at build time (see cli/build.gradle.kts). Absent on a
+    // local build, where the env vars take over.
+    private val baked: Properties =
+        Properties().apply {
+          FlowConfig::class.java.getResourceAsStream("/flow-cli-build.properties")?.use { load(it) }
+        }
+
+    private fun bakedProperty(key: String): String? = baked.getProperty(key)?.ifBlank { null }
+
+    private fun envOr(
+        lookup: (String) -> String?,
+        name: String,
+        fallback: String,
+    ): String = lookup(name)?.takeIf { it.isNotBlank() } ?: fallback
+
     /**
-     * Raised when a required config value is missing; the caller turns it into a clean CLI error.
+     * Raised when the client secret can't be resolved; the caller turns it into a clean CLI error.
      */
     class MissingException(message: String) : Exception(message)
 
-    private fun required(lookup: (String) -> String?, name: String): String =
-        lookup(name)?.takeIf { it.isNotBlank() }
-            ?: throw MissingException(
-                "$name is not set. Set it (and the other FLOW_* config vars) for your Flow " +
-                    "deployment before running this command.",
-            )
-
     /** Everything the read commands and `login`/`logout` need. */
-    fun fromEnvironment(lookup: (String) -> String? = System::getenv): FlowConfig =
-        FlowConfig(
-            apiUrl = required(lookup, apiUrlEnv),
-            oauthClientId = required(lookup, oauthClientIdEnv),
-            oauthClientSecret = required(lookup, oauthClientSecretEnv),
-            allowedDomain = lookup(allowedDomainEnv)?.takeIf { it.isNotBlank() },
-        )
+    fun fromEnvironment(lookup: (String) -> String? = System::getenv): FlowConfig {
+      // env override > baked-at-build > (none → a clean error). The client secret is the only value
+      // that isn't a public default: a published build has it baked; a local build needs the env
+      // var.
+      val secret =
+          lookup(oauthClientSecretEnv)?.takeIf { it.isNotBlank() }
+              ?: bakedProperty("oauthClientSecret")
+              ?: throw MissingException(
+                  "No OAuth client secret available. A published `flow` build bakes it in; for a " +
+                      "local build, set $oauthClientSecretEnv.",
+              )
+
+      return FlowConfig(
+          apiUrl = envOr(lookup, apiUrlEnv, bakedProperty("apiBaseUrl") ?: defaultApiUrl),
+          oauthClientId = envOr(lookup, oauthClientIdEnv, defaultOauthClientId),
+          oauthClientSecret = secret,
+          allowedDomain = envOr(lookup, allowedDomainEnv, defaultAllowedDomain),
+      )
+    }
 
     /**
-     * The subset needed to *read* (list) — a valid cached session already exists, so no client
-     * secret is required unless the token needs a silent refresh. [FlowSession] resolves the secret
-     * lazily only when it actually has to refresh, so a still-valid cached token lists with only
-     * the API URL and client id present.
+     * The API URL alone — the only thing a *read* (list) needs when a still-valid cached token
+     * exists ([FlowSession] resolves the client secret lazily, only on a silent refresh).
      */
     fun apiUrlFromEnvironment(lookup: (String) -> String? = System::getenv): String =
-        required(lookup, apiUrlEnv)
+        envOr(lookup, apiUrlEnv, bakedProperty("apiBaseUrl") ?: defaultApiUrl)
   }
 }

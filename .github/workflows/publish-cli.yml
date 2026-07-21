@@ -39,8 +39,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v6.2.0
 
       - name: Build fat jar
+        env:
+          # The `flow CLI` prod Desktop OAuth client secret (non-confidential per Google's
+          # installed-app model), baked into the published jar so `flow login` works out of the box.
+          # NOT committed to source — see cli/build.gradle.kts / FlowConfig.
+          FLOW_CLI_OAUTH_CLIENT_SECRET: ${{ secrets.FLOW_CLI_OAUTH_CLIENT_SECRET }}
         run: |
-          ./gradlew :cli:shadowJar
+          ./gradlew :cli:shadowJar -PflowCliOauthClientSecret="${FLOW_CLI_OAUTH_CLIENT_SECRET}"
           echo "JAR=$GITHUB_WORKSPACE/cli/build/libs/flow-cli.jar" >> $GITHUB_ENV
           echo "VERSION=0.0.${{ github.run_number }}" >> $GITHUB_ENV
 
