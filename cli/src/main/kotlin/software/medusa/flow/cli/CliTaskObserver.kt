@@ -3,7 +3,6 @@ package software.medusa.flow.cli
 import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.rendering.TextStyles
 import com.github.ajalt.mordant.terminal.Terminal
-import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.flow.harness.HrsEngineBanner
 import software.medusa.flow.harness.HrsEngineRunMode
 import software.medusa.flow.harness.HrsPipelinePhase
@@ -106,9 +105,9 @@ class CliWorkspaceBriefingObserver(
     private val terminal: Terminal,
 ) : HrsTaskCompleter.WorkspaceBriefingObserver {
   override fun observeRawResponse(
-      response: OaiConfiguredClient.UnstructuredCompletionResponse,
+      responseText: String,
   ) {
-    terminal.printUnstructuredCompletionResponse(response = response)
+    terminal.printUnstructuredCompletionResponse(responseText = responseText)
   }
 }
 
@@ -155,11 +154,9 @@ class CliSolutionImplementationObserver(
   }
 
   override fun observeRawResponse(
-      response: OaiConfiguredClient.UnstructuredCompletionResponse,
+      responseText: String,
   ) {
-    terminal.printUnstructuredCompletionResponse(
-        response = response,
-    )
+    terminal.printUnstructuredCompletionResponse(responseText = responseText)
   }
 }
 
@@ -180,18 +177,16 @@ class CliScoutingObserver(
   }
 
   override fun observeRawResponse(
-      response: OaiConfiguredClient.UnstructuredCompletionResponse,
+      responseText: String,
   ) {
-    terminal.printUnstructuredCompletionResponse(
-        response = response,
-    )
+    terminal.printUnstructuredCompletionResponse(responseText = responseText)
   }
 }
 
 private fun Terminal.printUnstructuredCompletionResponse(
-    response: OaiConfiguredClient.UnstructuredCompletionResponse,
+    responseText: String,
 ) {
   println("> Raw response:")
   println()
-  printCode(response.responseText)
+  printCode(responseText)
 }

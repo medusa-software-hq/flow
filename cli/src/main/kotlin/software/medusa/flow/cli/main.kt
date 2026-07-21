@@ -6,6 +6,7 @@ import com.github.ajalt.mordant.terminal.Terminal
 import kotlinx.coroutines.coroutineScope
 import software.medusa.commons.openai_client.OaiApiKey
 import software.medusa.commons.openai_client.OaiConfiguredClient
+import software.medusa.commons.openai_client.OaiFreeClient
 import software.medusa.commons.openai_client.OaiModel
 import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.system.SysExecutableHandle
@@ -16,6 +17,7 @@ import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.UnimplementedHrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsAiPatchInterpreter
 import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
+import software.medusa.flow.harness.ai_system.HrsLoggingOaiReporter
 import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsRetryingAiClient
@@ -100,10 +102,16 @@ suspend fun main(
                 ?: error("OPENROUTER_API_KEY environment variable is not set"),
         )
 
+    // One shared reporter (0.2.0 hands the detail behind a coarse OaiResult/OaiResponse here);
+    // wired
+    // into the client at the target so every completion's anomalies are logged, not swallowed.
+    val reporter = HrsLoggingOaiReporter()
+
     val openRouterClient =
-        OaiProperClient.withTarget(
-            targetBaseUrl = OaiConfiguredClient.openRouterBaseUrl,
+        OaiProperClient.targeting(
+            targetBaseUrl = OaiFreeClient.openRouterBaseUrl,
             targetApiKey = openRouterApiKey,
+            reporter = reporter,
         )
 
     // Product wiring pins the expert role to a stronger model; the hermetic loop test overrides it
@@ -113,20 +121,26 @@ suspend fun main(
         if (System.getenv("FLOW_TEST_CHEAP_MODELS") != null) OaiModel.DeepSeekFlash
         else OaiModel.GptMidi
 
-    openRouterClient.withModel(model = OaiModel.DeepSeekFlash).use { frontlineOpenAiClient ->
-      openRouterClient.withModel(model = expertModel).use { expertOpenAiClient ->
-        openRouterClient.withModel(model = OaiModel.DeepSeekFlash).use { interpreterOpenAiClient ->
-          runMainCommand(
-              args = args,
-              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-              claudeExecutable = claudeExecutableHandle,
-              frontlineOpenAiClient = frontlineOpenAiClient,
-              expertOpenAiClient = expertOpenAiClient,
-              interpreterOpenAiClient = interpreterOpenAiClient,
-          )
-        }
-      }
-    }
+    // The response format is fixed at configuration time in 0.2.0 (was per call), so the two
+    // structured interpreters get their own JSON-configured clients while frontline/expert stay
+    // plain text.
+    runMainCommand(
+        args = args,
+        physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+        claudeExecutable = claudeExecutableHandle,
+        frontlineOpenAiClient = openRouterClient.configured(model = OaiModel.DeepSeekFlash),
+        expertOpenAiClient = openRouterClient.configured(model = expertModel),
+        scoutDecisionOpenAiClient =
+            openRouterClient.configured(
+                model = OaiModel.DeepSeekFlash,
+                responseFormat = HrsAiScoutDecisionInterpreter.responseFormat,
+            ),
+        patchOpenAiClient =
+            openRouterClient.configured(
+                model = OaiModel.DeepSeekFlash,
+                responseFormat = HrsAiPatchInterpreter.responseFormat,
+            ),
+    )
   }
 }
 
@@ -218,22 +232,24 @@ private fun runMainCommand(
     claudeExecutable: SysExecutableHandle,
     frontlineOpenAiClient: OaiConfiguredClient,
     expertOpenAiClient: OaiConfiguredClient,
-    interpreterOpenAiClient: OaiConfiguredClient,
+    scoutDecisionOpenAiClient: OaiConfiguredClient,
+    patchOpenAiClient: OaiConfiguredClient,
 ) {
   // Every LLM call retries a transient empty response (see HrsRetryingAiClient) — wrapping here, at
   // the composition root, covers frontline/expert/interpreter for complete-task, scout-fully, and
   // work alike.
   val frontlineClient = HrsRetryingAiClient(delegate = frontlineOpenAiClient)
   val expertClient = HrsRetryingAiClient(delegate = expertOpenAiClient)
-  val interpreterClient = HrsRetryingAiClient(delegate = interpreterOpenAiClient)
+  val scoutDecisionClient = HrsRetryingAiClient(delegate = scoutDecisionOpenAiClient)
+  val patchClient = HrsRetryingAiClient(delegate = patchOpenAiClient)
 
   val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineClient)
 
   val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertClient)
 
-  val scoutDecisionInterpreter = HrsAiScoutDecisionInterpreter(openaiClient = interpreterClient)
+  val scoutDecisionInterpreter = HrsAiScoutDecisionInterpreter(openaiClient = scoutDecisionClient)
 
-  val patchInterpreter = HrsAiPatchInterpreter(openaiClient = interpreterClient)
+  val patchInterpreter = HrsAiPatchInterpreter(openaiClient = patchClient)
 
   val projectManifestLoader =
       UnpYamlProjectManifestLoader(

@@ -6,10 +6,15 @@ import software.medusa.commons.markdown.MdDocument
 import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.markdown.MdInlineContent
 import software.medusa.commons.markdown.MdInlineNode
-import software.medusa.commons.openai_client.OaiChat
+import software.medusa.commons.openai_client.OaiChatHistory
 import software.medusa.commons.openai_client.OaiConfiguredClient
-import software.medusa.commons.openai_client.OaiMessage
-import software.medusa.commons.openai_client.OaiRole
+import software.medusa.commons.openai_client.OaiInferenceParams
+import software.medusa.commons.openai_client.OaiReasoningEffort
+import software.medusa.commons.openai_client.messages.OaiAssistantMessage
+import software.medusa.commons.openai_client.messages.OaiMessage
+import software.medusa.commons.openai_client.messages.OaiSystemMessage
+import software.medusa.commons.openai_client.messages.OaiUserMessage
+import software.medusa.commons.openai_client.messages.OaiUserName
 import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.harness.ai_system.HrsExpertAiSystem.ImplementationPlan
@@ -30,6 +35,8 @@ class HrsProperFrontlineAiSystem(
 ) : HrsFrontlineAiSystem {
   companion object {
     private val simpleAiName = "ai"
+
+    private val inferenceParams = OaiInferenceParams(reasoningEffort = OaiReasoningEffort.High)
 
     private val systemIntroText =
         """
@@ -210,33 +217,26 @@ class HrsProperFrontlineAiSystem(
 
     // endregion
 
-    private fun renderRequest(
+    private fun renderChatHistory(
         taskDescription: HrsTaskDescription,
         editorWorktree: VedWorktree,
         tailMessages: List<OaiMessage>,
-    ): OaiConfiguredClient.CompletionRequest {
+    ): OaiChatHistory {
       val prefix =
           renderPrefix(
               taskDescription = taskDescription,
               editorWorktree = editorWorktree,
           )
 
-      val chat =
-          OaiChat(
-              messages =
-                  prefix +
-                      listOf(
-                          OaiMessage(
-                              role = OaiRole.System,
-                              text = editorWorktree.renderDirectoryTree().render(),
-                          ),
-                      ) +
-                      tailMessages,
-          )
-
-      return OaiConfiguredClient.CompletionRequest(
-          input = chat,
-          reasoningEffort = OaiConfiguredClient.ReasoningEffort.High,
+      return OaiChatHistory(
+          messages =
+              prefix +
+                  listOf(
+                      OaiSystemMessage(
+                          content = editorWorktree.renderDirectoryTree().render(),
+                      ),
+                  ) +
+                  tailMessages,
       )
     }
 
@@ -245,18 +245,15 @@ class HrsProperFrontlineAiSystem(
         editorWorktree: VedWorktree,
     ): List<OaiMessage> =
         listOf(
-            OaiMessage(
-                role = OaiRole.System,
-                text = systemIntroText,
+            OaiSystemMessage(
+                content = systemIntroText,
             ),
-            OaiMessage(
-                role = OaiRole.User,
-                text = taskDescription.body.render(),
-                name = simpleAiName,
+            OaiUserMessage(
+                content = taskDescription.body.render(),
+                name = OaiUserName(simpleAiName),
             ),
-            OaiMessage(
-                role = OaiRole.System,
-                text = editorWorktree.renderFiles().render(),
+            OaiSystemMessage(
+                content = editorWorktree.renderFiles().render(),
             ),
         )
 
@@ -344,27 +341,24 @@ class HrsProperFrontlineAiSystem(
       scoutingLog: ScoutingLog,
       scoutingObserver: HrsTaskCompleter.ScoutingObserver,
   ): ScoutMessage {
-    val request =
-        renderRequest(
+    val chatHistory =
+        renderChatHistory(
             taskDescription = taskDescription,
             editorWorktree = editorWorktree,
             tailMessages =
                 listOf(
-                    OaiMessage(
-                        role = OaiRole.User,
-                        text = scoutingIntroText,
-                        name = simpleAiName,
+                    OaiUserMessage(
+                        content = scoutingIntroText,
+                        name = OaiUserName(simpleAiName),
                     ),
                 ) +
                     scoutingLog.logEntries.flatMap { logEntry ->
                       listOf(
-                          OaiMessage(
-                              role = OaiRole.Assistant,
-                              text = logEntry.scoutMessage.body,
+                          OaiAssistantMessage(
+                              content = logEntry.scoutMessage.body,
                           ),
-                          OaiMessage(
-                              role = OaiRole.User,
-                              text =
+                          OaiUserMessage(
+                              content =
                                   renderScoutingFollowupDocument(
                                           systemResponse = logEntry.systemResponse,
                                       )
@@ -374,12 +368,15 @@ class HrsProperFrontlineAiSystem(
                     },
         )
 
-    val response = openaiClient.createUnstructuredCompletion(request = request)
+    val responseText =
+        openaiClient
+            .completeChat(chatHistory = chatHistory, inferenceParams = inferenceParams)
+            .extractAssistantText()
 
-    scoutingObserver.observeRawResponse(response = response)
+    scoutingObserver.observeRawResponse(responseText = responseText)
 
     return ScoutMessage(
-        body = response.responseText,
+        body = responseText,
     )
   }
 
@@ -388,25 +385,27 @@ class HrsProperFrontlineAiSystem(
       editorWorktree: VedWorktree,
       workspaceBriefingObserver: HrsTaskCompleter.WorkspaceBriefingObserver,
   ): HrsExpertAiSystem.WorkspaceBrief {
-    val request =
-        renderRequest(
+    val chatHistory =
+        renderChatHistory(
             taskDescription = taskDescription,
             editorWorktree = editorWorktree,
             tailMessages =
                 listOf(
-                    OaiMessage(
-                        role = OaiRole.User,
-                        text = workspaceBriefIntroText,
+                    OaiUserMessage(
+                        content = workspaceBriefIntroText,
                     ),
                 ),
         )
 
-    val response = openaiClient.createUnstructuredCompletion(request = request)
+    val responseText =
+        openaiClient
+            .completeChat(chatHistory = chatHistory, inferenceParams = inferenceParams)
+            .extractAssistantText()
 
-    workspaceBriefingObserver.observeRawResponse(response = response)
+    workspaceBriefingObserver.observeRawResponse(responseText = responseText)
 
     return HrsExpertAiSystem.WorkspaceBrief(
-        body = response.responseText,
+        body = responseText,
     )
   }
 
@@ -417,37 +416,32 @@ class HrsProperFrontlineAiSystem(
       solutionImplementationLog: SolutionImplementationLog,
       solutionImplementationObserver: HrsTaskCompleter.SolutionImplementationObserver,
   ): PatchMessage {
-    val request =
-        renderRequest(
+    val chatHistory =
+        renderChatHistory(
             taskDescription = taskDescription,
             editorWorktree = editorWorktree,
             tailMessages =
                 listOf(
-                    OaiMessage(
-                        role = OaiRole.User,
-                        text = implementationPlanFramingText,
-                        name = simpleAiName,
+                    OaiUserMessage(
+                        content = implementationPlanFramingText,
+                        name = OaiUserName(simpleAiName),
                     ),
-                    OaiMessage(
-                        role = OaiRole.User,
-                        text = implementationPlan.body,
-                        name = simpleAiName,
+                    OaiUserMessage(
+                        content = implementationPlan.body,
+                        name = OaiUserName(simpleAiName),
                     ),
-                    OaiMessage(
-                        role = OaiRole.User,
-                        text = implementationPhaseIntroText,
-                        name = simpleAiName,
+                    OaiUserMessage(
+                        content = implementationPhaseIntroText,
+                        name = OaiUserName(simpleAiName),
                     ),
                 ) +
                     solutionImplementationLog.logEntries.flatMap { logEntry ->
                       listOf(
-                          OaiMessage(
-                              role = OaiRole.Assistant,
-                              text = logEntry.patchMessage.body,
+                          OaiAssistantMessage(
+                              content = logEntry.patchMessage.body,
                           ),
-                          OaiMessage(
-                              role = OaiRole.User,
-                              text =
+                          OaiUserMessage(
+                              content =
                                   MdDocument(
                                           rootChapter =
                                               renderPatchSystemResponse(
@@ -456,22 +450,24 @@ class HrsProperFrontlineAiSystem(
                                       )
                                       .render(),
                           ),
-                          OaiMessage(
-                              role = OaiRole.User,
-                              text =
+                          OaiUserMessage(
+                              content =
                                   "Let's fix the issues found above. Which edits should I make? Start your response with a `# Patch` heading.",
-                              name = simpleAiName,
+                              name = OaiUserName(simpleAiName),
                           ),
                       )
                     },
         )
 
-    val response = openaiClient.createUnstructuredCompletion(request = request)
+    val responseText =
+        openaiClient
+            .completeChat(chatHistory = chatHistory, inferenceParams = inferenceParams)
+            .extractAssistantText()
 
-    solutionImplementationObserver.observeRawResponse(response = response)
+    solutionImplementationObserver.observeRawResponse(responseText = responseText)
 
     return PatchMessage(
-        body = response.responseText,
+        body = responseText,
     )
   }
 }

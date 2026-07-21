@@ -1,10 +1,13 @@
 package software.medusa.flow.harness.ai_system
 
-import software.medusa.commons.openai_client.OaiChat
+import kotlinx.schema.generator.json.serialization.SerializationClassJsonSchemaGenerator
+import software.medusa.commons.openai_client.OaiChatHistory
 import software.medusa.commons.openai_client.OaiConfiguredClient
-import software.medusa.commons.openai_client.OaiMessage
-import software.medusa.commons.openai_client.OaiRole
-import software.medusa.commons.openai_client.createStructuredCompletion
+import software.medusa.commons.openai_client.OaiInferenceParams
+import software.medusa.commons.openai_client.OaiReasoningEffort
+import software.medusa.commons.openai_client.OaiResponseFormat
+import software.medusa.commons.openai_client.messages.OaiSystemMessage
+import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutMessage
 import software.medusa.flow.harness.ai_system.HrsScoutDecisionInterpreter.Decision
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -20,7 +23,21 @@ import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.r
 class HrsAiScoutDecisionInterpreter(
     private val openaiClient: OaiConfiguredClient,
 ) : HrsScoutDecisionInterpreter {
-  private companion object {
+  companion object {
+    /**
+     * The JSON response format the interpreter's [openaiClient] must be configured with — the 0.2.0
+     * `openai-client` fixes the structured schema at configuration time (was per call). Built from
+     * [HrsRawScoutDecision]'s serializer, matching the old `createStructuredCompletion` path.
+     */
+    val responseFormat: OaiResponseFormat =
+        OaiResponseFormat.Json(
+            name = "scout_decision",
+            schema =
+                SerializationClassJsonSchemaGenerator.Default.generateSchema(
+                    target = HrsRawScoutDecision.serializer().descriptor,
+                ),
+        )
+
     private val systemPromptText =
         """
         You extract a structured scouting decision from a message written by a scouting assistant.
@@ -36,30 +53,26 @@ class HrsAiScoutDecisionInterpreter(
       scoutMessage: ScoutMessage,
       editorWorktree: VedWorktree,
   ): Decision {
-    val request =
-        OaiConfiguredClient.CompletionRequest(
-            input =
-                OaiChat(
-                    messages =
-                        listOf(
-                            OaiMessage(role = OaiRole.System, text = systemPromptText),
-                            OaiMessage(
-                                role = OaiRole.System,
-                                text = editorWorktree.renderDirectoryTree().render(),
-                            ),
-                            OaiMessage(role = OaiRole.User, text = scoutMessage.body),
-                        ),
+    val chatHistory =
+        OaiChatHistory(
+            messages =
+                listOf(
+                    OaiSystemMessage(content = systemPromptText),
+                    OaiSystemMessage(content = editorWorktree.renderDirectoryTree().render()),
+                    OaiUserMessage(content = scoutMessage.body),
                 ),
-            reasoningEffort = OaiConfiguredClient.ReasoningEffort.Low,
         )
 
-    val response =
-        openaiClient.createStructuredCompletion(
-            request = request,
-            responseSchemaName = "scout_decision",
-            responseSerializer = HrsRawScoutDecision.serializer(),
-        )
+    val rawDecision =
+        openaiClient
+            .completeChat(
+                chatHistory = chatHistory,
+                inferenceParams = OaiInferenceParams(reasoningEffort = OaiReasoningEffort.Low),
+            )
+            .decodeStructured(
+                deserializer = HrsRawScoutDecision.serializer(),
+            )
 
-    return response.responseObject.toDecision()
+    return rawDecision.toDecision()
   }
 }

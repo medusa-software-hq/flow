@@ -1,7 +1,6 @@
 package software.medusa.flow.harness
 
 import software.medusa.commons.git.worktree.GitWorktree
-import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
@@ -173,7 +172,7 @@ interface HrsTaskCompleter {
       ) {}
 
       override fun observeRawResponse(
-          response: OaiConfiguredClient.UnstructuredCompletionResponse,
+          responseText: String,
       ) {}
     }
 
@@ -185,7 +184,7 @@ interface HrsTaskCompleter {
     )
 
     fun observeRawResponse(
-        response: OaiConfiguredClient.UnstructuredCompletionResponse,
+        responseText: String,
     )
   }
 
@@ -201,7 +200,7 @@ interface HrsTaskCompleter {
       ) {}
 
       override fun observeRawResponse(
-          response: OaiConfiguredClient.UnstructuredCompletionResponse,
+          responseText: String,
       ) {}
     }
 
@@ -216,19 +215,19 @@ interface HrsTaskCompleter {
     )
 
     fun observeRawResponse(
-        response: OaiConfiguredClient.UnstructuredCompletionResponse,
+        responseText: String,
     )
   }
 
   interface WorkspaceBriefingObserver {
     data object Noop : WorkspaceBriefingObserver {
       override fun observeRawResponse(
-          response: OaiConfiguredClient.UnstructuredCompletionResponse,
+          responseText: String,
       ) {}
     }
 
     fun observeRawResponse(
-        response: OaiConfiguredClient.UnstructuredCompletionResponse,
+        responseText: String,
     )
   }
 
