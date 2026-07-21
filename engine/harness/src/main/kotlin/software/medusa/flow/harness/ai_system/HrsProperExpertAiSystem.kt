@@ -19,6 +19,16 @@ class HrsProperExpertAiSystem(
   companion object {
     private const val simpleAiName = "ai"
 
+    /**
+     * Cap on the expert plan's output tokens. Without it the request sends no `max_tokens`, so
+     * OpenRouter pre-authorizes the model's *full* max output (~65536 for the expert model) against
+     * the key's remaining budget — on a pricey model that reservation is ~$1, which alone can
+     * exceed a small weekly key limit and reject the call even though actual usage is cents (only
+     * the tokens really produced are charged). This bounds the reservation to ~half while staying
+     * generous for High-effort reasoning plus a plan that may include ready-to-use code.
+     */
+    private const val planMaxOutputTokenCount = 32768
+
     private val introText =
         """
         You are an expert software engineer. You're conversing with a lower-tier AI.
@@ -104,6 +114,7 @@ class HrsProperExpertAiSystem(
                         ),
                 ),
             reasoningEffort = ReasoningEffort.High,
+            maxOutputTokenCount = planMaxOutputTokenCount,
         )
 
     val response = openaiClient.createUnstructuredCompletion(request = request)
