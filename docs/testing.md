@@ -107,12 +107,18 @@ flag.
   repo's default branch — is pinned; see `flow-home/CLAUDE.md`.)
 - **Smoke tier** is deterministic against a healthy deploy; a failure means the
   deploy is broken (its whole purpose). Do not retry-to-green — investigate.
-- **Loop tier** has an irreducible non-determinism (real models). Policy:
-  **one** re-run of the failed job for a *transient* signature (model cut-short,
-  network); a **second** failure, or any *deterministic* failure (assertion, PR
-  never appears), is a real regression — do not re-run past it. Escalation: if
-  the loop tier flakes more than ~1 run in 5, it is not fit to gate — disable
-  `FLOW_LOOP_GATE` and add the retry before re-enabling.
+- **Loop tier** has an irreducible non-determinism (real models). It **retries
+  itself once, in-test**: a session that FAILs with a transient signature
+  (model cut-short / `finish_reason=error` / rate limit — see
+  `LoopFailureClassifier`) is re-run with a fresh session; a *deterministic*
+  failure (real session failure, no PR, PR not open) fails immediately, and a
+  transient flake that doesn't clear on the retry is treated as real. So a
+  single provider hiccup no longer reddens the gate. If the gate still goes red
+  on a *transient* failure that slipped the classifier, the fallback is **one**
+  manual `gh run rerun <id> --failed`; a second failure is a real regression —
+  do not re-run past it. Escalation: if the loop tier flakes more than ~1 run in
+  5 even with the retry, it is not fit to gate — disable `FLOW_LOOP_GATE`,
+  widen the classifier or investigate, then re-enable.
 
 ## Sandbox reset
 
