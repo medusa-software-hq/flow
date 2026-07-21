@@ -72,15 +72,23 @@ jobs:
         run: uv run update_formula.py --version "${VERSION}" --jar "${JAR}"
 
   # M4 Path B / B4 — the hosted-worker container image (worker/Dockerfile). Env-agnostic (no baked
-  # config; identity/env/secrets all arrive at spawn), so one image serves every environment; the
-  # ms-workload profile pins it by digest. Published to staging's Artifact Registry — that's where
-  # the first hosted worker (B5) lives; a prod copy rides B7.
+  # config; identity/env/secrets all arrive at spawn), so the *same* image serves every environment;
+  # the ms-workload profile pins it by digest. Published to each environment's own Artifact Registry
+  # (B5 = staging, B7 = prod) — a matrix so both get it. Each environment's registry needs its own
+  # CI/CD identity to push, which is why this fans out per environment rather than building once and
+  # cross-pushing; the digests differ per registry, and nothing asserts they match (unlike the API
+  # promote), because each environment's profile pins its own registry's digest independently.
   publish-worker-image:
-    name: Publish worker image
+    name: Publish worker image (${{ matrix.environment }})
     runs-on: ubuntu-latest
 
-    # `environment: staging` resolves vars.* (registry endpoint/host, CI/CD identity) to staging.
-    environment: staging
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging, production]
+
+    # Resolves vars.* (registry endpoint/host, CI/CD identity) to this matrix leg's environment.
+    environment: ${{ matrix.environment }}
 
     permissions:
       contents: read
