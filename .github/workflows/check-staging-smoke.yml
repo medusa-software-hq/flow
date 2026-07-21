@@ -3,10 +3,25 @@ name: Check staging smoke
 # Post-deploy verification against the deployed staging environment — the gate between the staging
 # and prod deploys (called by promote-api.yml / promote-web-spa.yml), and runnable ad hoc via
 # workflow_dispatch. As of M5 this runs the Kotlin system-test suite (:system-tests) instead of the
-# retired smoke/smoke.sh; the smoke tier ports smoke.sh 1:1 and needs no live worker.
+# retired smoke/smoke.sh:
+#   - smoke tier: ports smoke.sh 1:1; fast, needs no live worker; always gates.
+#   - loop tier: the full session -> worker -> PR loop through staging's admin-run worker (story 03).
+#     Gated behind the FLOW_LOOP_GATE repo variable so it only blocks promotion once a persistent
+#     staging worker is operationally guaranteed; until then it is skipped (promotions ride smoke).
 on:
   workflow_call:
+    secrets:
+      # The sandbox GitHub App key, for the loop tier's PR assertion + cleanup. Optional: without it
+      # the loop tier still asserts the PR via the session's prUrl, just no GitHub-side check/cleanup.
+      NIGHTLY_APP_PEM_CONTENT:
+        required: false
   workflow_dispatch:
+
+# Serialize staging system-test runs across promotions, so two promotions never interleave their
+# loop tests (shared staging worker + sandbox org). Queue rather than cancel — a gate must complete.
+concurrency:
+  group: staging-system-test
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -55,3 +70,62 @@ jobs:
           # is fixed in backend/api/infra; the project comes from this environment's vars.
           WORKER_SA_EMAIL: flow-worker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
         run: ./gradlew :system-tests:systemTest -PsystemTestTags=smoke --stacktrace
+
+  loop:
+    name: Loop (staging)
+    # After smoke, so smoke's queue-draining worker-cycle can't steal the session the loop creates,
+    # and "smoke green, loop red" is legible at a glance.
+    needs: smoke
+    # Opt-in gate: only enforce the loop tier once a persistent staging worker is guaranteed (an
+    # admin runs `ms-workload worker run --profile flow-worker-staging`). Set the `FLOW_LOOP_GATE`
+    # repo/environment variable to `enabled` to turn it on; while unset the job is skipped, so a
+    # missing worker never parks prod. See worker/README.md and plan/m5/stories/03.
+    if: vars.FLOW_LOOP_GATE == 'enabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    environment: staging
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_CICD_WI_PROVIDER_NAME }}
+          service_account: ${{ vars.GCP_CICD_SA_EMAIL }}
+
+      - name: Mint a sandbox App installation token
+        id: sandbox-token
+        # medusa-flow-nightly App, installed on the fixture repo with Contents/Issues/PRs write —
+        # for the loop tier's PR assertion + cleanup (same App the retired nightly used).
+        uses: actions/create-github-app-token@v1
+        continue-on-error: true
+        with:
+          app-id: Iv23liKTj6dtBHWRnzeg
+          private-key: ${{ secrets.NIGHTLY_APP_PEM_CONTENT }}
+          owner: medusa-software-test-hq
+          repositories: flow-sandbox-fixture
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run the loop tier
+        env:
+          API_URL: ${{ vars.API_URL }}
+          WORKER_SA_EMAIL: flow-worker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          # Empty when the App key isn't configured — the loop tier degrades to prUrl-only assertion.
+          SANDBOX_GH_TOKEN: ${{ steps.sandbox-token.outputs.token }}
+          # Advisory version-skew surfacing (story 04): the worker's build vs the trunk HEAD under
+          # promotion. A mismatch prints a loud warning but never fails the gate.
+          EXPECTED_WORKER_VERSION: ${{ github.sha }}
+        run: ./gradlew :system-tests:systemTest -PsystemTestTags=loop --stacktrace
