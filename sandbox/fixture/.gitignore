@@ -1,0 +1,10 @@
+# Gradle build output — the health gate runs `gradle` in the worker's clone, which
+# creates these; without this file the worker's `git add -A` at publish time stages
+# them into the PR (M5 loop runs produced PRs full of .gradle/ + build/ artifacts).
+.gradle/
+build/
+
+# IDEs / OS cruft (defensive; a real project would have these too).
+.idea/
+*.iml
+.DS_Store
