@@ -66,7 +66,36 @@ object WorkerLiveness {
             "digest=${fresh.imageDigest.ifEmpty { "n/a" }}, " +
             "last seen ${Duration.between(fresh.lastSeenAt.toInstant(), nowInstant).toSeconds()}s ago",
     )
+
+    reportVersionSkew(fresh, log)
     return fresh
+  }
+
+  /**
+   * Prints the worker's version and, when the gate provided `EXPECTED_WORKER_VERSION` (the build
+   * under promotion), whether the worker is skewed against it — a loud warning if so (story 04).
+   * Advisory: never throws. Also appended to the gate's step summary when running in CI.
+   */
+  fun reportVersionSkew(
+      worker: WorkerInfo,
+      log: (String) -> Unit = ::println,
+      expectedVersion: String? = WorkerVersionSkew.expectedVersionFromEnv(),
+      summarySink: (String) -> Unit = GitHubStepSummary::append,
+  ) {
+    val assessment = WorkerVersionSkew.assess(worker.workerVersion, expectedVersion)
+
+    if (assessment.loud) {
+      log("⚠️  ${assessment.summary}")
+    } else {
+      log(assessment.summary)
+    }
+
+    val summaryIcon = if (assessment.loud) "⚠️" else "✅"
+    summarySink(
+        "$summaryIcon **Staging worker version:** `${worker.workerVersion.ifEmpty { "unknown" }}`" +
+            (worker.imageDigest.takeIf { it.isNotBlank() }?.let { " (digest `$it`)" } ?: "") +
+            " — ${assessment.summary}",
+    )
   }
 
   private fun buildDiagnostic(

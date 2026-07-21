@@ -40,6 +40,15 @@ ENV XDG_CONFIG_HOME=/home/flow/.config
 
 COPY flow-cli.jar /opt/flow/flow-cli.jar
 
+# Build stamp (M5 story 04). The worker reports this to the control-plane fleet registry so the
+# system-test gate can print which build it tested against and warn on version skew. CI passes the
+# trunk commit sha (the same value the image is tagged with, `worker:<sha>`); a local `docker build`
+# leaves it "unknown". The worker reads it via FLOW_WORKER_VERSION (WrkWorkerIdentity). The image
+# *digest* isn't knowable at build time (it's the push output) — the ms-workload profile that pins
+# the digest injects FLOW_WORKER_IMAGE_DIGEST at spawn; see worker/README.md.
+ARG FLOW_WORKER_VERSION=unknown
+ENV FLOW_WORKER_VERSION=$FLOW_WORKER_VERSION
+
 USER flow
 WORKDIR /home/flow
 
