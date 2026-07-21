@@ -1,7 +1,9 @@
 name: Check staging smoke
 
-# Post-deploy smoke against the deployed staging environment. workflow_call so story 07 can wire it
-# as the gate between staging and prod deploys; workflow_dispatch to run it ad hoc.
+# Post-deploy verification against the deployed staging environment — the gate between the staging
+# and prod deploys (called by promote-api.yml / promote-web-spa.yml), and runnable ad hoc via
+# workflow_dispatch. As of M5 this runs the Kotlin system-test suite (:system-tests) instead of the
+# retired smoke/smoke.sh; the smoke tier ports smoke.sh 1:1 and needs no live worker.
 on:
   workflow_call:
   workflow_dispatch:
@@ -9,11 +11,15 @@ on:
 permissions:
   contents: read
 
+env:
+  JAVA_VERSION: 21
+  NO_COLOR: 1
+
 jobs:
   smoke:
     name: Smoke (staging)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     # `environment:` resolves vars.* to staging's values (its own project id, CI/CD identity, API
     # URL). The trunk-only deployment branch policy allows this from trunk.
@@ -28,18 +34,24 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Authenticate to Google Cloud
+        # Provides Application Default Credentials the system-test client reads (google-auth-library
+        # getApplicationDefault), and whose CI/CD identity it impersonates the worker SA from.
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_CICD_WI_PROVIDER_NAME }}
           service_account: ${{ vars.GCP_CICD_SA_EMAIL }}
 
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v3
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
 
-      - name: Run the smoke suite
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run the smoke tier
         env:
           API_URL: ${{ vars.API_URL }}
-          # The worker SA the smoke impersonates. Its account id ("flow-worker") is fixed in
-          # backend/api/infra; the project comes from this environment's vars.
+          # The worker SA the suite impersonates for the API identity. Its account id ("flow-worker")
+          # is fixed in backend/api/infra; the project comes from this environment's vars.
           WORKER_SA_EMAIL: flow-worker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-        run: ./smoke/smoke.sh
+        run: ./gradlew :system-tests:systemTest -PsystemTestTags=smoke --stacktrace
