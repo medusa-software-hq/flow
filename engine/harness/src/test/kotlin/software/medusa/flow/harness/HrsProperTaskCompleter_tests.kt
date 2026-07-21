@@ -11,7 +11,6 @@ import kotlinx.coroutines.runBlocking
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.git.worktree.GitWorktreeFilter
 import software.medusa.commons.markdown.MdElement
-import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.impl.memory.UfsMemoryDirectory
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
@@ -76,7 +75,7 @@ class HrsProperTaskCompleter_tests {
           }
 
           override fun observeRawResponse(
-              response: OaiConfiguredClient.UnstructuredCompletionResponse,
+              responseText: String,
           ) = Unit
         }
 
@@ -97,7 +96,7 @@ class HrsProperTaskCompleter_tests {
           }
 
           override fun observeRawResponse(
-              response: OaiConfiguredClient.UnstructuredCompletionResponse,
+              responseText: String,
           ) = Unit
         }
 
