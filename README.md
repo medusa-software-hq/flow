@@ -95,3 +95,7 @@ under `apps/web/spa/frontend`.
 
 For running the worker specifically — configuration, credentials, and
 target-repo preconditions — see [worker/README.md](worker/README.md).
+
+How the system is verified — the five test layers, which one covers each
+acceptance-demo step, and how to run each locally — is in
+[docs/testing.md](docs/testing.md).
