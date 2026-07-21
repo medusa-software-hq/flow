@@ -14,7 +14,12 @@
 # XDG_CONFIG_HOME); env + secrets come from the profile at spawn; GCP identity comes from Beacon's
 # metadata server under `workload run`. See the surface table in worker/README.md.
 
-FROM eclipse-temurin:21-jre-jammy
+# A full JDK, not a JRE: the builtin engine builds the *target* repo (Gradle/Maven `compileJava`,
+# etc.), which needs `javac` (the JAVA_COMPILER toolchain capability). A JRE-only image fails every
+# Java-target session at the initial health gate with "Toolchain installation '/opt/java/openjdk'
+# does not provide the required capabilities: [JAVA_COMPILER]" — found running the M5 loop against a
+# hosted worker (the nightly missed it by running the worker on a runner that already had a JDK).
+FROM eclipse-temurin:21-jdk-jammy
 
 # Pinned to the claude-engine contract (.github/workflows/check-claude-cli.yml). A build arg so the
 # pin can move without editing this file (CI passes the same value; bump both together).
