@@ -56,25 +56,6 @@ WHERE id = (
 )
 RETURNING *;
 
--- M4 capability-filtered claim: like claimNextSession but only over sessions this
--- worker can run — engine UNSPECIFIED (any worker's default) or in :supportedEngines.
--- The filter is inside the inner SELECT so the lock / SKIP LOCKED / oldest-first all
--- apply to the claimable subset: a worker skips a session it cannot run rather than
--- blocking behind it. :supportedEngines is never empty (the store uses the unfiltered
--- claimNextSession for pre-M4 workers, avoiding an empty IN list).
-claimNextSessionForEngines:
-UPDATE sessions
-SET state = 'RUNNING', claimed_at = :now, last_heartbeat_at = :now
-WHERE id = (
-  SELECT id FROM sessions
-  WHERE state = 'PENDING'
-    AND (engine = 'UNSPECIFIED' OR engine IN :supportedEngines)
-  ORDER BY created_at
-  LIMIT 1
-  FOR UPDATE SKIP LOCKED
-)
-RETURNING *;
-
 selectMaxEventSeq:
 SELECT COALESCE(MAX(seq), 0) FROM session_events WHERE session_id = ?;
 

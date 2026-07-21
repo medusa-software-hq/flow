@@ -24,14 +24,12 @@ class PostgresWorkerStore(
       workerId: String,
       workerVersion: String,
       imageDigest: String,
-      supportedEngines: List<Engine>,
   ) {
     withContext(Dispatchers.IO) {
       queries.upsertWorker(
           worker_id = workerId,
           worker_version = workerVersion,
           image_digest = imageDigest,
-          supported_engines = supportedEngines.toDbValue(),
           now = clock.instant().toOffsetDateTime(),
       )
     }
@@ -47,7 +45,6 @@ class PostgresWorkerStore(
           workerId = worker_id,
           workerVersion = worker_version,
           imageDigest = image_digest,
-          supportedEngines = engineListFromDbValue(supported_engines),
           firstSeenAt = first_seen_at.toInstant(),
           lastSeenAt = last_seen_at.toInstant(),
       )

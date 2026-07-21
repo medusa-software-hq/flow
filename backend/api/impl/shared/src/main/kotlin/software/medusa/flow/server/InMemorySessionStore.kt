@@ -80,15 +80,11 @@ class InMemorySessionStore(
         SessionWithEvents(session = session, events = events)
       }
 
-  override suspend fun claimNext(
-      supportedEngines: Set<Engine>,
-  ): Session? =
+  override suspend fun claimNext(): Session? =
       synchronized(lock) {
         val oldestPending =
             sessionsById.values
-                .filter {
-                  it.state == SessionState.Pending && it.engine.claimableBy(supportedEngines)
-                }
+                .filter { it.state == SessionState.Pending }
                 .minByOrNull { it.createdAt } ?: return@synchronized null
 
         val now = clock.instant()

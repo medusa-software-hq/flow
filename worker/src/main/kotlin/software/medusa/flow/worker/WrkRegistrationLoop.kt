@@ -4,7 +4,6 @@ import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import software.medusa.flow.v1.Engine
 
 /**
  * Periodically re-registers this worker with the control-plane fleet registry (M5), so the
@@ -20,7 +19,6 @@ import software.medusa.flow.v1.Engine
 class WrkRegistrationLoop(
     private val apiClient: WrkApiClient,
     private val identity: WrkWorkerIdentity,
-    private val supportedEngines: List<Engine>,
     private val intervalMillis: Long = defaultIntervalMillis,
     private val log: (String) -> Unit = ::println,
 ) {
@@ -46,7 +44,6 @@ class WrkRegistrationLoop(
           workerId = identity.workerId,
           workerVersion = identity.workerVersion,
           imageDigest = identity.imageDigest,
-          supportedEngines = supportedEngines,
       )
     } catch (e: CancellationException) {
       // Shutdown — let cancellation propagate so the loop stops cleanly.

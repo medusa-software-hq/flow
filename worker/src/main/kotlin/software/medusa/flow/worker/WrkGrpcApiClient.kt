@@ -5,8 +5,6 @@ import com.google.auth.oauth2.IdTokenCredentials
 import com.google.auth.oauth2.IdTokenProvider
 import com.linecorp.armeria.client.grpc.GrpcClients
 import io.grpc.auth.MoreCallCredentials
-import software.medusa.flow.v1.ClaimNextSessionRequest
-import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.WorkerServiceGrpcKt
@@ -30,7 +28,6 @@ import software.medusa.flow.v1.sessionOrNull
 class WrkGrpcApiClient
 private constructor(
     private val stub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
-    private val supportedEngines: List<Engine>,
 ) : WrkApiClient {
   companion object {
     /**
@@ -44,7 +41,6 @@ private constructor(
 
     fun create(
         apiUrl: String,
-        supportedEngines: List<Engine> = emptyList(),
         lookupEnv: (String) -> String? = System::getenv,
     ): WrkGrpcApiClient {
       val baseStub =
@@ -52,7 +48,7 @@ private constructor(
               .build(WorkerServiceGrpcKt.WorkerServiceCoroutineStub::class.java)
 
       if (lookupEnv(skipAuthEnvVarName) != null) {
-        return WrkGrpcApiClient(stub = baseStub, supportedEngines = supportedEngines)
+        return WrkGrpcApiClient(stub = baseStub)
       }
 
       // ADC must resolve to something implementing IdTokenProvider (impersonated, service-account,
@@ -79,36 +75,25 @@ private constructor(
       val authenticatedStub =
           baseStub.withCallCredentials(MoreCallCredentials.from(idTokenCredentials))
 
-      return WrkGrpcApiClient(stub = authenticatedStub, supportedEngines = supportedEngines)
-    }
-
-    /**
-     * Builds the claim request declaring the worker's engine capabilities (M4). Pure, so A6's unit
-     * test can assert on it without a live stub. An empty list keeps the pre-M4 "claim any session"
-     * behavior.
-     */
-    internal fun buildClaimNextSessionRequest(
-        supportedEngines: List<Engine>,
-    ): ClaimNextSessionRequest = claimNextSessionRequest {
-      this.supportedEngines.addAll(supportedEngines)
+      return WrkGrpcApiClient(stub = authenticatedStub)
     }
   }
 
+  // Workers are uniform (every worker runs every engine), so the claim is unconditional — the
+  // request carries no capability set.
   override suspend fun claimNextSession(): Session? =
-      stub.claimNextSession(buildClaimNextSessionRequest(supportedEngines)).sessionOrNull
+      stub.claimNextSession(claimNextSessionRequest {}).sessionOrNull
 
   override suspend fun registerWorker(
       workerId: String,
       workerVersion: String,
       imageDigest: String,
-      supportedEngines: List<Engine>,
   ) {
     stub.registerWorker(
         registerWorkerRequest {
           this.workerId = workerId
           this.workerVersion = workerVersion
           this.imageDigest = imageDigest
-          this.supportedEngines.addAll(supportedEngines)
         },
     )
   }

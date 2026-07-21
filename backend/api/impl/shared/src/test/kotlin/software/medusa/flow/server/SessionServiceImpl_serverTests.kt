@@ -167,7 +167,7 @@ class SessionServiceImpl_serverTests {
         )
 
     // Claim it directly on the store to move PENDING → RUNNING, then let the heartbeat go stale.
-    store.claimNext(supportedEngines = emptySet())
+    store.claimNext()
     clock.advance(heartbeatTimeout.plusSeconds(1))
 
     val got = client.getSession(getSessionRequest { id = created.session.id })

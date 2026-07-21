@@ -15,6 +15,12 @@ import software.medusa.commons.system.SysExecutableHandle
 /**
  * The production [HrsClaudeProcess]: drives the real `claude` binary via [ProcessBuilder].
  *
+ * The [claudeExecutable] is located **once, at CLI startup** (like `npm`/`yarn`, see
+ * `cli/.../main.kt`) and injected here — so a missing binary is a clean, loud failure at boot, not
+ * a surprise deep inside the first session. `claude` is a hard dependency of the worker (the image
+ * ships it); a test harness that cannot provide it wires an [UnimplementedHrsTaskCompleter] for the
+ * claude engine instead of a real process.
+ *
  * Two deliberate properties from the design:
  * - **Replace-not-inherit environment.** The child gets exactly [HrsClaudeInvocation.environment] —
  *   the JVM's own env is cleared first, so no host `ANTHROPIC_*`/`CLAUDE_*`/`~/.claude` leaks in.
@@ -24,19 +30,14 @@ import software.medusa.commons.system.SysExecutableHandle
  * Not exercised by A3's unit tests (that would require the real, un-nestable CLI — see
  * 03-cli-notes.md); the completer is tested against `FakeHrsClaudeProcess` instead.
  */
-class HrsProcessClaudeProcess : HrsClaudeProcess {
+class HrsProcessClaudeProcess(
+    private val claudeExecutable: SysExecutableHandle,
+) : HrsClaudeProcess {
   override fun spawn(
       invocation: HrsClaudeInvocation,
   ): HrsClaudeRun {
-    val executablePath =
-        try {
-          SysExecutableHandle.locate(commandName = "claude").path
-        } catch (e: Exception) {
-          throw HrsClaudeEngineException.binaryUnavailable(cause = e)
-        }
-
     val processBuilder =
-        ProcessBuilder(listOf(executablePath.toString()) + invocation.arguments)
+        ProcessBuilder(listOf(claudeExecutable.path.toString()) + invocation.arguments)
             .directory(invocation.workingDirectory.toFile())
 
     // Replace-not-inherit: strip the JVM's environment, then install exactly what was requested.

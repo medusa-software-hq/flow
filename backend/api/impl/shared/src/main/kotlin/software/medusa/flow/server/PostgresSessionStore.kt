@@ -92,24 +92,11 @@ class PostgresSessionStore(
         SessionWithEvents(session = session, events = events)
       }
 
-  override suspend fun claimNext(
-      supportedEngines: Set<Engine>,
-  ): Session? =
+  override suspend fun claimNext(): Session? =
       withContext(Dispatchers.IO) {
         val now = clock.instant().toOffsetDateTime()
-        val row =
-            if (supportedEngines.isEmpty()) {
-              // Pre-M4 worker: claim anything, and keep the empty set off the SQL IN list.
-              queries.claimNextSession(now = now).executeAsOneOrNull()
-            } else {
-              queries
-                  .claimNextSessionForEngines(
-                      now = now,
-                      supportedEngines = supportedEngines.map { it.toDbValue() },
-                  )
-                  .executeAsOneOrNull()
-            }
-        row?.toDomain()
+        // Uniform workers: any worker can run any engine, so the claim is unconditional.
+        queries.claimNextSession(now = now).executeAsOneOrNull()?.toDomain()
       }
 
   override suspend fun appendEvent(

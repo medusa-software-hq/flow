@@ -32,6 +32,10 @@ permissions:
 env:
   JAVA_VERSION: 21
   NO_COLOR: 1
+  # `claude` is a hard dependency of the worker binary (located at startup), so a real worker host
+  # always has it — even this builtin-engine loop, which doesn't otherwise use claude. Pinned to
+  # match check-claude-cli.yml / check-hermetic-loop-claude.yml.
+  CLAUDE_CLI_VERSION: "2.1.214"
 
 jobs:
   hermetic-loop:
@@ -71,9 +75,16 @@ jobs:
       - name: Enable yarn
         run: corepack enable
 
+      # `claude` is a hard dependency of the worker binary (located at startup). This loop drives the
+      # builtin engine, but the uniform worker still requires the binary to be present to start.
+      - name: Install the pinned claude CLI
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          echo "installed: $(claude --version)"
+
       - name: Verify the worker's toolchain is present
         run: |
-          for tool in git java npm yarn; do
+          for tool in git java npm yarn claude; do
             command -v "$tool" >/dev/null || { echo "::error::$tool is required by the worker binary but is not on PATH"; exit 1; }
             echo "$tool -> $(command -v "$tool")"
           done
