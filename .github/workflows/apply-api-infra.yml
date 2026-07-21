@@ -5,6 +5,11 @@ on:
     branches: ["trunk/*"]
     paths:
       - "backend/api/infra/**"
+      # The shared `infra/common` module this root consumes (per-env GOOGLE_CLIENT_ID, project ids,
+      # host names, …). A change there must re-apply this infra too, or the deployed service's env
+      # drifts silently from the code — as it did when the OAuth client_ids moved to per-env clients
+      # but this apply never fired (its paths didn't watch the common module), 401-ing every user.
+      - "infra/common/**"
 
   workflow_dispatch:
 
