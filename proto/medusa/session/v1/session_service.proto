@@ -120,6 +120,52 @@ service WorkerService {
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc CompleteSession(CompleteSessionRequest) returns (CompleteSessionResponse);
   rpc FailSession(FailSessionRequest) returns (FailSessionResponse);
+
+  // Worker fleet liveness + version surfacing (M5). A worker registers itself
+  // periodically — independent of whether it is currently running a session —
+  // so the control plane always knows which workers are alive and what build
+  // each runs. The system-test promotion gate reads this to (a) fail fast with a
+  // distinct "staging worker down" when no worker is live, rather than a generic
+  // test timeout, and (b) print the worker version/digest it tested against, so
+  // version skew is a printed fact rather than a silent gap (story 04).
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
+  // Lists the known workers and their last-seen registration. Worker-authorized
+  // (the same SA allowlist the other WorkerService methods use), so the
+  // system-test suite reads it with the worker-SA identity it already holds.
+  rpc ListWorkers(ListWorkersRequest) returns (ListWorkersResponse);
+}
+
+message RegisterWorkerRequest {
+  // Stable identity for this worker process/host. The control plane upserts on
+  // this key, so repeated registrations refresh a single row's last-seen rather
+  // than accumulating rows.
+  string worker_id = 1;
+  // Human-readable build version. Story 01 sends best-effort (may be empty);
+  // story 04 wires the real build-stamped value.
+  string worker_version = 2;
+  // Container image digest when the worker runs containerized; empty otherwise.
+  string image_digest = 3;
+  // The engines this worker can run (mirrors ClaimNextSession.supported_engines).
+  repeated Engine supported_engines = 4;
+}
+
+message RegisterWorkerResponse {}
+
+message ListWorkersRequest {}
+
+message ListWorkersResponse {
+  repeated WorkerInfo workers = 1;
+}
+
+message WorkerInfo {
+  string worker_id = 1;
+  string worker_version = 2;
+  string image_digest = 3;
+  repeated Engine supported_engines = 4;
+  // When the control plane last received a registration from this worker.
+  google.protobuf.Timestamp last_seen_at = 5;
+  // When the control plane first saw this worker.
+  google.protobuf.Timestamp first_seen_at = 6;
 }
 
 message ClaimNextSessionRequest {

@@ -21,6 +21,9 @@ fun buildServer(
     gitHubRepositoryStore: GitHubRepositoryStore,
     sessionStore: SessionStore,
     workerAuthorizer: WorkerAuthorizer,
+    // Worker fleet registry (M5). Defaulted to in-memory so tests and callers that don't exercise
+    // worker liveness need not supply it; the mains pass the Postgres-backed store.
+    workerStore: WorkerStore = InMemoryWorkerStore(),
     // Reconcile wiring. Defaulted so tests that don't exercise reconcile need not supply them; the
     // mains pass real stores (and, for in-memory/local, a *shared* backend so the pipeline and
     // outbox stores are atomic).
@@ -90,7 +93,9 @@ fun buildServer(
             addService(CounterServiceImpl(counterStore))
             addService(GitHubServiceImpl(gitHubIssueStore, gitHubRepositoryStore))
             addService(SessionServiceImpl(sessionStore, issuePipelineStore))
-            addService(WorkerServiceImpl(sessionStore, workerAuthorizer, issuePipelineStore))
+            addService(
+                WorkerServiceImpl(sessionStore, workerAuthorizer, issuePipelineStore, workerStore),
+            )
             addService(PipelineServiceImpl(issuePipelineStore, githubOutboxStore, sessionStore))
             addService(ReconcileServiceImpl(reconciler, reconcileAuthorizer))
             enableUnframedRequests(true)
