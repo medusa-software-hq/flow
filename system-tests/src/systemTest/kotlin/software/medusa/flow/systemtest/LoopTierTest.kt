@@ -38,10 +38,15 @@ import software.medusa.flow.v1.getSessionRequest
  * way retrying a genuine 15-minute run would — which is also why a *timeout* (session never
  * terminal) is **not** retried.
  *
- * **Budget (recorded):** the task is deliberately trivial (a one-line Javadoc), and
- * [sessionCompleteTimeout] bounds wall-clock; the worker's OpenRouter key budget cap is the hard
- * spend ceiling (as the retired nightly noted). A unique per-run marker keeps concurrent runs from
- * colliding; the gate additionally serializes promotions with a concurrency group.
+ * **Task (recorded):** the fixture's *designed* task — change the greeting (`Greeter.GREETING`) and
+ * the matching `GreetingCheck.EXPECTED_GREETING` so the `verifyGreeting` health check still passes.
+ * It's deliberately small but a **real coupled two-file edit**, so it produces a genuine non-empty
+ * diff and exercises the engine actually completing work (an earlier "add a Javadoc" task was a
+ * no-op — the class already had one — which the loop only masked via build-artifact pollution
+ * before the fixture gained a `.gitignore`). [sessionCompleteTimeout] bounds wall-clock; the
+ * worker's OpenRouter key budget cap is the hard spend ceiling (as the retired nightly noted). A
+ * unique per-run marker keeps concurrent runs from colliding; the gate serializes promotions with a
+ * concurrency group.
  */
 @Loop
 class LoopTierTest : SystemTestBase() {
@@ -115,10 +120,19 @@ class LoopTierTest : SystemTestBase() {
         clients.sessionService.createSession(
             createSessionRequest {
               repoFullName = sandboxRepo
+              // The fixture's *designed* task (see GreetingCheck.java's own Javadoc): a real,
+              // coupled two-file edit that keeps the `verifyGreeting` health check green. Change
+              // the
+              // greeting to `Howdy` in Greeter.GREETING AND the matching GreetingCheck
+              // .EXPECTED_GREETING. This forces a genuine non-empty diff — the earlier "add a
+              // Javadoc" task was a no-op (Greeter already has one), so the engine correctly
+              // produced
+              // no change and the loop only "passed" on build-artifact pollution (now .gitignored).
               taskMarkdown =
-                  "# Add a class Javadoc comment\n\n" +
-                      "Add a short one-line Javadoc summary to the `Greeter` class in " +
-                      "Greeter.java. Do not change behavior.\n\nRun marker: $runId"
+                  "# Change the greeting to \"Howdy\"\n\n" +
+                      "Change the greeting the application produces from `Hello` to `Howdy`. Update " +
+                      "`Greeter.GREETING`, and update `GreetingCheck.EXPECTED_GREETING` to match so " +
+                      "the project's `verifyGreeting` check still passes.\n\nRun marker: $runId"
               // engine left UNSPECIFIED → the staging worker's default (builtin).
             },
         )
