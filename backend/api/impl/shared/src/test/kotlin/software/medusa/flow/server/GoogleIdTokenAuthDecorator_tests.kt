@@ -15,6 +15,7 @@ import kotlin.test.assertNull
 class GoogleIdTokenAuthDecorator_tests {
   companion object {
     private const val userTokenAudience = "user-client-id.apps.googleusercontent.com"
+    private const val cliTokenAudience = "cli-desktop-client-id.apps.googleusercontent.com"
     private const val allowedDomain = "medusa.software"
     private const val workerTokenAudience = "https://api.example.com/"
     private const val googleIssuer = "https://accounts.google.com"
@@ -22,7 +23,7 @@ class GoogleIdTokenAuthDecorator_tests {
 
   private val decorator =
       GoogleIdTokenAuthDecorator(
-          userTokenAudience = userTokenAudience,
+          userTokenAudiences = setOf(userTokenAudience, cliTokenAudience),
           allowedDomain = allowedDomain,
           workerTokenAudience = workerTokenAudience,
       )
@@ -47,6 +48,20 @@ class GoogleIdTokenAuthDecorator_tests {
         decorator.resolveAuthorizedEmail(
             claims(
                 audience = userTokenAudience,
+                email = "person@medusa.software",
+                hd = allowedDomain,
+            ),
+        )
+
+    assertEquals("person@medusa.software", result)
+  }
+
+  @Test
+  fun `a user token from the CLI's desktop-client audience is authorized`() {
+    val result =
+        decorator.resolveAuthorizedEmail(
+            claims(
+                audience = cliTokenAudience,
                 email = "person@medusa.software",
                 hd = allowedDomain,
             ),

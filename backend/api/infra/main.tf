@@ -95,6 +95,14 @@ resource "google_cloud_run_v2_service" "primary" {
         value = module.common.google_client_id
       }
 
+      # The `flow` CLI's Desktop OAuth client id — a second accepted user-token audience. Empty
+      # (module default) until the Desktop client is provisioned; the API treats empty as "no CLI
+      # audience", so this deploys safely ahead of the client existing.
+      env {
+        name  = "CLI_OAUTH_CLIENT_ID"
+        value = module.common.cli_oauth_client_id
+      }
+
       env {
         name  = "GOOGLE_ALLOWED_DOMAIN"
         value = module.common.organization_domain

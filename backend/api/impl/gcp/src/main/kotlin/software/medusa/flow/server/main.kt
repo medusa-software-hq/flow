@@ -4,6 +4,7 @@ import software.medusa.flow.githubapp.GitHubAppConfig
 
 private const val portEnvVarName = "PORT"
 private const val clientIdEnvVarName = "GOOGLE_CLIENT_ID"
+private const val cliClientIdEnvVarName = "CLI_OAUTH_CLIENT_ID"
 private const val allowedDomainEnvVarName = "GOOGLE_ALLOWED_DOMAIN"
 private const val corsOriginRegexEnvVarName = "CORS_ALLOWED_ORIGIN_REGEX"
 private const val databaseUrlEnvVarName = "DATABASE_URL"
@@ -24,6 +25,17 @@ fun main() {
   val clientId =
       System.getenv(clientIdEnvVarName)
           ?: error("$clientIdEnvVarName environment variable must be set")
+
+  // The `flow` CLI signs in with its own Desktop OAuth client (Google only permits the
+  // loopback/PKCE flow for Desktop clients), so its ID token's `aud` differs from the browser SPA's
+  // Web client. Optional/empty until that client is provisioned; while empty only the SPA audience
+  // is accepted, so nothing regresses.
+  val cliClientId = System.getenv(cliClientIdEnvVarName).orEmpty()
+
+  val userTokenAudiences = buildSet {
+    add(clientId)
+    if (cliClientId.isNotBlank()) add(cliClientId)
+  }
 
   val allowedDomain =
       System.getenv(allowedDomainEnvVarName)
@@ -68,7 +80,7 @@ fun main() {
           port = port,
           auth =
               GoogleIdTokenAuthDecorator(
-                  userTokenAudience = clientId,
+                  userTokenAudiences = userTokenAudiences,
                   allowedDomain = allowedDomain,
                   workerTokenAudience = workerTokenAudience,
               ),
