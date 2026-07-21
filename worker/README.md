@@ -93,14 +93,59 @@ tool subprocesses are reaped. CI builds + pushes it to Artifact Registry
 
 | Source | Carries | How |
 |---|---|---|
-| **Baked (image)** | JRE, git, Node/npm/yarn, `claude` CLI, `flow-cli.jar` | in the image; no secrets |
+| **Baked (image)** | JRE, git, Node/npm/yarn, `claude` CLI, `flow-cli.jar`, `FLOW_WORKER_VERSION` (the build's git sha) | in the image; no secrets |
 | **Host (mounted)** | the ms-workload **worker identity** (`workerId`/`secret`, broker URL) | `config.json` under `XDG_CONFIG_HOME`, provisioned once at VM create; **reused on restart, never re-registered** |
-| **Profile (spawn)** | `FLOW_API_URL`, `FLOW_WORKER_ENGINES`, `FLOW_WORKER_GITHUB_APP_CLIENT_ID` (env); `FLOW_WORKER_GITHUB_APP_PEM`, `OPENROUTER_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` (secret refs, resolved worker-side) | ms-workload profile env/secretEnv |
+| **Profile (spawn)** | `FLOW_API_URL`, `FLOW_WORKER_ENGINES`, `FLOW_WORKER_GITHUB_APP_CLIENT_ID`, `FLOW_WORKER_IMAGE_DIGEST` (env); `FLOW_WORKER_GITHUB_APP_PEM`, `OPENROUTER_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` (secret refs, resolved worker-side) | ms-workload profile env/secretEnv |
 | **Beacon (spawn)** | the worker's **GCP identity** — an audience-bound `flow-worker` ID token for the Flow API | GCE-shaped metadata server under `workload run`; the worker's existing ADC path uses it unmodified (see [design/05-workload-notes.md](../../plan/m4/design/05-workload-notes.md)) |
 
 The image is environment-agnostic: the same digest runs any environment, since every
 knob above arrives at spawn. Deploying a new worker version = build a new image +
 append an ms-workload profile revision pinning its digest.
+
+## Version reporting & skew (M5)
+
+The worker registers itself with the control-plane **fleet registry** every ~15s
+(`WrkRegistrationLoop` → `WorkerService.RegisterWorker`), reporting a stable
+`worker_id` plus the build it runs. The M5 system-test gate reads this
+(`WorkerService.ListWorkers`) for two things: a distinct **"staging worker down"**
+when nothing has registered recently, and the **version it tested against**, so
+skew is a printed fact rather than a silent gap.
+
+Where the version/digest come from:
+
+| Field | Source | Notes |
+|---|---|---|
+| `FLOW_WORKER_VERSION` | **baked at image build** (`worker/Dockerfile` `ARG`, CI passes `github.sha`) | equals the image tag `worker:<sha>`; a local `docker build` leaves it `unknown`. Overridable by profile env. |
+| `FLOW_WORKER_IMAGE_DIGEST` | **profile (spawn)** — the ms-workload profile that pins the digest injects it | the running container can't compute its own manifest digest; the profile knows the digest it pinned. Optional; version is the primary skew signal. |
+| `FLOW_WORKER_ID` | profile env, else host name, else a random per-process id | pin it for a stable identity across restarts. |
+
+**The known hole — version skew.** The admin-run worker executes whatever image it
+was last restarted into, so a merge that breaks *worker-side* code passes the gate
+until the worker is bumped. M5 makes this **diagnosable, not impossible**: the gate
+prints the worker version and, when it knows the build under promotion
+(`EXPECTED_WORKER_VERSION`), warns loudly on a mismatch — but does **not** fail the
+gate (advisory). A red gate run right after a worker-touching merge is then
+immediately attributable.
+
+**Bumping the worker (admin).** After a merge that touches worker-side code
+(`worker/**`, `engine/**`, `cli/**`), the running worker is stale until bumped:
+
+1. `Publish CLI` (post-merge) builds and pushes a new `worker:<sha>` image and
+   prints its digest in the job summary.
+2. Append an ms-workload profile revision pinning that digest (and, ideally, set
+   `FLOW_WORKER_IMAGE_DIGEST` to it in the profile env).
+3. Restart the worker onto the new revision:
+   `ms-workload worker run --profile flow-worker-staging` (the B5 restart-always
+   supervisor drains the current session, exits, and restarts into the new digest).
+
+Until then the next gate run warns about skew. **Treat a worker-touching merge as
+warranting a bump before trusting the next gate.**
+
+**Auto-reload is out of scope for M5** — draining the current session and restarting
+onto a new profile revision automatically belongs to the Workload project's host
+design (the persistent-VM / supervisor debate). M5 only consumes the outcome and, in
+the meantime, makes the skew loud. This section is Flow's requirement into that
+debate: the fix is auto-reload on profile-revision bump.
 
 ## Known M1 limitations
 
