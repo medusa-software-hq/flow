@@ -13,6 +13,7 @@ import software.medusa.commons.system.SysProcessSpawner
 import software.medusa.flow.harness.HrsProperTaskCompleter
 import software.medusa.flow.harness.HrsScriptedTaskCompleter
 import software.medusa.flow.harness.HrsTaskCompleter
+import software.medusa.flow.harness.UnimplementedHrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsAiPatchInterpreter
 import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
 import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
@@ -33,9 +34,7 @@ import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.universal_project.gradle.UnpGradleModuleManifestLoader
 import software.medusa.flow.universal_project.nodejs.UnpNodeJsModuleManifestLoader
 import software.medusa.flow.universal_project.yaml.UnpYamlProjectManifestLoader
-import software.medusa.flow.v1.Engine
 import software.medusa.flow.worker.WrkClaudeAuthEnvironment
-import software.medusa.flow.worker.WrkConfig
 import software.medusa.flow.worker.WrkEngineResolver
 
 suspend fun main(
@@ -89,7 +88,11 @@ suspend fun main(
       return@coroutineScope
     }
 
-    val workerEngines = WrkConfig.parseWorkerEngines()
+    // `claude` is a hard dependency of a real worker (the image ships it) — located once here, at
+    // startup, so a missing binary fails cleanly and loudly rather than deep inside the first
+    // claude session. Deliberately after the scripted-engine early return above: that test path
+    // runs on a runner without `claude` and wires an UnimplementedHrsTaskCompleter instead.
+    val claudeExecutableHandle = SysExecutableHandle.locate(commandName = "claude")
 
     val openRouterApiKey =
         OaiApiKey(
@@ -116,7 +119,7 @@ suspend fun main(
           runMainCommand(
               args = args,
               physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-              workerEngines = workerEngines,
+              claudeExecutable = claudeExecutableHandle,
               frontlineOpenAiClient = frontlineOpenAiClient,
               expertOpenAiClient = expertOpenAiClient,
               interpreterOpenAiClient = interpreterOpenAiClient,
@@ -170,61 +173,49 @@ private fun runScriptedWorkerCommand(
 }
 
 /**
- * A resolver that routes every session to [taskCompleter], keyed by the worker's default engine.
- * Used where engine selection doesn't apply — the scripted sad-path engine, which only ever runs
- * `UNSPECIFIED` sessions.
+ * A resolver for the scripted sad-path engine, which only ever runs `UNSPECIFIED`/builtin sessions:
+ * [taskCompleter] takes the builtin slot, and the claude slot is an [UnimplementedHrsTaskCompleter]
+ * — this test path runs on a runner without the `claude` binary, so it must not try to build the
+ * real claude engine (which would locate `claude` at startup).
  */
 private fun singleEngineResolver(
     taskCompleter: HrsTaskCompleter,
-): WrkEngineResolver {
-  val defaultEngine = WrkConfig.parseWorkerEngines().first()
-  return WrkEngineResolver(
-      completersByEngine = mapOf(defaultEngine to taskCompleter),
-      defaultEngine = defaultEngine,
-  )
-}
+): WrkEngineResolver =
+    WrkEngineResolver(
+        builtin = taskCompleter,
+        claude = UnimplementedHrsTaskCompleter(engineName = "claude"),
+    )
 
 /**
- * Assembles the per-engine completer map (A6): builtin is always available; the claude engine is
- * constructed only when `claude` is among [workerEngines], with its auth-rung env built from
- * `FLOW_CLAUDE_AUTH`. The default engine (for `UNSPECIFIED` sessions) is the first configured one.
+ * Assembles the static engine resolver: workers are uniform, so **both** the builtin and claude
+ * completers are always constructed. The claude engine drives the real `claude` binary
+ * ([claudeExecutable], located at startup) with its auth-rung env built from `FLOW_CLAUDE_AUTH`.
  */
 private fun buildEngineResolver(
-    workerEngines: List<Engine>,
+    claudeExecutable: SysExecutableHandle,
     builtinTaskCompleter: HrsTaskCompleter,
     physicalWorkspaceAllocator: PhwWorkspaceAllocator,
     projectManifestLoader: UnpProjectManifestLoader,
-): WrkEngineResolver {
-  val completersByEngine = buildMap {
-    put(Engine.ENGINE_BUILTIN, builtinTaskCompleter)
-
-    if (Engine.ENGINE_CLAUDE in workerEngines) {
-      put(
-          Engine.ENGINE_CLAUDE,
-          HrsClaudeTaskCompleter(
-              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-              claudeProcess = HrsProcessClaudeProcess(),
-              config =
-                  HrsClaudeEngineConfig(
-                      authEnvironment = WrkClaudeAuthEnvironment.build(),
-                      model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
-                  ),
-              projectManifestLoader = projectManifestLoader,
-          ),
-      )
-    }
-  }
-
-  return WrkEngineResolver(
-      completersByEngine = completersByEngine,
-      defaultEngine = workerEngines.first(),
-  )
-}
+): WrkEngineResolver =
+    WrkEngineResolver(
+        builtin = builtinTaskCompleter,
+        claude =
+            HrsClaudeTaskCompleter(
+                physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+                claudeProcess = HrsProcessClaudeProcess(claudeExecutable = claudeExecutable),
+                config =
+                    HrsClaudeEngineConfig(
+                        authEnvironment = WrkClaudeAuthEnvironment.build(),
+                        model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
+                    ),
+                projectManifestLoader = projectManifestLoader,
+            ),
+    )
 
 private fun runMainCommand(
     args: Array<String>,
     physicalWorkspaceAllocator: PhwTempWorkspaceAllocator,
-    workerEngines: List<Engine>,
+    claudeExecutable: SysExecutableHandle,
     frontlineOpenAiClient: OaiConfiguredClient,
     expertOpenAiClient: OaiConfiguredClient,
     interpreterOpenAiClient: OaiConfiguredClient,
@@ -264,7 +255,7 @@ private fun runMainCommand(
 
   val engineResolver =
       buildEngineResolver(
-          workerEngines = workerEngines,
+          claudeExecutable = claudeExecutable,
           builtinTaskCompleter = builtinTaskCompleter,
           physicalWorkspaceAllocator = physicalWorkspaceAllocator,
           projectManifestLoader = projectManifestLoader,

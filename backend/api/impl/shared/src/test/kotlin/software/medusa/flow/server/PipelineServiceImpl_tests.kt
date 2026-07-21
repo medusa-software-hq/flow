@@ -83,7 +83,7 @@ class PipelineServiceImpl_tests {
             createdBy = "r",
             engine = Engine.Unspecified,
         )
-    val claimed = f.sessions.claimNext(supportedEngines = emptySet())
+    val claimed = f.sessions.claimNext()
     assertEquals(session.id, claimed?.id)
     val pipeline =
         assertIs<PickResult.Picked>(

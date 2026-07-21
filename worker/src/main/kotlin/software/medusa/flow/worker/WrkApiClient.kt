@@ -1,6 +1,5 @@
 package software.medusa.flow.worker
 
-import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
 
@@ -18,7 +17,6 @@ interface WrkApiClient {
       workerId: String,
       workerVersion: String,
       imageDigest: String,
-      supportedEngines: List<Engine>,
   )
 
   suspend fun appendSessionEvent(

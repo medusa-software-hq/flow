@@ -16,7 +16,6 @@ class InMemoryWorkerStore(
       workerId: String,
       workerVersion: String,
       imageDigest: String,
-      supportedEngines: List<Engine>,
   ) {
     synchronized(lock) {
       val now = clock.instant()
@@ -26,7 +25,6 @@ class InMemoryWorkerStore(
               workerId = workerId,
               workerVersion = workerVersion,
               imageDigest = imageDigest,
-              supportedEngines = supportedEngines,
               firstSeenAt = existing?.firstSeenAt ?: now,
               lastSeenAt = now,
           )

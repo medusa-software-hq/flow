@@ -7,7 +7,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import software.medusa.flow.v1.Engine
 
 class WrkRegistrationLoop_tests {
   @Test
@@ -22,7 +21,6 @@ class WrkRegistrationLoop_tests {
                     workerVersion = "9.9.9",
                     imageDigest = "sha256:cafe",
                 ),
-            supportedEngines = listOf(Engine.ENGINE_CLAUDE),
             // Small positive interval so `delay` actually suspends and yields (delay(0) would
             // spin).
             intervalMillis = 1,
@@ -43,6 +41,5 @@ class WrkRegistrationLoop_tests {
     assertEquals("w-test", first.workerId)
     assertEquals("9.9.9", first.workerVersion)
     assertEquals("sha256:cafe", first.imageDigest)
-    assertEquals(listOf(Engine.ENGINE_CLAUDE), first.supportedEngines)
   }
 }

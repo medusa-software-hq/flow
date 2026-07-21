@@ -165,24 +165,22 @@ private constructor(
       )
 
   /**
-   * Launches the shipped binary with the **claude** engine — the real `claude` CLI, in gated mode
-   * (the `gradle` fixture ships a `project.yaml`, so the engine runs the real gradle analyze+test
-   * gate). Selected via `FLOW_WORKER_ENGINES=claude` with `FLOW_CLAUDE_AUTH=personal`, so the CLI
-   * authenticates with the operator's subscription token.
+   * Launches the shipped binary for a claude-engine run — the real `claude` CLI, in gated mode (the
+   * `gradle` fixture ships a `project.yaml`, so the engine runs the real gradle analyze+test gate).
+   * Workers are uniform, so the engine is chosen per-session (the scenario pins
+   * `flow:engine=claude` on the issue); this only sets the auth rung `FLOW_CLAUDE_AUTH=personal` so
+   * the CLI authenticates with the operator's subscription token.
    *
    * Everything the CLI itself needs — `CLAUDE_CODE_OAUTH_TOKEN`, `PATH`, `HOME`, and the `claude`
    * binary on PATH — arrives by env inheritance from the CI step ([startWorkerProcess] inherits the
    * parent env then layers `extraEnv` on top), so this method sets none of them; it only names the
-   * engine, the auth rung, and an optional model override. Requires `CLAUDE_CODE_OAUTH_TOKEN` set
-   * and `claude` on PATH in the environment that runs the test.
+   * auth rung and an optional model override. Requires `CLAUDE_CODE_OAUTH_TOKEN` set and `claude`
+   * on PATH in the environment that runs the test.
    */
   fun startClaudeWorker(): WorkerProcess =
       startWorkerProcess(
           extraEnv =
-              mapOf(
-                  "FLOW_WORKER_ENGINES" to "claude",
-                  "FLOW_CLAUDE_AUTH" to "personal",
-              ) +
+              mapOf("FLOW_CLAUDE_AUTH" to "personal") +
                   (System.getenv("FLOW_CLAUDE_MODEL")?.let { mapOf("FLOW_CLAUDE_MODEL" to it) }
                       ?: emptyMap()),
       )

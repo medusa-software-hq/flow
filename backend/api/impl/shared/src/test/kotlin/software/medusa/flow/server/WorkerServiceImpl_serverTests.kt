@@ -15,7 +15,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
-import software.medusa.flow.v1.Engine as ProtoEngine
 import software.medusa.flow.v1.SessionEventKind as ProtoSessionEventKind
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 import software.medusa.flow.v1.appendSessionEventRequest
@@ -163,7 +162,7 @@ class WorkerServiceImpl_serverTests {
                 "u@x",
                 engine = Engine.Unspecified,
             )
-        store.claimNext(supportedEngines = emptySet())
+        store.claimNext()
         store.fail(created.id, "boom")
 
         val failure =
@@ -194,7 +193,6 @@ class WorkerServiceImpl_serverTests {
               workerId = "worker-a"
               workerVersion = "1.2.3"
               imageDigest = "sha256:abc"
-              supportedEngines.add(ProtoEngine.ENGINE_CLAUDE)
             },
         )
 
@@ -203,7 +201,6 @@ class WorkerServiceImpl_serverTests {
         assertEquals("worker-a", listed[0].workerId)
         assertEquals("1.2.3", listed[0].workerVersion)
         assertEquals("sha256:abc", listed[0].imageDigest)
-        assertEquals(listOf(ProtoEngine.ENGINE_CLAUDE), listed[0].supportedEnginesList)
         assertTrue(listed[0].hasLastSeenAt())
       }
 

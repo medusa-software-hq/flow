@@ -14,6 +14,7 @@ import software.medusa.flow.harness.HrsTaskCompleter.JointOperationPhase
 import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
 import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.UnimplementedHrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
@@ -188,12 +189,7 @@ class WrkProperSessionProcessor_tests {
       runBlocking {
         val builtin = RecordingTaskCompleter()
         val claude = RecordingTaskCompleter()
-        val resolver =
-            WrkEngineResolver(
-                completersByEngine =
-                    mapOf(Engine.ENGINE_BUILTIN to builtin, Engine.ENGINE_CLAUDE to claude),
-                defaultEngine = Engine.ENGINE_BUILTIN,
-            )
+        val resolver = WrkEngineResolver(builtin = builtin, claude = claude)
 
         fun run(engine: Engine) = runBlocking {
           val worktree = tempGitWorktree()
@@ -237,8 +233,8 @@ private fun builtinResolver(
     taskCompleter: HrsTaskCompleter,
 ): WrkEngineResolver =
     WrkEngineResolver(
-        completersByEngine = mapOf(Engine.ENGINE_BUILTIN to taskCompleter),
-        defaultEngine = Engine.ENGINE_BUILTIN,
+        builtin = taskCompleter,
+        claude = UnimplementedHrsTaskCompleter(engineName = "claude"),
     )
 
 /**

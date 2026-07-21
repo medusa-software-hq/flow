@@ -29,18 +29,17 @@ class InMemoryWorkerStore_tests {
     val clock = MutableClock(Instant.parse("2026-07-21T00:00:00Z"))
     val store = InMemoryWorkerStore(clock)
 
-    store.register("w1", "1.0.0", "", listOf(Engine.Builtin))
+    store.register("w1", "1.0.0", "")
     val firstSeen = store.list().single().firstSeenAt
 
     clock.now = clock.now.plus(Duration.ofSeconds(30))
-    store.register("w1", "1.1.0", "sha256:xyz", listOf(Engine.Claude))
+    store.register("w1", "1.1.0", "sha256:xyz")
 
     val worker = store.list().single()
     assertEquals(firstSeen, worker.firstSeenAt)
     assertEquals(clock.now, worker.lastSeenAt)
     assertEquals("1.1.0", worker.workerVersion)
     assertEquals("sha256:xyz", worker.imageDigest)
-    assertEquals(listOf(Engine.Claude), worker.supportedEngines)
   }
 
   @Test
@@ -48,9 +47,9 @@ class InMemoryWorkerStore_tests {
     val clock = MutableClock(Instant.parse("2026-07-21T00:00:00Z"))
     val store = InMemoryWorkerStore(clock)
 
-    store.register("old", "1.0.0", "", emptyList())
+    store.register("old", "1.0.0", "")
     clock.now = clock.now.plus(Duration.ofSeconds(10))
-    store.register("new", "1.0.0", "", emptyList())
+    store.register("new", "1.0.0", "")
 
     assertEquals(listOf("new", "old"), store.list().map { it.workerId })
   }

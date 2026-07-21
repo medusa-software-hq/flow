@@ -4,33 +4,24 @@ import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.v1.Engine
 
 /**
- * Routes a claimed session to the [HrsTaskCompleter] for its requested engine (M4).
+ * Routes a claimed session to the [HrsTaskCompleter] for its requested engine.
  *
- * A session's `engine` is `UNSPECIFIED` when the creator didn't pin one; those run on
- * [defaultEngine] — the first engine in the worker's `FLOW_WORKER_ENGINES` capability list. A named
- * engine (`BUILTIN`/`CLAUDE`) routes to its own completer. The control plane's claim filter (A2)
- * guarantees a worker is only ever handed sessions whose engine it declared, so a missing entry
- * here is a wiring bug and fails loudly.
+ * Workers are uniform — every worker can run every engine — so the resolver holds a completer for
+ * each engine statically; there is no capability set and no "missing entry" failure mode. A
+ * session's `engine` is `UNSPECIFIED` when the creator didn't pin one; those run on [builtin], the
+ * classic Flow engine (cheap, and the manifest-gated default).
  */
 class WrkEngineResolver(
-    private val completersByEngine: Map<Engine, HrsTaskCompleter>,
-    private val defaultEngine: Engine,
+    private val builtin: HrsTaskCompleter,
+    private val claude: HrsTaskCompleter,
 ) {
-  init {
-    require(completersByEngine.containsKey(defaultEngine)) {
-      "The default engine $defaultEngine has no configured task completer " +
-          "(configured: ${completersByEngine.keys})."
-    }
-  }
-
   fun resolve(
       engine: Engine,
-  ): HrsTaskCompleter {
-    val effectiveEngine = if (engine == Engine.ENGINE_UNSPECIFIED) defaultEngine else engine
-    return completersByEngine[effectiveEngine]
-        ?: error(
-            "No task completer configured for engine $effectiveEngine " +
-                "(configured: ${completersByEngine.keys}).",
-        )
-  }
+  ): HrsTaskCompleter =
+      when (engine) {
+        Engine.ENGINE_CLAUDE -> claude
+        Engine.ENGINE_BUILTIN,
+        Engine.ENGINE_UNSPECIFIED -> builtin
+        else -> error("Unrecognized engine $engine")
+      }
 }

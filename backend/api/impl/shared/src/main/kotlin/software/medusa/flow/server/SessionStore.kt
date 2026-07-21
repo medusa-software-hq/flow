@@ -26,16 +26,6 @@ enum class Engine {
   Claude,
 }
 
-/**
- * Whether a session of this engine is claimable by a worker whose capability set is
- * [supportedEngines]. Empty set = pre-M4 worker = claims anything; otherwise [Engine.Unspecified]
- * (the "worker default" sessions) plus the worker's declared engines. The Postgres claim query
- * mirrors this predicate in SQL.
- */
-fun Engine.claimableBy(
-    supportedEngines: Set<Engine>,
-): Boolean = supportedEngines.isEmpty() || this == Engine.Unspecified || this in supportedEngines
-
 /** The kind of a display-only progress event. Mirrors the proto `SessionEventKind`. */
 enum class SessionEventKind {
   WorkspacePreparing,
@@ -130,17 +120,11 @@ interface SessionStore {
   ): SessionWithEvents?
 
   /**
-   * Atomically claims the oldest `PENDING` session the worker can run, moving it to `RUNNING`; null
-   * when nothing is claimable. Two concurrent claims never return the same session.
-   *
-   * [supportedEngines] is the claiming worker's capability set. Empty → claim any session
-   * (back-compatible with pre-M4 workers). Non-empty → claim only sessions whose engine is
-   * [Engine.Unspecified] or in the set, oldest-first *among those* — so a worker never blocks
-   * behind a session it cannot run.
+   * Atomically claims the oldest `PENDING` session, moving it to `RUNNING`; null when nothing is
+   * claimable. Two concurrent claims never return the same session. Workers are uniform (every
+   * worker runs every engine), so a claim is unconditional — engine no longer gates it.
    */
-  suspend fun claimNext(
-      supportedEngines: Set<Engine>,
-  ): Session?
+  suspend fun claimNext(): Session?
 
   /**
    * Appends a display event to a `RUNNING` session, assigning the next per-session `seq`, capping

@@ -1,6 +1,5 @@
 package software.medusa.flow.worker
 
-import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
 
@@ -13,7 +12,6 @@ class WrkFakeApiClient(
         val workerId: String,
         val workerVersion: String,
         val imageDigest: String,
-        val supportedEngines: List<Engine>,
     ) : RecordedCall
 
     data class AppendSessionEvent(
@@ -43,11 +41,8 @@ class WrkFakeApiClient(
       workerId: String,
       workerVersion: String,
       imageDigest: String,
-      supportedEngines: List<Engine>,
   ) {
-    recordedCalls.add(
-        RecordedCall.RegisterWorker(workerId, workerVersion, imageDigest, supportedEngines),
-    )
+    recordedCalls.add(RecordedCall.RegisterWorker(workerId, workerVersion, imageDigest))
   }
 
   override suspend fun appendSessionEvent(

@@ -79,7 +79,7 @@ class WorkerServicePipelineLinkage_serverTests {
     val pipeline =
         (pipelines.pick(repo, 1, "Issue 1", "https://x/1", session.id) as PickResult.Picked)
             .pipeline
-    sessions.claimNext(supportedEngines = emptySet()) // → RUNNING
+    sessions.claimNext() // → RUNNING
     return session.id to pipeline.id
   }
 
@@ -126,7 +126,7 @@ class WorkerServicePipelineLinkage_serverTests {
   fun `completing a manual session (no pipeline) touches no pipelines`() = runBlocking {
     val session =
         sessions.create(repo, "# manual", "person@example.com", engine = Engine.Unspecified)
-    sessions.claimNext(supportedEngines = emptySet())
+    sessions.claimNext()
     val client = startServer()
 
     client.completeSession(

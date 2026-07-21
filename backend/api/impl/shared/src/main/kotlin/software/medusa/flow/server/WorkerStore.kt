@@ -10,8 +10,6 @@ data class RegisteredWorker(
     val workerId: String,
     val workerVersion: String,
     val imageDigest: String,
-    /** Empty = a pre-M4 "claim any" worker (mirrors [SessionStore.claimNext]'s empty set). */
-    val supportedEngines: List<Engine>,
     val firstSeenAt: Instant,
     val lastSeenAt: Instant,
 )
@@ -35,7 +33,6 @@ interface WorkerStore {
       workerId: String,
       workerVersion: String,
       imageDigest: String,
-      supportedEngines: List<Engine>,
   )
 
   /** All registered workers, freshest (most recently seen) first. */

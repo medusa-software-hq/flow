@@ -16,8 +16,8 @@ enum SessionState {
 }
 
 // The agentic engine that runs a session (M4). UNSPECIFIED = "the claiming
-// worker's default" — any worker may claim it. A named engine may only be
-// claimed by a worker that lists it in ClaimNextSessionRequest.supported_engines.
+// worker's default" (builtin). Workers are uniform — every worker can run every
+// engine — so any worker may claim any session regardless of its engine.
 enum Engine {
   ENGINE_UNSPECIFIED = 0;
   ENGINE_BUILTIN = 1;
@@ -145,8 +145,10 @@ message RegisterWorkerRequest {
   string worker_version = 2;
   // Container image digest when the worker runs containerized; empty otherwise.
   string image_digest = 3;
-  // The engines this worker can run (mirrors ClaimNextSession.supported_engines).
-  repeated Engine supported_engines = 4;
+  // Field 4 was `supported_engines`, removed when workers became uniform (every
+  // worker runs every engine, so capability is no longer advertised).
+  reserved 4;
+  reserved "supported_engines";
 }
 
 message RegisterWorkerResponse {}
@@ -161,7 +163,9 @@ message WorkerInfo {
   string worker_id = 1;
   string worker_version = 2;
   string image_digest = 3;
-  repeated Engine supported_engines = 4;
+  // Field 4 was `supported_engines`, removed when workers became uniform.
+  reserved 4;
+  reserved "supported_engines";
   // When the control plane last received a registration from this worker.
   google.protobuf.Timestamp last_seen_at = 5;
   // When the control plane first saw this worker.
@@ -169,11 +173,11 @@ message WorkerInfo {
 }
 
 message ClaimNextSessionRequest {
-  // The engines this worker can run (M4). Empty → claim any session
-  // (back-compatible with pre-M4 workers). Non-empty → claim only sessions
-  // whose engine is UNSPECIFIED or in this set — oldest-first among those, so a
-  // worker never blocks behind a session it cannot run.
-  repeated Engine supported_engines = 1;
+  // Field 1 was `supported_engines`, removed when workers became uniform: every
+  // worker runs every engine, so a claim is unconditional (oldest pending
+  // session wins).
+  reserved 1;
+  reserved "supported_engines";
 }
 
 // Absent session means the queue is empty.
