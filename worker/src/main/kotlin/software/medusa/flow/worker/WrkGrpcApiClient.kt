@@ -15,6 +15,7 @@ import software.medusa.flow.v1.claimNextSessionRequest
 import software.medusa.flow.v1.completeSessionRequest
 import software.medusa.flow.v1.failSessionRequest
 import software.medusa.flow.v1.heartbeatRequest
+import software.medusa.flow.v1.registerWorkerRequest
 import software.medusa.flow.v1.sessionOrNull
 
 /**
@@ -95,6 +96,22 @@ private constructor(
 
   override suspend fun claimNextSession(): Session? =
       stub.claimNextSession(buildClaimNextSessionRequest(supportedEngines)).sessionOrNull
+
+  override suspend fun registerWorker(
+      workerId: String,
+      workerVersion: String,
+      imageDigest: String,
+      supportedEngines: List<Engine>,
+  ) {
+    stub.registerWorker(
+        registerWorkerRequest {
+          this.workerId = workerId
+          this.workerVersion = workerVersion
+          this.imageDigest = imageDigest
+          this.supportedEngines.addAll(supportedEngines)
+        },
+    )
+  }
 
   override suspend fun appendSessionEvent(
       sessionId: String,
