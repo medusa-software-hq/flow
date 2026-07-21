@@ -17,9 +17,10 @@ import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.markdown.MdBlock
 import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.openai_client.OaiApiKey
-import software.medusa.commons.openai_client.OaiConfiguredClient
+import software.medusa.commons.openai_client.OaiFreeClient
 import software.medusa.commons.openai_client.OaiModel
 import software.medusa.commons.openai_client.OaiProperClient
+import software.medusa.commons.openai_client.OaiTargetedClient
 import software.medusa.commons.text.TxtBlock
 import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.unix.path.UfsName
@@ -57,19 +58,21 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
     private val apiKey = System.getenv(apiKeyEnvVarName)
 
-    private fun buildClient(): OaiConfiguredClient {
+    private fun buildTargetedClient(): OaiTargetedClient {
       assumeTrue(apiKey != null, "Environment variable $apiKeyEnvVarName is not set")
 
-      return OaiProperClient.withTarget(
-              targetBaseUrl = OaiConfiguredClient.openAiBaseUrl,
-              targetApiKey = OaiApiKey(content = checkNotNull(apiKey)),
-          )
-          .withModel(model = OaiModel.GptMini)
+      return OaiProperClient.targeting(
+          targetBaseUrl = OaiFreeClient.openAiBaseUrl,
+          targetApiKey = OaiApiKey(content = checkNotNull(apiKey)),
+      )
     }
 
     private fun buildAiSystem(
-        client: OaiConfiguredClient,
-    ): HrsProperFrontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = client)
+        targetedClient: OaiTargetedClient,
+    ): HrsProperFrontlineAiSystem =
+        HrsProperFrontlineAiSystem(
+            openaiClient = targetedClient.configured(model = OaiModel.GptMini),
+        )
 
     private val silentScoutingObserver =
         object : HrsTaskCompleter.ScoutingObserver {
@@ -80,7 +83,7 @@ class HrsProperFrontlineAiSystem_integrationTests {
           ) = Unit
 
           override fun observeRawResponse(
-              response: OaiConfiguredClient.UnstructuredCompletionResponse,
+              responseText: String,
           ) = Unit
         }
 
@@ -156,8 +159,8 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
   @Test
   fun test_performScouting_requestsOpeningTheRelevantFile() = runBlocking {
-    val client = buildClient()
-    val frontlineAiSystem = buildAiSystem(client)
+    val targetedClient = buildTargetedClient()
+    val frontlineAiSystem = buildAiSystem(targetedClient)
 
     val closedWorktree = closedWorktreeOf()
 
@@ -178,7 +181,13 @@ class HrsProperFrontlineAiSystem_integrationTests {
         )
 
     val decision =
-        HrsAiScoutDecisionInterpreter(openaiClient = client)
+        HrsAiScoutDecisionInterpreter(
+                openaiClient =
+                    targetedClient.configured(
+                        model = OaiModel.GptMini,
+                        responseFormat = HrsAiScoutDecisionInterpreter.responseFormat,
+                    ),
+            )
             .interpretDecision(scoutMessage = scoutMessage, editorWorktree = closedWorktree)
 
     val continueDecision = assertIs<Decision.Continue>(decision)
@@ -193,8 +202,8 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
   @Test
   fun test_implementSolution_fixesLuaProgram() = runBlocking {
-    val client = buildClient()
-    val frontlineAiSystem = buildAiSystem(client)
+    val targetedClient = buildTargetedClient()
+    val frontlineAiSystem = buildAiSystem(targetedClient)
 
     val baseWorktree = openedWorktreeOf(buggyFibLua)
 
@@ -216,7 +225,13 @@ class HrsProperFrontlineAiSystem_integrationTests {
         )
 
     val solutionPatch =
-        HrsAiPatchInterpreter(openaiClient = client)
+        HrsAiPatchInterpreter(
+                openaiClient =
+                    targetedClient.configured(
+                        model = OaiModel.GptMini,
+                        responseFormat = HrsAiPatchInterpreter.responseFormat,
+                    ),
+            )
             .interpretPatch(patchMessage = patchMessage, editorWorktree = baseWorktree)
 
     val finalWorktree =

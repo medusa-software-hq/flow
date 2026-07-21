@@ -1,7 +1,6 @@
 package software.medusa.flow.worker
 
 import kotlinx.coroutines.runBlocking
-import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.flow.harness.HrsEngineBanner
 import software.medusa.flow.harness.HrsEngineRunMode
 import software.medusa.flow.harness.HrsPipelinePhase
@@ -164,7 +163,7 @@ class WrkReportingTaskObserver(
     }
 
     override fun observeRawResponse(
-        response: OaiConfiguredClient.UnstructuredCompletionResponse,
+        responseText: String,
     ) = Unit
   }
 
@@ -188,7 +187,7 @@ class WrkReportingTaskObserver(
     }
 
     override fun observeRawResponse(
-        response: OaiConfiguredClient.UnstructuredCompletionResponse,
+        responseText: String,
     ) = Unit
   }
 }

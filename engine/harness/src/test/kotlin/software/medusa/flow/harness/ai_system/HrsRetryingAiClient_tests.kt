@@ -1,64 +1,60 @@
 package software.medusa.flow.harness.ai_system
 
+import com.linecorp.armeria.common.HttpStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import kotlin.time.Duration
 import kotlinx.coroutines.runBlocking
-import kotlinx.schema.json.JsonSchema
-import software.medusa.commons.openai_client.OaiChat
+import software.medusa.commons.openai_client.OaiChatHistory
 import software.medusa.commons.openai_client.OaiConfiguredClient
-import software.medusa.commons.openai_client.OaiConfiguredClient.CompletionRequest
-import software.medusa.commons.openai_client.OaiConfiguredClient.UnstructuredCompletionResponse
-import software.medusa.commons.openai_client.OaiConfiguredClient.Usage
-import software.medusa.commons.openai_client.OaiEmptyResponseException
-import software.medusa.commons.openai_client.OaiIncompleteResponseException
-import software.medusa.commons.openai_client.OaiMessage
-import software.medusa.commons.openai_client.OaiRole
+import software.medusa.commons.openai_client.OaiGeneratedContent
+import software.medusa.commons.openai_client.OaiInferenceParams
+import software.medusa.commons.openai_client.OaiInterruptionReason
+import software.medusa.commons.openai_client.OaiResponse
+import software.medusa.commons.openai_client.OaiResult
+import software.medusa.commons.openai_client.OaiTokenUsage
+import software.medusa.commons.openai_client.messages.OaiAssistantMessage
+import software.medusa.commons.openai_client.messages.OaiUserMessage
 
 class HrsRetryingAiClient_tests {
   private companion object {
-    private val anyRequest =
-        CompletionRequest(
-            input = OaiChat(messages = listOf(OaiMessage(role = OaiRole.User, text = "hi"))),
-        )
-    private val anyResponse =
-        UnstructuredCompletionResponse(
-            responseText = "ok",
-            usage = Usage(0, 0, 0),
-        )
+    private val anyHistory = OaiChatHistory(messages = listOf(OaiUserMessage(content = "hi")))
 
-    private const val emptyResponseMessage = "OpenAI response choice did not contain text content"
+    private val anyTokenUsage =
+        OaiTokenUsage(promptTokenCount = 0, completionTokenCount = 0, totalTokenCount = 0)
+
+    private val successResult: OaiResult<OaiResponse> =
+        OaiResult.ResponseReceived(
+            OaiResponse.Complete(
+                generatedContent =
+                    OaiGeneratedContent.Full(
+                        generatedMessage = OaiAssistantMessage(content = "ok")
+                    ),
+                tokenUsage = anyTokenUsage,
+            ),
+        )
   }
 
   /**
-   * Fails the first [failuresBeforeSuccess] unstructured calls with [failure], then returns
-   * [anyResponse]. Only the unstructured path is exercised — both completion methods share the same
-   * retry helper, so covering one proves the mechanism.
+   * Returns [failure] for the first [failuresBeforeSuccess] calls, then [successResult]. Both the
+   * unstructured and structured paths funnel through the same [completeChat], so covering it proves
+   * the retry mechanism for every call site.
    */
   private class ScriptedClient(
       private val failuresBeforeSuccess: Int,
-      private val failure: Throwable,
+      private val failure: OaiResult<OaiResponse>,
   ) : OaiConfiguredClient {
     var callCount = 0
       private set
 
-    override suspend fun createUnstructuredCompletion(
-        request: CompletionRequest,
-    ): UnstructuredCompletionResponse {
+    override suspend fun completeChat(
+        chatHistory: OaiChatHistory,
+        inferenceParams: OaiInferenceParams,
+    ): OaiResult<OaiResponse> {
       callCount += 1
-      if (callCount <= failuresBeforeSuccess) throw failure
-      return anyResponse
+      return if (callCount <= failuresBeforeSuccess) failure else successResult
     }
-
-    override suspend fun createRawStructuredCompletion(
-        request: CompletionRequest,
-        responseSchemaName: String,
-        responseSchema: JsonSchema,
-    ): OaiConfiguredClient.RawStructuredCompletionResponse = error("not used by these tests")
-
-    override fun close() = Unit
   }
 
   private fun retryingClient(
@@ -72,60 +68,76 @@ class HrsRetryingAiClient_tests {
       )
 
   @Test
-  fun `an empty response is retried and succeeds once the model returns content`() = runBlocking {
-    val delegate =
-        ScriptedClient(
-            failuresBeforeSuccess = 2,
-            failure = OaiEmptyResponseException(emptyResponseMessage),
-        )
+  fun `a network error is retried and succeeds once the model returns content`() = runBlocking {
+    val delegate = ScriptedClient(failuresBeforeSuccess = 2, failure = OaiResult.NetworkError)
 
-    val response = retryingClient(delegate).createUnstructuredCompletion(anyRequest)
+    val result = retryingClient(delegate).completeChat(anyHistory)
 
-    assertSame(anyResponse, response)
-    assertEquals(3, delegate.callCount) // 2 empty responses + 1 success
+    assertSame(successResult, result)
+    assertEquals(3, delegate.callCount) // 2 network errors + 1 success
   }
 
   @Test
-  fun `a persistently empty response propagates the typed exception after the retry budget`() =
+  fun `a corrupted response is retried and succeeds once the model returns content`() =
       runBlocking {
-        val failure = OaiEmptyResponseException(emptyResponseMessage)
-        val delegate = ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = failure)
+        val delegate =
+            ScriptedClient(
+                failuresBeforeSuccess = 1,
+                failure = OaiResult.ResponseReceived(OaiResponse.Corrupted),
+            )
 
-        val thrown =
-            assertFailsWith<OaiEmptyResponseException> {
-              retryingClient(delegate, maxAttempts = 3).createUnstructuredCompletion(anyRequest)
-            }
+        val result = retryingClient(delegate).completeChat(anyHistory)
 
-        assertSame(failure, thrown)
+        assertSame(successResult, result)
+        assertEquals(2, delegate.callCount)
+      }
+
+  @Test
+  fun `a persistently transient response is returned coarsely after the retry budget`() =
+      runBlocking {
+        val delegate =
+            ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = OaiResult.NetworkError)
+
+        val result = retryingClient(delegate, maxAttempts = 3).completeChat(anyHistory)
+
+        assertSame(OaiResult.NetworkError, result)
         assertEquals(3, delegate.callCount)
       }
 
   @Test
-  fun `an incomplete (truncated) response is not retried and propagates immediately`() =
+  fun `an interrupted (truncated) response is not retried and returned immediately`() =
       runBlocking {
-        val failure = OaiIncompleteResponseException(finishReason = "length", message = "cut short")
-        val delegate = ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = failure)
+        val interrupted: OaiResult<OaiResponse> =
+            OaiResult.ResponseReceived(
+                OaiResponse.Complete(
+                    generatedContent =
+                        OaiGeneratedContent.Partial(
+                            partialGeneratedText = "cut short",
+                            reasoningText = "",
+                            interruptionReason = OaiInterruptionReason.LengthLimit,
+                        ),
+                    tokenUsage = anyTokenUsage,
+                ),
+            )
+        val delegate = ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = interrupted)
 
-        val thrown =
-            assertFailsWith<OaiIncompleteResponseException> {
-              retryingClient(delegate).createUnstructuredCompletion(anyRequest)
-            }
+        val result = retryingClient(delegate).completeChat(anyHistory)
 
-        assertSame(failure, thrown)
+        assertSame(interrupted, result)
         assertEquals(1, delegate.callCount) // fail fast — re-rolling won't un-truncate it
       }
 
   @Test
-  fun `an unrelated failure is rethrown immediately, not retried`() = runBlocking {
-    val unrelated = IllegalArgumentException("bad request")
-    val delegate = ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = unrelated)
+  fun `an error response is not retried and returned immediately`() = runBlocking {
+    val error: OaiResult<OaiResponse> =
+        OaiResult.ResponseReceived(
+            OaiResponse.Error(status = HttpStatus.BAD_REQUEST, message = "bad request"),
+        )
+    val delegate = ScriptedClient(failuresBeforeSuccess = Int.MAX_VALUE, failure = error)
 
-    val thrown =
-        assertFailsWith<IllegalArgumentException> {
-          retryingClient(delegate).createUnstructuredCompletion(anyRequest)
-        }
+    val result = retryingClient(delegate).completeChat(anyHistory)
 
-    assertSame(unrelated, thrown)
-    assertEquals(1, delegate.callCount) // no retry
+    assertSame(error, result)
+    assertEquals(1, delegate.callCount) // no retry — an HTTP error isn't cleared by re-rolling
   }
 }

@@ -1,12 +1,15 @@
 package software.medusa.flow.harness.ai_system
 
+import kotlinx.schema.generator.json.serialization.SerializationClassJsonSchemaGenerator
 import software.medusa.commons.markdown.MdDocument
 import software.medusa.commons.markdown.MdInlineNode
-import software.medusa.commons.openai_client.OaiChat
+import software.medusa.commons.openai_client.OaiChatHistory
 import software.medusa.commons.openai_client.OaiConfiguredClient
-import software.medusa.commons.openai_client.OaiMessage
-import software.medusa.commons.openai_client.OaiRole
-import software.medusa.commons.openai_client.createStructuredCompletion
+import software.medusa.commons.openai_client.OaiInferenceParams
+import software.medusa.commons.openai_client.OaiReasoningEffort
+import software.medusa.commons.openai_client.OaiResponseFormat
+import software.medusa.commons.openai_client.messages.OaiSystemMessage
+import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchMessage
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
@@ -22,7 +25,21 @@ import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
 class HrsAiPatchInterpreter(
     private val openaiClient: OaiConfiguredClient,
 ) : HrsPatchInterpreter {
-  private companion object {
+  companion object {
+    /**
+     * The JSON response format the interpreter's [openaiClient] must be configured with — the 0.2.0
+     * `openai-client` fixes the structured schema at configuration time (was per call). Built from
+     * [HrsRawWorktreePatch]'s serializer, matching the old `createStructuredCompletion` path.
+     */
+    val responseFormat: OaiResponseFormat =
+        OaiResponseFormat.Json(
+            name = "worktree_patch",
+            schema =
+                SerializationClassJsonSchemaGenerator.Default.generateSchema(
+                    target = HrsRawWorktreePatch.serializer().descriptor,
+                ),
+        )
+
     private val systemPromptText =
         """
         You turn an engineer's edit description into concrete file operations.
@@ -38,35 +55,33 @@ class HrsAiPatchInterpreter(
       patchMessage: PatchMessage,
       editorWorktree: VedWorktree,
   ): VedWorktreePatch {
-    val request =
-        OaiConfiguredClient.CompletionRequest(
-            input =
-                OaiChat(
-                    messages =
-                        listOf(
-                            OaiMessage(role = OaiRole.System, text = systemPromptText),
-                            OaiMessage(role = OaiRole.User, text = patchMessage.body),
-                            OaiMessage(
-                                role = OaiRole.System,
-                                text =
-                                    renderReferencedFiles(
-                                        patchMessage = patchMessage,
-                                        editorWorktree = editorWorktree,
-                                    ),
+    val chatHistory =
+        OaiChatHistory(
+            messages =
+                listOf(
+                    OaiSystemMessage(content = systemPromptText),
+                    OaiUserMessage(content = patchMessage.body),
+                    OaiSystemMessage(
+                        content =
+                            renderReferencedFiles(
+                                patchMessage = patchMessage,
+                                editorWorktree = editorWorktree,
                             ),
-                        ),
+                    ),
                 ),
-            reasoningEffort = OaiConfiguredClient.ReasoningEffort.Low,
         )
 
-    val response =
-        openaiClient.createStructuredCompletion(
-            request = request,
-            responseSchemaName = "worktree_patch",
-            responseSerializer = HrsRawWorktreePatch.serializer(),
-        )
+    val rawPatch =
+        openaiClient
+            .completeChat(
+                chatHistory = chatHistory,
+                inferenceParams = OaiInferenceParams(reasoningEffort = OaiReasoningEffort.Low),
+            )
+            .decodeStructured(
+                deserializer = HrsRawWorktreePatch.serializer(),
+            )
 
-    return response.responseObject.toFullWorktreePatch(baseWorktree = editorWorktree)
+    return rawPatch.toFullWorktreePatch(baseWorktree = editorWorktree)
   }
 
   /**

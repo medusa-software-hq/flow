@@ -5,11 +5,13 @@ import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdDocument
 import software.medusa.commons.markdown.MdElement
 import software.medusa.commons.markdown.MdInlineContent
-import software.medusa.commons.openai_client.OaiChat
+import software.medusa.commons.openai_client.OaiChatHistory
 import software.medusa.commons.openai_client.OaiConfiguredClient
-import software.medusa.commons.openai_client.OaiConfiguredClient.ReasoningEffort
-import software.medusa.commons.openai_client.OaiMessage
-import software.medusa.commons.openai_client.OaiRole
+import software.medusa.commons.openai_client.OaiInferenceParams
+import software.medusa.commons.openai_client.OaiReasoningEffort
+import software.medusa.commons.openai_client.messages.OaiSystemMessage
+import software.medusa.commons.openai_client.messages.OaiUserMessage
+import software.medusa.commons.openai_client.messages.OaiUserName
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.harness.ai_system.HrsExpertAiSystem.ImplementationPlan
 
@@ -54,74 +56,70 @@ class HrsProperExpertAiSystem(
       taskDescription: HrsTaskDescription,
       workspaceBrief: HrsExpertAiSystem.WorkspaceBrief,
   ): ImplementationPlan {
-    val request =
-        OaiConfiguredClient.CompletionRequest(
-            input =
-                OaiChat(
-                    messages =
-                        listOf(
-                            OaiMessage(
-                                role = OaiRole.System,
-                                text = introText,
-                            ),
-                            OaiMessage(
-                                role = OaiRole.User,
-                                text =
-                                    MdDocument(
-                                            rootChapter =
-                                                MdChapter(
-                                                    title = MdInlineContent.of("Problem"),
-                                                    element = MdElement.Empty,
-                                                    subChapters =
-                                                        listOf(
-                                                            MdChapter.leaf(
-                                                                title =
-                                                                    MdInlineContent.of("The Task"),
-                                                                element = taskDescription.body,
-                                                            ),
-                                                            MdChapter.leaf(
-                                                                title =
-                                                                    MdInlineContent.of(
-                                                                        "Workspace brief"
-                                                                    ),
-                                                                element =
-                                                                    MdElement(
-                                                                        blocks =
-                                                                            listOf(
-                                                                                MdBlock.CodeBlock(
-                                                                                    code =
-                                                                                        workspaceBrief
-                                                                                            .body,
-                                                                                ),
-                                                                            ),
+    val chatHistory =
+        OaiChatHistory(
+            messages =
+                listOf(
+                    OaiSystemMessage(
+                        content = introText,
+                    ),
+                    OaiUserMessage(
+                        content =
+                            MdDocument(
+                                    rootChapter =
+                                        MdChapter(
+                                            title = MdInlineContent.of("Problem"),
+                                            element = MdElement.Empty,
+                                            subChapters =
+                                                listOf(
+                                                    MdChapter.leaf(
+                                                        title = MdInlineContent.of("The Task"),
+                                                        element = taskDescription.body,
+                                                    ),
+                                                    MdChapter.leaf(
+                                                        title =
+                                                            MdInlineContent.of("Workspace brief"),
+                                                        element =
+                                                            MdElement(
+                                                                blocks =
+                                                                    listOf(
+                                                                        MdBlock.CodeBlock(
+                                                                            code =
+                                                                                workspaceBrief.body,
+                                                                        ),
                                                                     ),
                                                             ),
-                                                        ),
+                                                    ),
                                                 ),
-                                        )
-                                        .render(),
-                                name = simpleAiName,
-                            ),
-                            OaiMessage(
-                                role = OaiRole.User,
-                                text = userOutroText,
-                                name = simpleAiName,
-                            ),
-                            OaiMessage(
-                                role = OaiRole.System,
-                                text = systemOutroText,
-                            ),
-                        ),
+                                        ),
+                                )
+                                .render(),
+                        name = OaiUserName(simpleAiName),
+                    ),
+                    OaiUserMessage(
+                        content = userOutroText,
+                        name = OaiUserName(simpleAiName),
+                    ),
+                    OaiSystemMessage(
+                        content = systemOutroText,
+                    ),
                 ),
-            reasoningEffort = ReasoningEffort.High,
+        )
+
+    val inferenceParams =
+        OaiInferenceParams(
+            reasoningEffort = OaiReasoningEffort.High,
             maxOutputTokenCount = planMaxOutputTokenCount,
         )
 
-    val response = openaiClient.createUnstructuredCompletion(request = request)
+    val responseText =
+        openaiClient
+            .completeChat(chatHistory = chatHistory, inferenceParams = inferenceParams)
+            .extractAssistantText()
 
     val implementationPlan =
         ImplementationPlan(
-            body = response.responseText,
+            body = responseText,
         )
 
     return implementationPlan
