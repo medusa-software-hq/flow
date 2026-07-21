@@ -8,6 +8,8 @@ import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.IssuePipeline
 import software.medusa.flow.v1.IssuePipelineState
 import software.medusa.flow.v1.Session
+import software.medusa.flow.v1.SessionEvent
+import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.SessionState
 
 private val timestampFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
@@ -93,6 +95,61 @@ fun formatSessionTable(sessions: List<Session>): String {
         )
       },
   )
+}
+
+/** A session event's kind → a short human label for the detail view's log. */
+fun eventKindLabel(kind: SessionEventKind): String =
+    when (kind) {
+      SessionEventKind.SESSION_EVENT_KIND_WORKSPACE_PREPARING -> "Preparing workspace"
+      SessionEventKind.SESSION_EVENT_KIND_HEALTH_GATE -> "Health gate"
+      SessionEventKind.SESSION_EVENT_KIND_SCOUTING_ROUND -> "Scouting"
+      SessionEventKind.SESSION_EVENT_KIND_WORKSPACE_BRIEFING -> "Briefing"
+      SessionEventKind.SESSION_EVENT_KIND_IMPLEMENTATION_PLANNING -> "Planning"
+      SessionEventKind.SESSION_EVENT_KIND_IMPLEMENTATION_ATTEMPT -> "Implementing"
+      SessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK -> "Health check"
+      SessionEventKind.SESSION_EVENT_KIND_PUBLISHING -> "Publishing"
+      SessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION -> "Agent"
+      SessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER -> "Engine"
+      SessionEventKind.SESSION_EVENT_KIND_RUN_COST -> "Cost"
+      else -> "?"
+    }
+
+/** One session's detail plus its event log — what `flow sessions show <id>` prints. */
+fun formatSessionDetail(session: Session, events: List<SessionEvent>): String {
+  val lines = buildList {
+    add("Session ${session.id}")
+    add("  Repo:    ${session.repoCell()}")
+    if (session.issueUrl.isNotBlank()) add("  Issue:   ${session.issueUrl}")
+    add("  State:   ${sessionStateLabel(session.state)}")
+    add("  Engine:  ${engineLabel(session.engine)}")
+    add(
+        "  Created: ${formatTimestamp(session.createdAt)} by ${session.createdBy.ifBlank { emDash }}",
+    )
+    if (session.prUrl.isNotBlank()) add("  PR:      ${session.prUrl}")
+    if (session.engine == Engine.ENGINE_CLAUDE && session.hasTotalCostUsd()) {
+      add("  Cost:    ${formatCostUsd(session.totalCostUsd)}")
+    }
+    if (session.failureSummary.isNotBlank()) {
+      add("  Failure:")
+      session.failureSummary.trim().lines().forEach { add("    $it") }
+    }
+    if (session.taskMarkdown.isNotBlank()) {
+      add("")
+      add("Task:")
+      session.taskMarkdown.trim().lines().forEach { add("  $it") }
+    }
+    add("")
+    if (events.isEmpty()) {
+      add("Event log: (none)")
+    } else {
+      add("Event log:")
+      events.forEach { event ->
+        add("  [${formatTimestamp(event.createdAt)}] ${eventKindLabel(event.kind)}")
+        event.message.trim().lines().filter { it.isNotBlank() }.forEach { add("      $it") }
+      }
+    }
+  }
+  return lines.joinToString("\n")
 }
 
 /** The state cell, flagging cleared / GitHub-sync-behind the way the web badges do. */
