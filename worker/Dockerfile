@@ -34,9 +34,11 @@ RUN set -eux; \
     corepack enable; \
     npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"; \
     claude --version; \
-    apt-get purge -y --auto-remove gnupg; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
+# gnupg is kept (no longer purged after the nodesource key add): the worker re-signs commits with
+# the git CLI when FLOW_ENABLE_GPG_SIGNING is on (WrkGpgSigner), since the in-house git library
+# can't sign yet.
 
 # Non-root. XDG_CONFIG_HOME is where the mounted ms-workload identity (config.json) is expected, and
 # where the worker registered once persists it across restarts (B1: restart must not re-register).
