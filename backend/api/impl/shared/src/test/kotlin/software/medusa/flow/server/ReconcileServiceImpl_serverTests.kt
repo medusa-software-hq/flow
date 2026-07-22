@@ -58,7 +58,6 @@ class ReconcileServiceImpl_serverTests {
                 originRegex = ".*",
                 port = 0,
                 auth = StubIdentityDecorator(email),
-                counterStore = InMemoryCounterStore(),
                 gitHubIssueStore = FakeGitHubIssueStore(),
                 gitHubRepositoryStore = FakeGitHubRepositoryStore(),
                 sessionStore = InMemorySessionStore(),

@@ -12,7 +12,6 @@ fun main() {
           originRegex = localCorsOriginRegex,
           port = localPort,
           auth = NoOpAuthDecorator,
-          counterStore = InMemoryCounterStore(),
           gitHubIssueStore = FakeGitHubIssueStore(),
           gitHubRepositoryStore = FakeGitHubRepositoryStore(),
           sessionStore = InMemorySessionStore(),

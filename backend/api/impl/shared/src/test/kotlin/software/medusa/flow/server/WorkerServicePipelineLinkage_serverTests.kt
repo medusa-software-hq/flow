@@ -56,7 +56,6 @@ class WorkerServicePipelineLinkage_serverTests {
                 originRegex = ".*",
                 port = 0,
                 auth = StubIdentityDecorator(workerEmail),
-                counterStore = InMemoryCounterStore(),
                 gitHubIssueStore = FakeGitHubIssueStore(),
                 gitHubRepositoryStore = FakeGitHubRepositoryStore(),
                 sessionStore = sessions,

@@ -16,7 +16,6 @@ fun buildServer(
     originRegex: String,
     port: Int,
     auth: DecoratingHttpServiceFunction,
-    counterStore: CounterStore,
     gitHubIssueStore: GitHubIssueStore,
     gitHubRepositoryStore: GitHubRepositoryStore,
     sessionStore: SessionStore,
@@ -90,7 +89,6 @@ fun buildServer(
   val grpcService =
       GrpcService.builder()
           .apply {
-            addService(CounterServiceImpl(counterStore))
             addService(GitHubServiceImpl(gitHubIssueStore, gitHubRepositoryStore))
             addService(SessionServiceImpl(sessionStore, issuePipelineStore))
             addService(
