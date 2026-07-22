@@ -84,7 +84,6 @@ fun main() {
                   allowedDomain = allowedDomain,
                   workerTokenAudience = workerTokenAudience,
               ),
-          counterStore = PostgresCounterStore(database),
           gitHubIssueStore = GitHubAppIssueStore(gitHubAppClient),
           gitHubRepositoryStore = GitHubAppRepositoryStore(gitHubAppClient),
           sessionStore = PostgresSessionStore(database),

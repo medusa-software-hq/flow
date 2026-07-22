@@ -89,8 +89,8 @@ sealed interface GuardedResult<out T> {
 }
 
 /**
- * Storage for sessions and their display events, following the [CounterStore] pattern (a store
- * interface with a Postgres impl and an in-memory fake).
+ * Storage for sessions and their display events (a store interface with a Postgres impl and an
+ * in-memory fake).
  *
  * Reads ([list], [get]) perform lazy heartbeat expiry first: any `RUNNING` session whose heartbeat
  * has aged past the store's configured timeout is transitioned to `FAILED` ("worker lost") before

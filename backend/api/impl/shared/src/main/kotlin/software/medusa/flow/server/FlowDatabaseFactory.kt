@@ -15,7 +15,7 @@ private const val maxPoolSize = 5
  *
  * Flyway owns the runtime schema; SQLDelight only provides type-safe queries, so we do not call
  * [FlowDatabase.Schema] create/migrate here. A single instance is shared by every Postgres-backed
- * store ([PostgresCounterStore], [PostgresSessionStore]) so they use one connection pool.
+ * store ([PostgresSessionStore]) so they use one connection pool.
  */
 fun buildFlowDatabase(
     jdbcUrl: String,

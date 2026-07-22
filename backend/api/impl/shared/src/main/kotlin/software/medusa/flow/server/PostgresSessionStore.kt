@@ -15,8 +15,8 @@ import software.medusa.flow.server.SessionStore.Companion.truncateMessage
 import software.medusa.flow.server.SessionStore.Companion.workerLostSummary
 
 /**
- * A Postgres-backed [SessionStore] (SQLDelight queries over the Flyway-owned schema), following the
- * [PostgresCounterStore] pattern. Timestamps are stored as `TIMESTAMPTZ` and exposed as [Instant].
+ * A Postgres-backed [SessionStore] (SQLDelight queries over the Flyway-owned schema). Timestamps
+ * are stored as `TIMESTAMPTZ` and exposed as [Instant].
  *
  * [clock] and [heartbeatTimeout] are injectable to mirror the in-memory store; the store applies
  * timestamps from [clock] rather than the database's `now()` so both implementations behave

@@ -15,7 +15,6 @@ import software.medusa.flow.server.GitHubAppCandidateClient
 import software.medusa.flow.server.GitHubAppClient
 import software.medusa.flow.server.GitHubAppIssueClient
 import software.medusa.flow.server.GitHubAppPrClient
-import software.medusa.flow.server.InMemoryCounterStore
 import software.medusa.flow.server.InMemoryGithubOutboxStore
 import software.medusa.flow.server.InMemoryIssuePipelineStore
 import software.medusa.flow.server.InMemoryPipelineBackend
@@ -89,7 +88,6 @@ private constructor(
                   // control plane must not demand an identity. Authorization is still server-side:
                   // this is the local-server posture, not a bypass of a real one.
                   auth = NoOpAuthDecorator,
-                  counterStore = InMemoryCounterStore(),
                   gitHubIssueStore = software.medusa.flow.server.FakeGitHubIssueStore(),
                   gitHubRepositoryStore = software.medusa.flow.server.FakeGitHubRepositoryStore(),
                   sessionStore = sessions,

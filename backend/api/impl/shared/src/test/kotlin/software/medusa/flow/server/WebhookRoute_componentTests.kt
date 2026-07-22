@@ -42,7 +42,6 @@ class WebhookRoute_componentTests {
                 originRegex = ".*",
                 port = 0,
                 auth = NoOpAuthDecorator,
-                counterStore = InMemoryCounterStore(),
                 gitHubIssueStore = FakeGitHubIssueStore(),
                 gitHubRepositoryStore = FakeGitHubRepositoryStore(),
                 sessionStore = InMemorySessionStore(),
