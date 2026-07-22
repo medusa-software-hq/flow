@@ -60,7 +60,11 @@ data class HrsClaudeEngineConfig(
   }
 
   companion object {
-    const val defaultMaxBudgetUsd = 0.50
+    // A runaway-guard, not a target: a real multi-file task (e.g. a repo-wide removal touching
+    // frontend + backend + proto + a DB migration) legitimately spends a few dollars of Claude
+    // tool-calls, so a sub-dollar cap guillotines genuine work mid-run (observed on flow#132's
+    // re-run). The worker overrides this per-env via FLOW_CLAUDE_MAX_BUDGET_USD.
+    const val defaultMaxBudgetUsd = 5.00
     val defaultWallClockTimeout: Duration = 30.minutes
 
     /** The CLI version A1 verified the flag surface against; bumped by deliberate PRs. */
