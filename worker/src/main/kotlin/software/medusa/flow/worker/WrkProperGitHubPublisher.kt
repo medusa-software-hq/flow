@@ -25,13 +25,16 @@ import software.medusa.flow.harness.HrsReadonlyTemporaryWorkspace
 class WrkProperGitHubPublisher(
     private val tokenSupplierFactory: WrkGitHubTokenSupplierFactory,
     private val webClient: WebClient = WebClient.of(githubApiBaseUrl),
+    private val authorEmail: String = WrkConfig.defaultAuthorEmail,
+    // When non-null, each commit is re-signed with this ASCII-armored, passphrase-less GPG key via
+    // the git CLI (see [WrkGpgSigner]); null leaves commits unsigned, as before.
+    private val gpgPrivateKey: String? = null,
 ) : WrkPublisher {
   companion object {
     private const val githubApiBaseUrl = "https://api.github.com"
     private const val githubAcceptHeader = "application/vnd.github+json"
     private const val userAgent = "medusa-flow-worker"
     private const val authorName = "Flow Worker"
-    private const val authorEmail = "flow-worker@users.noreply.github.com"
 
     private val json = Json { ignoreUnknownKeys = true }
   }
@@ -90,6 +93,18 @@ class WrkProperGitHubPublisher(
         "-m",
         commitBody,
     )
+
+    // Work-around for the in-house git library not signing yet: when a key is configured, re-sign
+    // HEAD via the git CLI so the branch ruleset (which requires signed commits) accepts the push.
+    if (gpgPrivateKey != null) {
+      WrkGpgSigner.reSignHead(
+          cloneDirectory = directoryFile,
+          privateKey = gpgPrivateKey,
+          authorName = authorName,
+          authorEmail = authorEmail,
+          gitHubToken = gitHubToken,
+      )
+    }
 
     WrkGitProcess.run(directoryFile, gitHubToken, "push", "origin", branchName)
 

@@ -18,13 +18,17 @@ internal object WrkGitProcess {
       val output: String,
   )
 
-  /** Runs `git`, throwing on a non-zero exit code. Returns combined stdout/stderr. */
+  /**
+   * Runs `git`, throwing on a non-zero exit code. Returns combined stdout/stderr. [env] adds extra
+   * environment variables (e.g. `GNUPGHOME` for a signing run) — passed by name, after the args.
+   */
   suspend fun run(
       workingDirectory: File?,
       gitHubToken: suspend () -> String,
       vararg args: String,
+      env: Map<String, String> = emptyMap(),
   ): String {
-    val result = runAllowingFailure(workingDirectory, gitHubToken, *args)
+    val result = runAllowingFailure(workingDirectory, gitHubToken, *args, env = env)
 
     check(result.exitCode == 0) {
       "git ${args.joinToString(" ")} failed (exit ${result.exitCode}):\n${result.output}"
@@ -38,6 +42,7 @@ internal object WrkGitProcess {
       workingDirectory: File?,
       gitHubToken: suspend () -> String,
       vararg args: String,
+      env: Map<String, String> = emptyMap(),
   ): Result {
     // Resolve a *current* token per invocation, so a refreshing supplier re-mints across the
     // several git calls a publish makes (checkout, add, commit, push) if one nears expiry.
@@ -52,6 +57,7 @@ internal object WrkGitProcess {
                   environment()["GIT_ASKPASS"] = askPassScript.toString()
                   environment()["GIT_TERMINAL_PROMPT"] = "0"
                   environment()["WRK_GIT_ASKPASS_TOKEN"] = token
+                  environment().putAll(env)
                   redirectErrorStream(true)
                 }
                 .start()

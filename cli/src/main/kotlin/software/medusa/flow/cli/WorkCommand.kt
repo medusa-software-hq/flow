@@ -88,10 +88,23 @@ class WorkCommand(
       refreshing::current
     }
 
+    // Signing is opt-in (FLOW_ENABLE_GPG_SIGNING); when on, the key must be present or the worker
+    // can't produce the signed commits the branch ruleset requires — fail fast rather than push
+    // unsigned commits that GitHub will reject.
+    val gpgPrivateKey =
+        if (config.gpgSigningEnabled) {
+          config.gpgPrivateKey
+              ?: error("FLOW_ENABLE_GPG_SIGNING is true but FLOW_WORKER_GPG_PRIVATE_KEY is not set")
+        } else {
+          null
+        }
+
     val publisher =
         WrkProperGitHubPublisher(
             tokenSupplierFactory = gitHubTokenSupplierFactory,
             webClient = gitHubWebClient,
+            authorEmail = config.authorEmail,
+            gpgPrivateKey = gpgPrivateKey,
         )
 
     val sessionProcessor =

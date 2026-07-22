@@ -63,6 +63,65 @@ resource "google_secret_manager_secret" "flow_worker_claude_oauth_token" {
   depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
 }
 
+# --- Commit-signing config + key (FLOW_AUTHOR_EMAIL / FLOW_ENABLE_GPG_SIGNING / the GPG key) -------
+# The worker resolves all three via its profile's `secretEnvVars`. author-email and enable-gpg-signing
+# get a Terraform-seeded *placeholder* version so the worker has a working default on day one; both
+# carry `ignore_changes = [secret_data]` so an operator can flip signing on / change the author out of
+# band without Terraform reverting it (and without the value living in this repo). The GPG private key
+# is a container with **no** version — the actual (passphrase-less, bot-owned) key is added manually,
+# like the other worker secrets.
+
+resource "google_secret_manager_secret" "flow_worker_author_email" {
+  project   = local.gcp_project_id
+  secret_id = "flow-worker-author-email"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
+}
+
+resource "google_secret_manager_secret_version" "flow_worker_author_email_placeholder" {
+  secret      = google_secret_manager_secret.flow_worker_author_email.id
+  secret_data = "flow@medusa.software"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
+resource "google_secret_manager_secret" "flow_worker_enable_gpg_signing" {
+  project   = local.gcp_project_id
+  secret_id = "flow-worker-enable-gpg-signing"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
+}
+
+resource "google_secret_manager_secret_version" "flow_worker_enable_gpg_signing_default" {
+  secret      = google_secret_manager_secret.flow_worker_enable_gpg_signing.id
+  secret_data = "false"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
+resource "google_secret_manager_secret" "flow_worker_gpg_private_key" {
+  project   = local.gcp_project_id
+  secret_id = "flow-worker-gpg-private-key"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
+}
+
 # --- Broker impersonation opt-in ----------------------------------------------------------------
 # The upstream module grants the ms-workload broker `serviceAccountTokenCreator` on flow-worker (so
 # it can mint the worker's tokens — including the audience-bound ID token Beacon serves), plus
@@ -80,6 +139,9 @@ module "flow_worker_workload_impersonation" {
     local.worker_github_app_pem_secret_id,
     google_secret_manager_secret.flow_worker_openrouter_api_key.id,
     google_secret_manager_secret.flow_worker_claude_oauth_token.id,
+    google_secret_manager_secret.flow_worker_author_email.id,
+    google_secret_manager_secret.flow_worker_enable_gpg_signing.id,
+    google_secret_manager_secret.flow_worker_gpg_private_key.id,
   ]
 
   artifact_repository_id = google_artifact_registry_repository.primary.id

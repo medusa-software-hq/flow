@@ -124,6 +124,46 @@ class WrkProperGitHubPublisher_tests {
     return PublisherFakeReadonlyTemporaryWorkspace(rootDirectory = directory)
   }
 
+  /** An ephemeral, passphrase-less armored GPG private key — throwaway, generated per test. */
+  private fun generateArmoredPrivateKey(): String {
+    // Short base so gpg-agent's Unix socket path fits its ~104-char limit (see WrkGpgSigner).
+    val home = Files.createTempDirectory(Path.of("/tmp"), "wrk-test-gnupg-")
+    Files.setPosixFilePermissions(
+        home,
+        setOf(
+            java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+            java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
+            java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE,
+        ),
+    )
+    try {
+      fun gpg(vararg args: String): String {
+        val process =
+            ProcessBuilder(
+                    listOf(
+                        "gpg",
+                        "--homedir",
+                        home.toString(),
+                        "--batch",
+                        "--pinentry-mode",
+                        "loopback",
+                        "--passphrase",
+                        "",
+                    ) + args,
+                )
+                .redirectErrorStream(true)
+                .start()
+        val output = process.inputStream.bufferedReader().readText()
+        check(process.waitFor() == 0) { "gpg ${args.joinToString(" ")} failed:\n$output" }
+        return output
+      }
+      gpg("--quick-generate-key", "Flow Worker <flow@medusa.software>", "ed25519", "sign", "0")
+      return gpg("--armor", "--export-secret-keys")
+    } finally {
+      home.toFile().deleteRecursively()
+    }
+  }
+
   @Test
   fun `a run with real changes branches, commits, pushes, and opens a PR`() = runBlocking {
     val (_, cloneDirectory) = setUpBareRepoAndClone()
@@ -162,6 +202,51 @@ class WrkProperGitHubPublisher_tests {
     bareShow.waitFor()
     assertTrue(output.contains("hello from the engine"))
   }
+
+  @Test
+  fun `with a GPG key configured, the pushed commit is signed and uses the configured author`() =
+      runBlocking {
+        val (_, cloneDirectory) = setUpBareRepoAndClone()
+        val webClient =
+            buildPrCreationServer(
+                responseJson = """{"html_url":"https://github.com/acme/app/pull/12"}""",
+            )
+        val workspace = fakeWorkspaceWith(fileName = "signed.txt", content = "signed change\n")
+
+        WrkProperGitHubPublisher(
+                tokenSupplierFactory =
+                    WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+                webClient = webClient,
+                authorEmail = "flow@medusa.software",
+                gpgPrivateKey = generateArmoredPrivateKey(),
+            )
+            .publish(
+                repoFullName = "acme/app",
+                sessionId = "sign",
+                taskHeading = "Add signed.txt",
+                taskMarkdown = "# Add signed.txt",
+                cloneDirectory = cloneDirectory,
+                workspace = workspace,
+                issueNumber = null,
+            )
+
+        // The pushed commit object carries a PGP signature header (no trust setup needed to see it)
+        // and the configured author email — both via WrkGpgSigner's git-CLI re-sign.
+        val commit =
+            ProcessBuilder("git", "cat-file", "-p", "flow/session-sign")
+                .directory(cloneDirectory.toFile())
+                .start()
+        val commitText = commit.inputStream.bufferedReader().readText()
+        commit.waitFor()
+        assertTrue(
+            commitText.contains("-----BEGIN PGP SIGNATURE-----"),
+            "commit must be GPG-signed:\n$commitText",
+        )
+        assertTrue(
+            commitText.contains("author Flow Worker <flow@medusa.software>"),
+            "commit must use the configured author email:\n$commitText",
+        )
+      }
 
   @Test
   fun `an executable file keeps its executable bit through publish`() = runBlocking {
