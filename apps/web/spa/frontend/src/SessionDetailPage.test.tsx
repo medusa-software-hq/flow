@@ -249,3 +249,32 @@ test('a failed session shows the failure summary and a retry button that pre-fil
 
   expect(await screen.findByText('New session page')).toBeInTheDocument();
 });
+
+test('the progress timeline concludes with a failed frame naming the phase it stopped in', async () => {
+  const getSession = vi.fn().mockResolvedValue({
+    session: baseSession({ state: SessionState.FAILED, failureSummary: 'boom' }),
+    events: [
+      event(1, SessionEventKind.IMPLEMENTATION_ATTEMPT, 'Implementation attempt 1 of 1'),
+      event(2, SessionEventKind.PUBLISHING, 'Publishing the result as a pull request'),
+    ],
+  });
+
+  renderDetail(getSession);
+
+  // Without the terminal frame the feed would dead-end on "Publishing"; now it names the outcome.
+  expect(await screen.findByText('✗ Failed during Publishing')).toBeInTheDocument();
+});
+
+test('the progress timeline concludes with a completed frame', async () => {
+  const getSession = vi.fn().mockResolvedValue({
+    session: baseSession({
+      state: SessionState.COMPLETED,
+      prUrl: 'https://github.com/acme/app/pull/7',
+    }),
+    events: [event(1, SessionEventKind.PUBLISHING, 'Publishing the result as a pull request')],
+  });
+
+  renderDetail(getSession);
+
+  expect(await screen.findByText('✓ Completed')).toBeInTheDocument();
+});

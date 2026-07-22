@@ -252,6 +252,30 @@ export function SessionDetailPage({
             ))}
           </Stack>
         )}
+        {/* Conclude the timeline from the terminal state so the feed never dead-ends on a
+            phase-start (a FAILED run otherwise reads as still "Publishing…"). The full failure
+            detail lives in the Failed alert above; here we just close the timeline. */}
+        {isTerminal && (
+          <Paper
+            withBorder
+            p="sm"
+            bg={
+              session.state === SessionState.COMPLETED
+                ? 'var(--mantine-color-green-light)'
+                : 'var(--mantine-color-red-light)'
+            }
+          >
+            <Text fw={600} size="sm">
+              {session.state === SessionState.COMPLETED
+                ? '✓ Completed'
+                : `✗ Failed${
+                    latestEventKind !== null
+                      ? ` during ${sessionEventKindLabel[latestEventKind]}`
+                      : ''
+                  }`}
+            </Text>
+          </Paper>
+        )}
       </Stack>
     </Stack>
   );

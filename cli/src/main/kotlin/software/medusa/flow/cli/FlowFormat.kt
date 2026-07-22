@@ -148,6 +148,16 @@ fun formatSessionDetail(session: Session, events: List<SessionEvent>): String {
         event.message.trim().lines().filter { it.isNotBlank() }.forEach { add("      $it") }
       }
     }
+    // Conclude the timeline from the terminal state so the feed never dead-ends on a phase-start
+    // (a FAILED run otherwise reads as still "Publishing…"). The full failure detail stays in the
+    // Failure block above; here we just close the timeline and name the phase it stopped in.
+    val lastPhase = events.lastOrNull()?.let { " during ${eventKindLabel(it.kind)}" }.orEmpty()
+    val prSuffix = if (session.prUrl.isNotBlank()) " — PR: ${session.prUrl}" else ""
+    when (session.state) {
+      SessionState.SESSION_STATE_COMPLETED -> add("  ✓ Completed$prSuffix")
+      SessionState.SESSION_STATE_FAILED -> add("  ✗ Failed$lastPhase")
+      else -> {}
+    }
   }
   return lines.joinToString("\n")
 }

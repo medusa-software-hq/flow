@@ -7,9 +7,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.IssuePipelineState
+import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.SessionState
 import software.medusa.flow.v1.issuePipeline
 import software.medusa.flow.v1.session
+import software.medusa.flow.v1.sessionEvent
 
 private fun ts(epochSecond: Long): Timestamp =
     Timestamp.newBuilder().setSeconds(epochSecond).build()
@@ -35,6 +37,51 @@ class FlowFormatTest {
         pipelineStateLabel(IssuePipelineState.ISSUE_PIPELINE_STATE_AWAITING_MERGE_CHECKS),
     )
     assertEquals("Failed", pipelineStateLabel(IssuePipelineState.ISSUE_PIPELINE_STATE_FAILED))
+  }
+
+  @Test
+  fun `session detail concludes the timeline from the terminal state`() {
+    val events =
+        listOf(
+            sessionEvent {
+              kind = SessionEventKind.SESSION_EVENT_KIND_IMPLEMENTATION_ATTEMPT
+              message = "Implementation attempt 1 of 1"
+              createdAt = ts(1784297280)
+            },
+            sessionEvent {
+              kind = SessionEventKind.SESSION_EVENT_KIND_PUBLISHING
+              message = "Publishing the result as a pull request"
+              createdAt = ts(1784297340)
+            },
+        )
+
+    val failed =
+        formatSessionDetail(
+            session {
+              id = "s-fail"
+              repoFullName = "acme/app"
+              state = SessionState.SESSION_STATE_FAILED
+              failureSummary = "Failed to publish the result:\n\n```\nboom\n```"
+            },
+            events,
+        )
+    // The feed no longer dead-ends on the PUBLISHING phase-start; it names where it stopped.
+    assertTrue(failed.trimEnd().endsWith("✗ Failed during Publishing"), failed)
+
+    val completed =
+        formatSessionDetail(
+            session {
+              id = "s-ok"
+              repoFullName = "acme/app"
+              state = SessionState.SESSION_STATE_COMPLETED
+              prUrl = "https://github.com/acme/app/pull/7"
+            },
+            events,
+        )
+    assertTrue(
+        completed.trimEnd().endsWith("✓ Completed — PR: https://github.com/acme/app/pull/7"),
+        completed,
+    )
   }
 
   @Test
