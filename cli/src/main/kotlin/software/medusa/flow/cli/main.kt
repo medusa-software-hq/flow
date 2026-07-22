@@ -251,6 +251,12 @@ private fun buildWorkerEngineResolver(
                   HrsClaudeEngineConfig(
                       authEnvironment = WrkClaudeAuthEnvironment.build(),
                       model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
+                      // Per-env cap tuning without a rebuild (set in the ms-workload profile);
+                      // falls back to the baked default when unset/blank/unparseable.
+                      maxBudgetUsd =
+                          System.getenv("FLOW_CLAUDE_MAX_BUDGET_USD")
+                              ?.takeIf { it.isNotBlank() }
+                              ?.toDoubleOrNull() ?: HrsClaudeEngineConfig.defaultMaxBudgetUsd,
                   ),
               projectManifestLoader = projectManifestLoader,
           ),
