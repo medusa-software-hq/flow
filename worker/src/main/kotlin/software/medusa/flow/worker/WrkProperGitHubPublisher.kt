@@ -12,6 +12,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import software.medusa.commons.git.worktree.GitWorktree
+import software.medusa.commons.git.worktree.GitWorktreeFilter
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
 import software.medusa.commons.unix.filesystem.materializeIn
 import software.medusa.flow.harness.HrsReadonlyTemporaryWorkspace
@@ -138,7 +140,20 @@ class WrkProperGitHubPublisher(
       }
     }
 
-    workspace.rootDirectory.materializeIn(
+    // Sync only what git would track. The engine's workspace also holds whatever it generated while
+    // verifying the build — `node_modules`, `build/`, etc. — which must never be copied or
+    // committed, and which contains symlinks the raw materialize can't represent (the flow#132
+    // publish crash). Wrapping the workspace in the in-house worktree filter (excludes `.git` and
+    // applies every `.gitignore` hierarchically) prunes those subtrees before they're ever walked.
+    val trackedWorkspace =
+        GitWorktree.load(
+                repoDirectory = workspace.rootDirectory,
+                globalFilter = GitWorktreeFilter.GitCheckedOutWorktreeFilter,
+            )
+            .rootDirectory
+            .asFilteredFilesystemEntity
+
+    trackedWorkspace.materializeIn(
         targetDirectory = UfsNioDirectory(directoryPath = cloneDirectory),
     )
   }
