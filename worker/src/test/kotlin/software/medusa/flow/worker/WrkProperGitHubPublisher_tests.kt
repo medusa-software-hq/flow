@@ -10,6 +10,7 @@ import java.nio.file.Path
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.bytestring.ByteString
@@ -205,6 +206,67 @@ class WrkProperGitHubPublisher_tests {
     lsTree.waitFor()
     assertTrue(mode.startsWith("100755"), "expected an executable blob, got: $mode")
   }
+
+  @Test
+  fun `engine-generated ignored content (node_modules with a symlink) is neither copied nor committed`() =
+      runBlocking {
+        val (_, cloneDirectory) = setUpBareRepoAndClone()
+        val webClient =
+            buildPrCreationServer(
+                responseJson = """{"html_url":"https://github.com/acme/app/pull/11"}""",
+            )
+
+        val directory = UfsNioDirectory.createTemporary(prefix = UfsName.Literal("wrk-publish-ws-"))
+        directory.createFile(
+            name = UfsName.Literal("src.txt"),
+            initialContent = ByteString("real change\n".toByteArray()),
+        )
+        directory.createFile(
+            name = UfsName.Literal(".gitignore"),
+            initialContent = ByteString("node_modules/\n".toByteArray()),
+        )
+        // What the engine's own `yarn install` leaves in the workspace: an ignored tree whose
+        // `.bin/` holds a symlink the raw UFS materialize can't represent (the flow#132 crash).
+        val root = directory.directoryPath
+        val binDir = Files.createDirectories(root.resolve("node_modules").resolve(".bin"))
+        Files.writeString(root.resolve("node_modules").resolve("package.json"), "{}")
+        Files.createSymbolicLink(binDir.resolve("tsserver"), Path.of("../typescript/bin/tsserver"))
+        val workspace = PublisherFakeReadonlyTemporaryWorkspace(rootDirectory = directory)
+
+        val result =
+            WrkProperGitHubPublisher(
+                    tokenSupplierFactory =
+                        WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+                    webClient = webClient,
+                )
+                .publish(
+                    repoFullName = "acme/app",
+                    sessionId = "s11",
+                    taskHeading = "Add src.txt",
+                    taskMarkdown = "# Add src.txt",
+                    cloneDirectory = cloneDirectory,
+                    workspace = workspace,
+                    issueNumber = null,
+                )
+
+        // It publishes (no symlink crash) and the commit contains the tracked change but not the
+        // ignored, engine-generated node_modules.
+        assertEquals(
+            WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/11"),
+            result,
+        )
+        val lsTree =
+            ProcessBuilder("git", "ls-tree", "-r", "--name-only", "flow/session-s11")
+                .directory(cloneDirectory.toFile())
+                .start()
+        val tree = lsTree.inputStream.bufferedReader().readText()
+        lsTree.waitFor()
+        assertTrue(tree.contains("src.txt"), "the tracked change must be committed: $tree")
+        assertFalse(
+            tree.contains("node_modules"),
+            "ignored, engine-generated node_modules must not be committed: $tree",
+        )
+      }
 
   @Test
   fun `a run with no changes returns NoChanges and pushes nothing`() = runBlocking {
