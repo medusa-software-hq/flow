@@ -3,8 +3,9 @@
   "targetServiceAccount": "flow-worker@ms-flow-d14f8295.iam.gserviceaccount.com",
   "envVars": {
     "FLOW_API_URL": "https://api.flow-baseline-staging.medusa.software",
-    "FLOW_WORKER_ENGINES": "builtin",
-    "FLOW_WORKER_GITHUB_APP_CLIENT_ID": "Iv23liKTj6dtBHWRnzeg"
+    "FLOW_WORKER_GITHUB_APP_CLIENT_ID": "Iv23liKTj6dtBHWRnzeg",
+    "FLOW_AUTHOR_EMAIL": "flow@medusa.software",
+    "FLOW_ENABLE_GPG_SIGNING": "false"
   },
   "secretEnvVars": {
     "FLOW_WORKER_GITHUB_APP_PEM": "projects/ms-flow-d14f8295/secrets/flow-worker-github-app-pem/versions/latest",
