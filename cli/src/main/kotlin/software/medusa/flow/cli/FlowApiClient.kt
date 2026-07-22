@@ -6,13 +6,16 @@ import software.medusa.flow.v1.IssuePipeline
 import software.medusa.flow.v1.PipelineServiceGrpcKt
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionServiceGrpcKt
+import software.medusa.flow.v1.clearIssuePipelineRequest
 import software.medusa.flow.v1.getSessionRequest
 import software.medusa.flow.v1.listIssuePipelinesRequest
 import software.medusa.flow.v1.listSessionsRequest
 
 /**
- * Read-only gRPC client for the deployed Flow API — the human-facing surface the web app also uses
- * (`SessionService.ListSessions`, `PipelineService.ListIssuePipelines`). It attaches the caller's
+ * gRPC client for the deployed Flow API — the human-facing surface the web app also uses
+ * (`SessionService.ListSessions`/`GetSession`, `PipelineService.ListIssuePipelines`, and the
+ * `ClearIssuePipeline` a human triggers to release a FAILED pipeline). Reads dominate; the only
+ * mutation is `clearIssuePipeline`, matching the web app's Clear button. It attaches the caller's
  * Google user ID token as `Authorization: Bearer <token>` on every call, the same credential the
  * SPA sends; the API validates it against the configured OAuth client id (see
  * `GoogleIdTokenAuthDecorator`).
@@ -63,4 +66,12 @@ private constructor(
               listIssuePipelinesRequest { repoFullName?.let { this.repoFullName = it } },
           )
           .pipelinesList
+
+  /**
+   * Clears a FAILED pipeline (the web app's Clear button), releasing the repo mutex so Flow can
+   * re-pick the still-`flow:ready` issue. The API rejects any non-FAILED pipeline with
+   * `FAILED_PRECONDITION`. Returns the updated (now-cleared) pipeline.
+   */
+  suspend fun clearIssuePipeline(id: String): IssuePipeline =
+      pipelineStub.clearIssuePipeline(clearIssuePipelineRequest { this.id = id }).pipeline
 }
