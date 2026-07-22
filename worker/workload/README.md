@@ -7,27 +7,36 @@ an immutable revision. "Deploy a new worker version" = re-run `create`/`update`
 with a new `dockerImageDigest` — the running VM picks it up on restart.
 
 - [`flow-worker-staging.profile.json`](flow-worker-staging.profile.json) — the
-  baseline staging worker. (A prod profile is the stretch story B7.)
+  baseline staging worker (sandbox org `medusa-software-test-hq`, its own
+  `medusa-flow-nightly` App).
+- [`flow-worker-prod.profile.json`](flow-worker-prod.profile.json) — the baseline
+  prod worker (B7). Prod org `medusa-software-hq`; reuses the control-plane
+  `medusa-flow` App's PEM (`api-github-app-pem`), so no separate worker-App secret.
 
 ## What the profile carries
 
 | Kind | Key | Value |
 |---|---|---|
-| target SA | `targetServiceAccount` | `flow-worker@ms-flow-d14f8295` — the broker impersonates it (opt-in in root `infra/`) and mints its ID token via Beacon; it's on the Flow API's `WORKER_SA_EMAILS` allowlist |
-| env | `FLOW_API_URL` | staging API |
-| env | `FLOW_WORKER_ENGINES` | `builtin` (the nightly runs builtin; add `claude` once Path A's worker wiring lands + `CLAUDE_CODE_OAUTH_TOKEN` is set) |
-| env | `FLOW_WORKER_GITHUB_APP_CLIENT_ID` | the `medusa-flow-nightly` App — the worker mints its own installation token from it |
+| target SA | `targetServiceAccount` | the per-env `flow-worker@<project>` — the broker impersonates it (opt-in in root `infra/`) and mints its ID token via Beacon; it's on the Flow API's `WORKER_SA_EMAILS` allowlist |
+| env | `FLOW_API_URL` | the env's Flow API |
+| env | `FLOW_WORKER_GITHUB_APP_CLIENT_ID` | the env's App — the worker mints its own installation token from it |
+| env | `FLOW_CLAUDE_MAX_BUDGET_USD` | per-session Claude cost cap (runaway-guard; app default `5`) |
+| env | `FLOW_AUTHOR_EMAIL` | commit author email (non-secret config) |
+| env | `FLOW_ENABLE_GPG_SIGNING` | `true`/`false` — off by default; when on, the worker re-signs commits with the GPG key |
 | secret | `FLOW_WORKER_GITHUB_APP_PEM` | the App's **PKCS#8** private key (`openssl pkcs8 -topk8 -nocrypt`) — resolved worker-side from Secret Manager |
 | secret | `OPENROUTER_API_KEY` | builtin-engine model key |
-| secret | `CLAUDE_CODE_OAUTH_TOKEN` | claude-engine auth (present for when `claude` is enabled) |
+| secret | `CLAUDE_CODE_OAUTH_TOKEN` | claude-engine auth (workers are uniform — every worker runs every engine) |
+| secret | `FLOW_WORKER_GPG_PRIVATE_KEY` | passphrase-less commit-signing key. **Only wired into `secretEnvVars` once a real key exists** (the container is created empty); referencing an empty secret fails resolution |
 | image | `dockerImage` / `dockerImageDigest` | the B4 worker image, **pinned by digest** |
 
 There is **no GitHub token and no `ANTHROPIC_API_KEY`** — the worker mints its App
-token itself, and Claude auth is the OAuth token, by decision.
+token itself, and Claude auth is the OAuth token, by decision. `FLOW_AUTHOR_EMAIL`
+and `FLOW_ENABLE_GPG_SIGNING` are **non-secret config** and live here in `envVars`,
+not in Secret Manager; only the GPG *key* is a secret.
 
 ## Placeholders to fill before `profiles create`
 
-- `<STAGING_AR_ENDPOINT>` — the staging Artifact Registry endpoint (`vars.GCP_AR_REPO_ENDPOINT`, e.g. `europe-docker.pkg.dev/ms-flow-d14f8295/flow`).
+- `<STAGING_AR_ENDPOINT>` / `<PROD_AR_ENDPOINT>` — the env's Artifact Registry endpoint (`vars.GCP_AR_REPO_ENDPOINT`, e.g. `europe-west1-docker.pkg.dev/ms-flow-b71f4835/flow` for prod).
 - `<WORKER_IMAGE_DIGEST>` — the current worker image digest, printed by the latest **Publish CLI → Publish worker image** run (job summary). Deliberately not committed: it changes on every worker/engine merge, and the profile pins *a specific* build.
 
 The secrets, the broker impersonation grant, and the Artifact Registry read grant

@@ -1,0 +1,18 @@
+{
+  "displayName": "Flow worker — baseline prod",
+  "targetServiceAccount": "flow-worker@ms-flow-b71f4835.iam.gserviceaccount.com",
+  "envVars": {
+    "FLOW_API_URL": "https://api.flow-baseline.medusa.software",
+    "FLOW_WORKER_GITHUB_APP_CLIENT_ID": "Iv23liiYuXXbBb9RRGrZ",
+    "FLOW_CLAUDE_MAX_BUDGET_USD": "5",
+    "FLOW_AUTHOR_EMAIL": "flow@medusa.software",
+    "FLOW_ENABLE_GPG_SIGNING": "false"
+  },
+  "secretEnvVars": {
+    "FLOW_WORKER_GITHUB_APP_PEM": "projects/ms-flow-b71f4835/secrets/api-github-app-pem/versions/latest",
+    "OPENROUTER_API_KEY": "projects/ms-flow-b71f4835/secrets/flow-worker-openrouter-api-key/versions/latest",
+    "CLAUDE_CODE_OAUTH_TOKEN": "projects/ms-flow-b71f4835/secrets/flow-worker-claude-oauth-token/versions/latest"
+  },
+  "dockerImage": "<PROD_AR_ENDPOINT>/worker@<WORKER_IMAGE_DIGEST>",
+  "dockerImageDigest": "<WORKER_IMAGE_DIGEST>"
+}
