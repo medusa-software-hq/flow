@@ -146,3 +146,26 @@ module "flow_worker_workload_impersonation" {
 
   artifact_repository_id = google_artifact_registry_repository.primary.id
 }
+
+# --- State moves (B7 un-gating) -----------------------------------------------------------------
+# B7 dropped `count = local.is_staging ? 1 : 0` from the two secrets and this module to un-gate them
+# for prod. Prod created them fresh (nothing was in state there), but the staging state still holds
+# them at their old `[0]` address. Without these, an apply on staging would DESTROY the `[0]`
+# instances and recreate them un-indexed — deleting the secret *containers* (and their manually
+# added versions), and churning the broker/secretAccessor IAM. A `moved` whose `from` isn't in state
+# is a no-op, so these are harmless in prod.
+
+moved {
+  from = google_secret_manager_secret.flow_worker_openrouter_api_key[0]
+  to   = google_secret_manager_secret.flow_worker_openrouter_api_key
+}
+
+moved {
+  from = google_secret_manager_secret.flow_worker_claude_oauth_token[0]
+  to   = google_secret_manager_secret.flow_worker_claude_oauth_token
+}
+
+moved {
+  from = module.flow_worker_workload_impersonation[0]
+  to   = module.flow_worker_workload_impersonation
+}
