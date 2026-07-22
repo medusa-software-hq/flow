@@ -64,7 +64,6 @@ class ReconcileAgainstStub_componentTests {
                 originRegex = ".*",
                 port = 0,
                 auth = StubIdentityDecorator(schedulerEmail),
-                counterStore = InMemoryCounterStore(),
                 gitHubIssueStore = FakeGitHubIssueStore(),
                 gitHubRepositoryStore = FakeGitHubRepositoryStore(),
                 sessionStore = sessions,
