@@ -135,7 +135,10 @@ class WrkProperSessionProcessor(
     val heading = document.rootChapter.title.inlineNodes.joinToString("") { it.render() }
 
     return ParsedTask(
-        description = HrsTaskDescription(body = document.rootChapter.element),
+        // The whole root chapter, not just `.element` (the blocks directly under the `#` title,
+        // before the first `##`). A real issue keeps its substance in `##` sub-sections, so the
+        // lead element is typically empty — passing it alone leaves the engine with no task.
+        description = HrsTaskDescription(body = document.rootChapter),
         heading = heading,
     )
   }

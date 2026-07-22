@@ -11,7 +11,9 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.git.worktree.GitWorktreeFilter
+import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdElement
+import software.medusa.commons.markdown.MdInlineContent
 import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
 import software.medusa.commons.unix.path.UfsAbsolutePath
@@ -149,7 +151,14 @@ class HrsClaudeTaskCompleter_tests {
         )
         .completeTask(
             sourceGitWorktree = loadGitWorktree(withManifest = withManifest),
-            taskDescription = HrsTaskDescription(body = MdElement.Empty),
+            taskDescription =
+                HrsTaskDescription(
+                    body =
+                        MdChapter.leaf(
+                            title = MdInlineContent.of("Task"),
+                            element = MdElement.Empty,
+                        ),
+                ),
             observer = observer,
         )
   }

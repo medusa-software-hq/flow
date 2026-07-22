@@ -72,9 +72,10 @@ class HrsProperExpertAiSystem(
                                             element = MdElement.Empty,
                                             subChapters =
                                                 listOf(
-                                                    MdChapter.leaf(
-                                                        title = MdInlineContent.of("The Task"),
-                                                        element = taskDescription.body,
+                                                    // The whole task chapter (its own sub-sections
+                                                    // intact), retitled to sit under "Problem".
+                                                    taskDescription.body.replaceTitle(
+                                                        MdInlineContent.of("The Task"),
                                                     ),
                                                     MdChapter.leaf(
                                                         title =
