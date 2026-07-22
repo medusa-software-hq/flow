@@ -10,7 +10,9 @@ import kotlin.test.assertIs
 import kotlinx.coroutines.runBlocking
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.git.worktree.GitWorktreeFilter
+import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdElement
+import software.medusa.commons.markdown.MdInlineContent
 import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.impl.memory.UfsMemoryDirectory
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
@@ -360,7 +362,14 @@ class HrsProperTaskCompleter_tests {
     val result =
         taskCompleter.completeTask(
             sourceGitWorktree = loadGitWorktree(),
-            taskDescription = HrsTaskDescription(body = MdElement.Empty),
+            taskDescription =
+                HrsTaskDescription(
+                    body =
+                        MdChapter.leaf(
+                            title = MdInlineContent.of("Task"),
+                            element = MdElement.Empty,
+                        )
+                ),
             observer = observer,
         )
 
@@ -394,7 +403,14 @@ class HrsProperTaskCompleter_tests {
         val result =
             taskCompleter.completeTask(
                 sourceGitWorktree = loadGitWorktree(),
-                taskDescription = HrsTaskDescription(body = MdElement.Empty),
+                taskDescription =
+                    HrsTaskDescription(
+                        body =
+                            MdChapter.leaf(
+                                title = MdInlineContent.of("Task"),
+                                element = MdElement.Empty,
+                            )
+                    ),
                 observer = observer,
             )
 
@@ -423,7 +439,14 @@ class HrsProperTaskCompleter_tests {
         val result =
             taskCompleter.completeTask(
                 sourceGitWorktree = loadGitWorktree(),
-                taskDescription = HrsTaskDescription(body = MdElement.Empty),
+                taskDescription =
+                    HrsTaskDescription(
+                        body =
+                            MdChapter.leaf(
+                                title = MdInlineContent.of("Task"),
+                                element = MdElement.Empty,
+                            )
+                    ),
                 observer = observer,
             )
 
@@ -453,7 +476,14 @@ class HrsProperTaskCompleter_tests {
         val result =
             taskCompleter.completeTask(
                 sourceGitWorktree = loadGitWorktree(),
-                taskDescription = HrsTaskDescription(body = MdElement.Empty),
+                taskDescription =
+                    HrsTaskDescription(
+                        body =
+                            MdChapter.leaf(
+                                title = MdInlineContent.of("Task"),
+                                element = MdElement.Empty,
+                            )
+                    ),
                 observer = Observer.Noop,
             )
 
@@ -474,7 +504,11 @@ class HrsProperTaskCompleter_tests {
     assertFailsWith<IllegalStateException> {
       taskCompleter.completeTask(
           sourceGitWorktree = loadGitWorktree(),
-          taskDescription = HrsTaskDescription(body = MdElement.Empty),
+          taskDescription =
+              HrsTaskDescription(
+                  body =
+                      MdChapter.leaf(title = MdInlineContent.of("Task"), element = MdElement.Empty)
+              ),
           observer = Observer.Noop,
       )
     }

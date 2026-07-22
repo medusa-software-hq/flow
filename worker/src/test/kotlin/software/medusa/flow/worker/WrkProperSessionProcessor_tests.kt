@@ -44,6 +44,7 @@ private class FakeTaskCompleter(
     private val result: TaskCompletionResult,
 ) : HrsTaskCompleter {
   var observedPhases = 0
+  var capturedTask: HrsTaskDescription? = null
 
   override suspend fun completeTask(
       sourceGitWorktree: GitWorktree,
@@ -52,6 +53,7 @@ private class FakeTaskCompleter(
   ): TaskCompletionResult {
     observer.observePhase(software.medusa.flow.harness.HrsPipelinePhase.WorkspacePreparing)
     observedPhases++
+    capturedTask = taskDescription
     return result
   }
 }
@@ -101,6 +103,64 @@ class WrkProperSessionProcessor_tests {
         apiClient.recordedCalls.filterIsInstance<WrkFakeApiClient.RecordedCall.CompleteSession>(),
     )
     assertEquals("https://github.com/acme/app/pull/1", publishedPrUrl)
+  }
+
+  @Test
+  fun `the whole task body — not just the intro-less lead — reaches the engine`() = runBlocking {
+    // A real issue: its substance lives entirely in `##` sub-sections, with no intro paragraph
+    // directly under the `#` title. Rendering only the root chapter's lead element (the old bug)
+    // yields an empty prompt for exactly this shape — the engine then sees no task and does
+    // nothing (see the garbage PR #136 on the "Remove the Demo" run).
+    val markdown =
+        """
+        # Remove the Demo
+
+        ## Goal
+
+        Delete the counter widget and the embedded issue list from the landing page.
+
+        ## Definition of done
+
+        - [ ] No Demo nav item; `/` lands on Sessions.
+        """
+            .trimIndent()
+
+    val worktree = tempGitWorktree()
+    val fakeWorkspace =
+        FakeReadonlyTemporaryWorkspace(rootDirectory = worktree.rootDirectory.asFilesystemEntity)
+    val taskCompleter = FakeTaskCompleter(TaskCompletionResult.Success(fakeWorkspace))
+
+    val processor =
+        WrkProperSessionProcessor(
+            gitCloner = WrkGitCloner { _, _ -> worktree },
+            engineResolver = builtinResolver(taskCompleter),
+            publisher =
+                WrkPublisher { _, _, _, _, _, _, _ ->
+                  WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1")
+                },
+            log = {},
+        )
+
+    processor.process(
+        session =
+            session {
+              id = "s1"
+              repoFullName = "acme/app"
+              taskMarkdown = markdown
+            },
+        apiClient = WrkFakeApiClient(),
+    )
+
+    val renderedBody = taskCompleter.capturedTask!!.body.render()
+    assertTrue(renderedBody.contains("## Goal"), "the Goal section must survive: $renderedBody")
+    assertTrue(
+        renderedBody.contains("Delete the counter widget"),
+        "the Goal body must survive: $renderedBody",
+    )
+    assertTrue(
+        renderedBody.contains("Definition of done"),
+        "later sections must survive: $renderedBody",
+    )
   }
 
   @Test

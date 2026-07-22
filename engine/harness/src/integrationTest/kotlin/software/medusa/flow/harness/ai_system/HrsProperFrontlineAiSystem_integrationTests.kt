@@ -15,7 +15,9 @@ import org.luaj.vm2.lib.StringLib
 import org.luaj.vm2.lib.TableLib
 import software.medusa.commons.git.worktree.GitWorktreeEntity
 import software.medusa.commons.markdown.MdBlock
+import software.medusa.commons.markdown.MdChapter
 import software.medusa.commons.markdown.MdElement
+import software.medusa.commons.markdown.MdInlineContent
 import software.medusa.commons.openai_client.OaiApiKey
 import software.medusa.commons.openai_client.OaiFreeClient
 import software.medusa.commons.openai_client.OaiModel
@@ -117,7 +119,11 @@ class HrsProperFrontlineAiSystem_integrationTests {
 
     private fun paragraph(
         text: String,
-    ): MdElement = MdElement(blocks = listOf(MdBlock.Paragraph.of(text = text)))
+    ): MdChapter =
+        MdChapter.leaf(
+            title = MdInlineContent.of("Task"),
+            element = MdElement(blocks = listOf(MdBlock.Paragraph.of(text = text))),
+        )
 
     private fun openedWorktreeOf(
         luaSource: String,
