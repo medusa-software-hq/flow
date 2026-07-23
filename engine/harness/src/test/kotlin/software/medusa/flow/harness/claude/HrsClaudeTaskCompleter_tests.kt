@@ -6,6 +6,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
@@ -595,6 +596,16 @@ class HrsClaudeTaskCompleter_tests {
           it.diagnosticOutput == "still broken"
         },
         "the final failure must carry the last diagnostics",
+    )
+
+    // Regression: the bounce prompt actually handed to `claude -p …` must not begin with `/`, or
+    // Claude Code reads its first line as a slash command and discards the whole diagnostic. The
+    // sole module's path here is the root `/`, so an unguarded prompt began `/:` and was swallowed
+    // as `Unknown command: /:`, silently no-op'ing the bounce loop.
+    val bouncePrompt = process.invocations[1].arguments.single { it.contains("still broken") }
+    assertFalse(
+        bouncePrompt.startsWith("/"),
+        "the bounce prompt must not begin with '/' or Claude Code eats it as a slash command",
     )
   }
 
