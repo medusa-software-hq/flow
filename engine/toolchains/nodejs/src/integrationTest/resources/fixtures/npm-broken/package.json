@@ -1,0 +1,6 @@
+{
+  "name": "npm-broken",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A project with no package-lock.json, so `npm ci` fails fast (offline) — used to prove installDependencies surfaces the package manager's failure instead of swallowing it."
+}

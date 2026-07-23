@@ -13,7 +13,8 @@ class NjsNpmConnector(
     override suspend fun installDependencies(
         processSpawner: SysProcessSpawner,
     ) {
-      processSpawner.spawn(
+      processSpawner.runInstallOrThrow(
+          label = "npm",
           executable = npmExecutableHandle,
           workingDirectory = packagePath,
           arguments = listOf("ci"),
