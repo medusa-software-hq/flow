@@ -19,8 +19,9 @@ private fun ts(epochSecond: Long): Timestamp =
 class FlowFormatTest {
   @Test
   fun `formatTimestamp renders minute precision in UTC and handles unset`() {
-    // 2026-07-17T14:08:00Z
-    assertEquals("2026-07-17 14:08 UTC", formatTimestamp(ts(1784297280)))
+    // 2026-07-17T14:08:00Z. Same ISO date + 24h UTC shape (no "UTC" suffix) as the web app's
+    // formatTimestamp in sessionDisplay.ts — keep the two pinned together.
+    assertEquals("2026-07-17 14:08", formatTimestamp(ts(1784297280)))
     assertEquals("—", formatTimestamp(null))
     assertEquals("—", formatTimestamp(Timestamp.getDefaultInstance()))
   }
