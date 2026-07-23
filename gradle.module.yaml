@@ -1,0 +1,23 @@
+analyze:
+  steps:
+    - name: format
+      task: ktfmtCheck
+    - name: compile
+      task: testClasses
+
+test:
+  steps:
+    - name: backend
+      task: ":backend:api:impl:shared:test"
+    - name: github-stub
+      task: ":test-fixtures:github-stub:test"
+    - name: cli
+      task: ":cli:test"
+    - name: worker
+      task: ":worker:test"
+    - name: engine-harness
+      task: ":engine:harness:test"
+    - name: engine-universal-project
+      task: ":engine:universal-project:test"
+    - name: engine-virtual-editor
+      task: ":engine:virtual-editor:test"
