@@ -16,3 +16,9 @@ dependencies {
   testImplementation(libs.kotlin.test)
   testImplementation(libs.kotlinx.coroutines.test)
 }
+
+tasks.test {
+  // Lets a test load the repo's own project.yaml straight off disk, to prove Flow's manifest for
+  // this repo actually parses.
+  systemProperty("flow.repoRoot", rootProject.layout.projectDirectory.asFile.absolutePath)
+}

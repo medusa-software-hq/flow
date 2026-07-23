@@ -1,0 +1,7 @@
+modules:
+  - kind: gradle
+    name: flow
+    path: /
+  - kind: nodejs
+    name: web-spa
+    path: /apps/web/spa/frontend
