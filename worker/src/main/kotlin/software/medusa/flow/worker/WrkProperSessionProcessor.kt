@@ -119,6 +119,7 @@ class WrkProperSessionProcessor(
                         cloneDirectory = cloneDirectory,
                         workspace = workspace,
                         issueNumber = session.issueNumber.takeIf { it > 0 },
+                        engine = session.engine,
                     )
                   } catch (e: Exception) {
                     apiClient.failSession(
