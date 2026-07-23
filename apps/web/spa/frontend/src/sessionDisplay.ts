@@ -79,9 +79,17 @@ export function formatCostUsd(costUsd: number | undefined): string {
   return `$${costUsd.toFixed(4)}`;
 }
 
+/** A proto Timestamp → `2026-07-23 15:18` in UTC, 24h clock. Unset or zero → "—". */
 export function formatTimestamp(timestamp: Timestamp | undefined): string {
-  if (!timestamp) {
+  if (!timestamp || (timestamp.seconds === 0n && timestamp.nanos === 0)) {
     return '—';
   }
-  return timestampDate(timestamp).toLocaleString();
+  const date = timestampDate(timestamp);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = pad(date.getUTCMonth() + 1);
+  const day = pad(date.getUTCDate());
+  const hours = pad(date.getUTCHours());
+  const minutes = pad(date.getUTCMinutes());
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
