@@ -139,6 +139,16 @@ class FakeGitHubServer : AutoCloseable {
       repoFullName: String,
   ): PullRequest? = repos[repoFullName]?.pulls?.values?.firstOrNull { it.open }
 
+  /**
+   * The open PR whose head branch is [head], if any. Lets a test target one engine's PR when
+   * dual-engine fan-out has both engines opening a PR concurrently (so "the first open PR" is
+   * racy).
+   */
+  fun pullRequestOnBranch(
+      repoFullName: String,
+      head: String,
+  ): PullRequest? = repos[repoFullName]?.pulls?.values?.firstOrNull { it.open && it.head == head }
+
   /** Registers a PR with a fixed [number] (so a test can point a pipeline's pr_number at it). */
   fun seedPullRequest(
       repoFullName: String,

@@ -33,9 +33,13 @@ class HermeticSadPaths_integrationTests {
   // worker's (also shortened) heartbeat interval, so a live worker is never mistaken for lost.
   private val heartbeatTimeout = Duration.ofSeconds(6)
   private val workerHeartbeatIntervalMillis = 500L
-  // Fan-out branches the primary (Claude) session's PR per engine; the primary is what drives the
-  // pipeline, so the sad-path assertions track its branch.
-  private val branch = "flow/issue-$issueNumber-claude"
+
+  // Both engines run the scripted behavior in parallel, so either's branch may land (for a crash,
+  // whichever halted the process first) — assert on "some engine's branch" rather than a specific
+  // one. The pipeline itself is still driven by the primary (see primarySession()).
+  private fun HermeticLoopHarness.anyEngineBranchLanded(): Boolean =
+      bareRepo.hasBranch("flow/issue-$issueNumber-claude") ||
+          bareRepo.hasBranch("flow/issue-$issueNumber-builtin")
 
   @Test
   fun `an empty diff fails the session with no branch pushed, and reconcile fails the pipeline`() =
@@ -45,8 +49,8 @@ class HermeticSadPaths_integrationTests {
 
         assertEquals("Engine produced no changes", session.failureSummary)
         assertFalse(
-            harness.bareRepo.hasBranch(branch),
-            "an empty diff must push no branch\n${worker.output()}",
+            harness.anyEngineBranchLanded(),
+            "an empty diff must push no branch (neither engine)\n${worker.output()}",
         )
 
         harness.awaitPipelineFailed()
@@ -118,8 +122,8 @@ class HermeticSadPaths_integrationTests {
           harness.stub.openPullRequest(repoFullName) != null
         }
         assertTrue(
-            harness.bareRepo.hasBranch(branch),
-            "the branch really landed before the crash\n${worker.output()}",
+            harness.anyEngineBranchLanded(),
+            "an engine's branch really landed before the crash\n${worker.output()}",
         )
 
         // The control plane never heard the work landed → lazy expiry → the pipeline converges to
@@ -130,7 +134,7 @@ class HermeticSadPaths_integrationTests {
         harness.awaitPipelineFailed()
 
         // The stray branch is tolerated — nothing tried to force-clean it.
-        assertTrue(harness.bareRepo.hasBranch(branch), "the stray branch is left in place")
+        assertTrue(harness.anyEngineBranchLanded(), "the stray branch is left in place")
       }
 
   // region Harness plumbing
