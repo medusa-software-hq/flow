@@ -12,6 +12,8 @@ dependencies {
   api(project(":engine:physical-workspace"))
 
   implementation(libs.medusa.commons.yaml)
+  // The toolchain gate serializes concurrent Gradle/Node phases with a coroutine Semaphore.
+  implementation(libs.kotlinx.coroutines.core)
 
   testImplementation(libs.kotlin.test)
   testImplementation(libs.kotlinx.coroutines.test)
