@@ -1,15 +1,10 @@
 package software.medusa.flow.server
 
-import com.google.protobuf.Timestamp
-import java.time.Instant
 import software.medusa.flow.v1.IssuePipeline as ProtoIssuePipeline
 import software.medusa.flow.v1.IssuePipelineState as ProtoIssuePipelineState
 import software.medusa.flow.v1.issuePipeline
 
 /** Conversions between the storage [IssuePipeline] domain type and its generated proto type. */
-private fun Instant.toProtoTimestamp(): Timestamp =
-    Timestamp.newBuilder().setSeconds(epochSecond).setNanos(nano).build()
-
 private fun IssuePipelineState.toProto(): ProtoIssuePipelineState =
     when (this) {
       IssuePipelineState.InProgress -> ProtoIssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS

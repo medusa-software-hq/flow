@@ -1,7 +1,5 @@
 package software.medusa.flow.server
 
-import com.google.protobuf.Timestamp
-import java.time.Instant
 import software.medusa.flow.v1.Engine as ProtoEngine
 import software.medusa.flow.v1.Session as ProtoSession
 import software.medusa.flow.v1.SessionEvent as ProtoSessionEvent
@@ -13,9 +11,6 @@ import software.medusa.flow.v1.sessionEvent
 /**
  * Conversions between the storage domain types ([Session] et al.) and the generated proto types.
  */
-private fun Instant.toProtoTimestamp(): Timestamp =
-    Timestamp.newBuilder().setSeconds(epochSecond).setNanos(nano).build()
-
 private fun SessionState.toProto(): ProtoSessionState =
     when (this) {
       SessionState.Pending -> ProtoSessionState.SESSION_STATE_PENDING
