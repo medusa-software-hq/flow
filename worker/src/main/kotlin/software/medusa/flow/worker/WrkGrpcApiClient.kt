@@ -10,6 +10,7 @@ import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.SessionWriteAck
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 import software.medusa.flow.v1.appendSessionEventRequest
+import software.medusa.flow.v1.claimNextJobRequest
 import software.medusa.flow.v1.claimNextSessionRequest
 import software.medusa.flow.v1.completeSessionRequest
 import software.medusa.flow.v1.failSessionRequest
@@ -84,6 +85,9 @@ private constructor(
   // request carries no capability set.
   override suspend fun claimNextSession(): Session? =
       stub.claimNextSession(claimNextSessionRequest {}).sessionOrNull
+
+  override suspend fun claimNextJob(): List<Session> =
+      stub.claimNextJob(claimNextJobRequest {}).sessionsList
 
   override suspend fun registerWorker(
       workerId: String,

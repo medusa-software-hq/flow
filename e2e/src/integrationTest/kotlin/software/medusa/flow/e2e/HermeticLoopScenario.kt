@@ -123,16 +123,23 @@ class HermeticLoopScenario(
 
               // 2. The worker claims it, and the engine does the work: clone (real git, redirected
               //    at the bare repo), edit, run the fixture's checks, push, open a PR in the stub.
-              val startedAt = System.currentTimeMillis()
-              awaitOrFail(worker, "the worker to open a PR", timeoutMillis = loopTimeoutMillis) {
-                harness.stub.openPullRequest(repoFullName) != null
-              }
-              println("[loop] PR opened after ${(System.currentTimeMillis() - startedAt) / 1000}s")
-
-              // The pipeline is driven by the primary (Claude) session, whose PR is opened first
-              // and
-              // whose branch is engine-scoped. (A builtin shadow also runs, on `-builtin`.)
+              // The pipeline is driven by the primary (Claude) session; both engines now publish in
+              // parallel, so target the primary's engine-scoped branch specifically rather than
+              // "the
+              // first open PR" (which could be the built-in shadow's).
               val branch = "flow/issue-$issueNumber-claude"
+
+              val startedAt = System.currentTimeMillis()
+              awaitOrFail(
+                  worker,
+                  "the primary engine to open its PR",
+                  timeoutMillis = loopTimeoutMillis,
+              ) {
+                harness.stub.pullRequestOnBranch(repoFullName, branch) != null
+              }
+              println(
+                  "[loop] primary PR opened after ${(System.currentTimeMillis() - startedAt) / 1000}s",
+              )
 
               // 3. The branch really landed on the real remote...
               assertTrue(
@@ -149,7 +156,7 @@ class HermeticLoopScenario(
 
               // 4. The PR references the issue without closing it — closing is the reconciler's
               // job.
-              val pr = checkNotNull(harness.stub.openPullRequest(repoFullName))
+              val pr = checkNotNull(harness.stub.pullRequestOnBranch(repoFullName, branch))
               assertContains(pr.body, "Refs #$issueNumber")
 
               // 5. Merge it green, exactly as GitHub would.

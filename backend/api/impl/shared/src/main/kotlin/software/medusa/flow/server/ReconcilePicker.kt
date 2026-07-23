@@ -49,20 +49,13 @@ class ReconcilePicker(
     // session that drives the pipeline (observed, merge-gated, closes the issue) and a built-in
     // "shadow" session for comparison that opens its own PR but is never observed. The engine is no
     // longer read from a `flow:engine=` label; both always run.
-    val task = taskMarkdownFor(chosen)
-    val primary =
-        sessionStore.create(
+    // One job holds both engine sessions, so a worker claims and runs them together (in parallel).
+    val (primary, shadow) =
+        sessionStore.createJob(
             repoFullName = repoFullName,
-            taskMarkdown = task,
+            taskMarkdown = taskMarkdownFor(chosen),
             createdBy = reconcilerAuthor,
-            engine = Engine.Claude,
-        )
-    val shadow =
-        sessionStore.create(
-            repoFullName = repoFullName,
-            taskMarkdown = task,
-            createdBy = reconcilerAuthor,
-            engine = Engine.Builtin,
+            engines = listOf(Engine.Claude, Engine.Builtin),
         )
 
     return when (

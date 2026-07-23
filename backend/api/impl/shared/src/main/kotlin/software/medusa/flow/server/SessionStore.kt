@@ -7,6 +7,16 @@ value class SessionId(
     val id: String,
 )
 
+/**
+ * Groups the sessions created together as one unit of work — a manual session is its own 1-session
+ * job; a reconciled issue's Claude primary + built-in shadow share one [JobId]. A worker claims a
+ * whole job ([SessionStore.claimNextJob]) and runs its sessions in parallel.
+ */
+@JvmInline
+value class JobId(
+    val id: String,
+)
+
 /** The persisted lifecycle state of a session. See `design/01-architecture.md`. */
 enum class SessionState {
   Pending,
@@ -46,6 +56,8 @@ enum class SessionEventKind {
 /** A session row, toolchain- and transport-agnostic (no proto types here). */
 data class Session(
     val id: SessionId,
+    /** The job this session belongs to; sessions sharing a [JobId] are claimed and run together. */
+    val jobId: JobId,
     val repoFullName: String,
     val taskMarkdown: String,
     val state: SessionState,
@@ -106,13 +118,26 @@ sealed interface GuardedResult<out T> {
  * the read returns, so no background scheduler is needed.
  */
 interface SessionStore {
-  /** Creates a new `PENDING` session and returns it. */
+  /** Creates a new `PENDING` session (its own 1-session job) and returns it. */
   suspend fun create(
       repoFullName: String,
       taskMarkdown: String,
       createdBy: String,
       engine: Engine,
   ): Session
+
+  /**
+   * Creates one `PENDING` session per entry in [engines], all sharing a single freshly-minted
+   * [JobId], and returns them in [engines] order. This is the fan-out unit: a reconciled issue
+   * creates `[Claude, Builtin]`, so a worker later claims and runs both together. All sessions
+   * share the same [repoFullName]/[taskMarkdown]/[createdBy]; they differ only by engine.
+   */
+  suspend fun createJob(
+      repoFullName: String,
+      taskMarkdown: String,
+      createdBy: String,
+      engines: List<Engine>,
+  ): List<Session>
 
   /** Returns the newest [limit] sessions, newest first, after expiring stale ones. */
   suspend fun list(
@@ -134,6 +159,14 @@ interface SessionStore {
    * worker runs every engine), so a claim is unconditional — engine no longer gates it.
    */
   suspend fun claimNext(): Session?
+
+  /**
+   * Atomically claims the whole oldest PENDING **job** — every PENDING session sharing the oldest
+   * pending session's [JobId] — moving them all to `RUNNING`, and returns them (empty when nothing
+   * is claimable). Two concurrent claims never return sessions from the same job. This is what lets
+   * one worker own an issue's Claude + built-in sessions and run them in parallel.
+   */
+  suspend fun claimNextJob(): List<Session>
 
   /**
    * Appends a display event to a `RUNNING` session, assigning the next per-session `seq`, capping

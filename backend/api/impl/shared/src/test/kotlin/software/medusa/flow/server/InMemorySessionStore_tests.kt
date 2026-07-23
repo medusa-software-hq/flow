@@ -66,6 +66,42 @@ class InMemorySessionStore_tests {
       }
 
   @Test
+  fun `createJob shares one job id and claimNextJob claims the whole job at once`() = runBlocking {
+    val (store, clock) = newStore()
+
+    // An older manual session (its own 1-session job), then a fan-out job of two engines.
+    val manual = store.create("acme/app", "# Manual", "u@x", Engine.Builtin)
+    clock.advance(Duration.ofSeconds(1))
+    val job =
+        store.createJob(
+            "acme/app",
+            "# Issue",
+            "flow-reconciler",
+            listOf(Engine.Claude, Engine.Builtin),
+        )
+
+    assertEquals(2, job.size)
+    assertEquals(job[0].jobId, job[1].jobId) // both sessions share one job id
+    assertNotEquals(manual.jobId, job[0].jobId) // distinct from the manual session's job
+    assertEquals(Engine.Claude, job[0].engine) // primary (Claude) first, shadow (built-in) second
+    assertEquals(Engine.Builtin, job[1].engine)
+
+    // The oldest job (the 1-session manual one) is claimed first, on its own.
+    val firstClaim = store.claimNextJob()
+    assertEquals(listOf(manual.id), firstClaim.map { it.id })
+    assertTrue(firstClaim.all { it.state == SessionState.Running })
+
+    // The next claim grabs BOTH sessions of the fan-out job together — the whole unit of work.
+    val secondClaim = store.claimNextJob()
+    assertEquals(job.map { it.id }.toSet(), secondClaim.map { it.id }.toSet())
+    assertTrue(secondClaim.all { it.state == SessionState.Running })
+    assertEquals(setOf(Engine.Claude, Engine.Builtin), secondClaim.map { it.engine }.toSet())
+
+    // Queue drained.
+    assertTrue(store.claimNextJob().isEmpty())
+  }
+
+  @Test
   fun `abort on a non-running session is a precondition failure`() = runBlocking {
     val (store, _) = newStore()
     val pending =

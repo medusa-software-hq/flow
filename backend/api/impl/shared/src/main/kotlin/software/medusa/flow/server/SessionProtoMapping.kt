@@ -72,6 +72,7 @@ fun Session.toProto(
 
   return session {
     id = domainSession.id.id
+    jobId = domainSession.jobId.id
     repoFullName = domainSession.repoFullName
     taskMarkdown = domainSession.taskMarkdown
     state = domainSession.state.toProto()

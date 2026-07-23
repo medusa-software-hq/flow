@@ -3,12 +3,16 @@ package software.medusa.flow.worker
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import software.medusa.flow.v1.Session
 
 /**
- * Claim → process → repeat. Strictly one session at a time. Cooperatively cancellable at its
+ * Claim → process → repeat. Claims a whole *job* (one unit of work) and runs its sessions — both
+ * engines of a reconciled issue — in parallel, one job at a time. Cooperatively cancellable at its
  * `delay` suspension points, so a caller can stop it cleanly (e.g. on SIGINT) via coroutine
  * cancellation.
  */
@@ -26,16 +30,16 @@ class WrkPollLoop(
     // ambiguity that made the first hosted-worker run (M4 Path B) impossible to diagnose from logs.
     var idleAnnounced = false
     while (coroutineContext.isActive) {
-      val session =
+      val sessions =
           try {
-            apiClient.claimNextSession()
+            apiClient.claimNextJob()
           } catch (e: StatusException) {
-            log("claimNextSession failed (${e.status}), retrying after a delay")
+            log("claimNextJob failed (${e.status}), retrying after a delay")
             delay(emptyPollDelayMillis)
             continue
           }
 
-      if (session == null) {
+      if (sessions.isEmpty()) {
         if (!idleAnnounced) {
           log("No session available yet; polling every ${emptyPollDelayMillis}ms until one appears")
           idleAnnounced = true
@@ -45,8 +49,14 @@ class WrkPollLoop(
       }
       idleAnnounced = false
 
-      log("Claimed session ${session.id}")
-      processClaimedSession(session)
+      log("Claimed job of ${sessions.size} session(s): ${sessions.joinToString { it.id }}")
+      // Run every engine of the job in parallel — one issue, both engines at once, under one
+      // worker.
+      // processClaimedSession swallows its own failures, so one engine failing never cancels the
+      // other.
+      coroutineScope {
+        sessions.map { session -> async { processClaimedSession(session) } }.awaitAll()
+      }
     }
   }
 
