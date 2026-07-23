@@ -53,5 +53,13 @@ subprojects {
 
   tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+
+    // Cap forked test-JVM heaps. Without an explicit limit each fork inherits the JVM's ergonomic
+    // default of 25% of visible RAM — ~7.6 GB inside the hosted worker's container, which runs with
+    // no cgroup memory limit and so sees the whole 30 GB VM. The worker now runs two engine builds
+    // concurrently (the parallel Claude/built-in fan-out), so a handful of these forks balloon past
+    // the VM's memory and OOM the box mid-build. Tests need very little heap; 1 GB is ample, and it
+    // is the forks — not compilation — that were the unbounded consumer (measured).
+    maxHeapSize = "1g"
   }
 }
