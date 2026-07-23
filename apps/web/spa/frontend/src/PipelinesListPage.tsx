@@ -15,7 +15,7 @@ import {
 } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   IssuePipelineState,
   type IssuePipeline,
@@ -191,13 +191,19 @@ export function PipelinesListPage({
 }
 
 function PipelineRow({ row, onClear }: { row: IssuePipeline; onClear: () => void }) {
+  const navigate = useNavigate();
   const isFailed = row.state === IssuePipelineState.FAILED && !row.cleared;
 
   return (
     <>
-      <Table.Tr>
+      <Table.Tr onClick={() => void navigate(`/pipelines/${row.id}`)} style={{ cursor: 'pointer' }}>
         <Table.Td>
-          <Anchor href={row.issueUrl} target="_blank" rel="noreferrer">
+          <Anchor
+            href={row.issueUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+          >
             #{row.issueNumber} {row.issueTitle}
           </Anchor>
         </Table.Td>
@@ -220,14 +226,23 @@ function PipelineRow({ row, onClear }: { row: IssuePipeline; onClear: () => void
         </Table.Td>
         <Table.Td>
           {row.sessionId !== '' && (
-            <Anchor component={Link} to={`/sessions/${row.sessionId}`}>
+            <Anchor
+              component={Link}
+              to={`/sessions/${row.sessionId}`}
+              onClick={(event) => event.stopPropagation()}
+            >
               View session
             </Anchor>
           )}
         </Table.Td>
         <Table.Td>
           {row.prUrl !== '' && (
-            <Anchor href={row.prUrl} target="_blank" rel="noreferrer">
+            <Anchor
+              href={row.prUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
               View PR
             </Anchor>
           )}
@@ -235,7 +250,15 @@ function PipelineRow({ row, onClear }: { row: IssuePipeline; onClear: () => void
         <Table.Td>{formatTimestamp(row.updatedAt)}</Table.Td>
         <Table.Td>
           {isFailed && (
-            <Button size="xs" color="red" variant="light" onClick={onClear}>
+            <Button
+              size="xs"
+              color="red"
+              variant="light"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClear();
+              }}
+            >
               Clear
             </Button>
           )}
