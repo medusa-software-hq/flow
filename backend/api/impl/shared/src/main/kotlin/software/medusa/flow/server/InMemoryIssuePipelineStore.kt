@@ -24,6 +24,7 @@ class InMemoryIssuePipelineStore(
       issueTitle: String,
       issueUrl: String,
       sessionId: SessionId,
+      shadowSessionId: SessionId,
   ): PickResult =
       synchronized(backend.lock) {
         if (isRepoBusyLocked(repoFullName)) return@synchronized PickResult.RepoBusy
@@ -38,6 +39,7 @@ class InMemoryIssuePipelineStore(
                 issueUrl = issueUrl,
                 state = IssuePipelineState.InProgress,
                 sessionId = sessionId,
+                shadowSessionId = shadowSessionId,
                 prNumber = null,
                 prUrl = null,
                 mergeCommitSha = null,
@@ -198,7 +200,12 @@ class InMemoryIssuePipelineStore(
       sessionId: SessionId,
   ): IssuePipeline? =
       synchronized(backend.lock) {
-        backend.pipelinesById.values.firstOrNull { it.sessionId == sessionId }
+        // Matches either session — the primary or the shadow — so display enrichment works for
+        // both.
+        // Primary-only callers (pipeline advancement) filter on sessionId themselves.
+        backend.pipelinesById.values.firstOrNull {
+          it.sessionId == sessionId || it.shadowSessionId == sessionId
+        }
       }
 
   override suspend fun listLive(): List<IssuePipeline> =

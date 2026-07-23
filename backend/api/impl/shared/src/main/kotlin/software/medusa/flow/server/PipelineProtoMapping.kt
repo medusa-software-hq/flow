@@ -39,6 +39,7 @@ fun IssuePipeline.toProto(
     state = domain.state.toProto()
     // Proto3 strings default to empty; nulls collapse to "".
     sessionId = domain.sessionId?.id.orEmpty()
+    shadowSessionId = domain.shadowSessionId?.id.orEmpty()
     prUrl = domain.prUrl.orEmpty()
     failureSummary = domain.failureSummary.orEmpty()
     createdAt = domain.createdAt.toProtoTimestamp()

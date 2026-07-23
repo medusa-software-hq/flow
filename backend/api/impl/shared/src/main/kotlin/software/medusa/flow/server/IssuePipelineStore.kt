@@ -34,6 +34,12 @@ data class IssuePipeline(
     val issueUrl: String,
     val state: IssuePipelineState,
     val sessionId: SessionId?,
+    /**
+     * The built-in "shadow" session run in parallel for comparison (M6 dual-engine). It opens its
+     * own PR but is never observed — it doesn't advance this pipeline's state or gate the merge,
+     * and its PR is closed manually. Null for pipelines picked before dual-engine fan-out.
+     */
+    val shadowSessionId: SessionId?,
     val prNumber: Int?,
     val prUrl: String?,
     val mergeCommitSha: String?,
@@ -100,6 +106,7 @@ interface IssuePipelineStore {
       issueTitle: String,
       issueUrl: String,
       sessionId: SessionId,
+      shadowSessionId: SessionId,
   ): PickResult
 
   /** `IN_PROGRESS → PR_OPEN`. Enqueues the label swap `flow:in-progress` → `flow:pr-open`. */
@@ -147,7 +154,13 @@ interface IssuePipelineStore {
       id: IssuePipelineId,
   ): IssuePipeline?
 
-  /** The pipeline driven by [sessionId] (one-to-one), or null for a manual/unlinked session. */
+  /**
+   * The pipeline [sessionId] participates in — as either the primary or the shadow session — or
+   * null for a manual/unlinked session. Callers that must act only on behalf of the *primary*
+   * session (e.g. advancing pipeline state) must check `pipeline.sessionId == sessionId`
+   * themselves; this lookup deliberately also matches the shadow so display enrichment works for
+   * both.
+   */
   suspend fun findBySessionId(
       sessionId: SessionId,
   ): IssuePipeline?

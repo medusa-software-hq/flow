@@ -220,6 +220,10 @@ class WorkerServiceImpl(
       transition: suspend (IssuePipeline) -> PipelineTransition,
   ) {
     val pipeline = issuePipelineStore.findBySessionId(sessionId) ?: return
+    // The shadow (built-in) session is unobserved: it never advances pipeline state. Only the
+    // primary session drives the pipeline, so a shadow session reaching a terminal state is a no-op
+    // here — its result lives only on its own PR, closed manually.
+    if (pipeline.sessionId != sessionId) return
     if (pipeline.state == IssuePipelineState.InProgress) transition(pipeline)
   }
 
