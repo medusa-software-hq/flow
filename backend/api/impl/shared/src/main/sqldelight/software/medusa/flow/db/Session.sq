@@ -3,6 +3,10 @@
 -- to src/main/resources/db/migration/V2__create_sessions.sql.
 CREATE TABLE sessions (
   id                TEXT NOT NULL PRIMARY KEY,
+  -- M6: groups the sessions claimed & run together as one unit of work (V10).
+  -- A manual session is its own 1-session job; a reconciled issue's Claude +
+  -- built-in sessions share one job_id.
+  job_id            TEXT NOT NULL DEFAULT '',
   repo_full_name    TEXT NOT NULL,
   task_markdown     TEXT NOT NULL,
   state             TEXT NOT NULL,
@@ -32,8 +36,8 @@ CREATE TABLE session_events (
 );
 
 insertSession:
-INSERT INTO sessions (id, repo_full_name, task_markdown, state, created_at, created_by, engine)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO sessions (id, job_id, repo_full_name, task_markdown, state, created_at, created_by, engine)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 selectSessionById:
 SELECT * FROM sessions WHERE id = ?;
@@ -49,6 +53,23 @@ UPDATE sessions
 SET state = 'RUNNING', claimed_at = :now, last_heartbeat_at = :now
 WHERE id = (
   SELECT id FROM sessions
+  WHERE state = 'PENDING'
+  ORDER BY created_at
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- Atomically claim the oldest PENDING *job* — every PENDING session sharing the
+-- oldest pending session's job_id — so one worker owns the whole unit of work
+-- (both engines of a reconciled issue) and runs them in parallel. SKIP LOCKED on
+-- the picked row keeps two workers from racing onto the same job; returns every
+-- session it transitioned, or nothing when the queue is empty.
+claimNextJob:
+UPDATE sessions
+SET state = 'RUNNING', claimed_at = :now, last_heartbeat_at = :now
+WHERE state = 'PENDING' AND job_id = (
+  SELECT job_id FROM sessions
   WHERE state = 'PENDING'
   ORDER BY created_at
   LIMIT 1

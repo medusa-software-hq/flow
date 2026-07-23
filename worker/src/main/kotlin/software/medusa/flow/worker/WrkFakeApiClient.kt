@@ -37,6 +37,15 @@ class WrkFakeApiClient(
   override suspend fun claimNextSession(): Session? =
       if (queue.isEmpty()) null else queue.removeAt(0)
 
+  override suspend fun claimNextJob(): List<Session> {
+    if (queue.isEmpty()) return emptyList()
+    // Drain every queued session sharing the head's job — the fake's stand-in for one job's set.
+    val jobId = queue.first().jobId
+    val job = queue.filter { it.jobId == jobId }
+    queue.removeAll(job.toSet())
+    return job
+  }
+
   override suspend fun registerWorker(
       workerId: String,
       workerVersion: String,

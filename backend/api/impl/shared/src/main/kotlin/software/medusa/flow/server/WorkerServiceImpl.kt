@@ -3,6 +3,8 @@ package software.medusa.flow.server
 import io.grpc.Status
 import software.medusa.flow.v1.AppendSessionEventRequest
 import software.medusa.flow.v1.AppendSessionEventResponse
+import software.medusa.flow.v1.ClaimNextJobRequest
+import software.medusa.flow.v1.ClaimNextJobResponse
 import software.medusa.flow.v1.ClaimNextSessionRequest
 import software.medusa.flow.v1.ClaimNextSessionResponse
 import software.medusa.flow.v1.CompleteSessionRequest
@@ -18,6 +20,7 @@ import software.medusa.flow.v1.RegisterWorkerResponse
 import software.medusa.flow.v1.SessionWriteAck
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 import software.medusa.flow.v1.appendSessionEventResponse
+import software.medusa.flow.v1.claimNextJobResponse
 import software.medusa.flow.v1.claimNextSessionResponse
 import software.medusa.flow.v1.completeSessionResponse
 import software.medusa.flow.v1.failSessionResponse
@@ -101,6 +104,21 @@ class WorkerServiceImpl(
     // Include the issue linkage so the worker can publish an issue-aware PR (story 09).
     return claimNextSessionResponse {
       claimed?.let { session = it.toProto(issuePipelineStore.findBySessionId(it.id)) }
+    }
+  }
+
+  override suspend fun claimNextJob(
+      request: ClaimNextJobRequest,
+  ): ClaimNextJobResponse {
+    requireAuthorizedWorker()
+
+    val claimed = sessionStore.claimNextJob()
+
+    // Each session carries its own issue linkage so the worker publishes an issue-aware PR per
+    // engine (both share the pipeline; only the primary drives its state — see
+    // advanceLinkedPipeline).
+    return claimNextJobResponse {
+      sessions += claimed.map { it.toProto(issuePipelineStore.findBySessionId(it.id)) }
     }
   }
 

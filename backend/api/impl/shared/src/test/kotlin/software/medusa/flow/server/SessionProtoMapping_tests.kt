@@ -14,6 +14,7 @@ class SessionProtoMapping_tests {
     val session =
         Session(
             id = SessionId("abc"),
+            jobId = JobId("abc-job"),
             repoFullName = "acme/app",
             taskMarkdown = "# Task",
             state = SessionState.Running,
@@ -43,6 +44,7 @@ class SessionProtoMapping_tests {
     val base =
         Session(
             id = SessionId("x"),
+            jobId = JobId("x-job"),
             repoFullName = "acme/app",
             taskMarkdown = "t",
             state = SessionState.Completed,
@@ -106,6 +108,7 @@ class SessionProtoMapping_tests {
     val base =
         Session(
             id = SessionId("c"),
+            jobId = JobId("c-job"),
             repoFullName = "acme/app",
             taskMarkdown = "t",
             state = SessionState.Completed,
@@ -127,6 +130,7 @@ class SessionProtoMapping_tests {
     val session =
         Session(
             id = SessionId("s1"),
+            jobId = JobId("s1-job"),
             repoFullName = "acme/app",
             taskMarkdown = "# Task",
             state = SessionState.Running,

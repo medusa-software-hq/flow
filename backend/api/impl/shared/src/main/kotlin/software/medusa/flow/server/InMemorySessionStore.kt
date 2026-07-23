@@ -36,25 +36,53 @@ class InMemorySessionStore(
       engine: Engine,
   ): Session =
       synchronized(lock) {
-        val session =
-            Session(
-                id = SessionId(UUID.randomUUID().toString()),
-                repoFullName = repoFullName,
-                taskMarkdown = taskMarkdown,
-                state = SessionState.Pending,
-                createdAt = clock.instant(),
-                createdBy = createdBy,
-                claimedAt = null,
-                lastHeartbeatAt = null,
-                prUrl = null,
-                failureSummary = null,
-                engine = engine,
-            )
-
-        sessionsById[session.id] = session
-
-        session
+        insertSessionLocked(
+            JobId(UUID.randomUUID().toString()),
+            repoFullName,
+            taskMarkdown,
+            createdBy,
+            engine,
+        )
       }
+
+  override suspend fun createJob(
+      repoFullName: String,
+      taskMarkdown: String,
+      createdBy: String,
+      engines: List<Engine>,
+  ): List<Session> =
+      synchronized(lock) {
+        val jobId = JobId(UUID.randomUUID().toString())
+        engines.map { engine ->
+          insertSessionLocked(jobId, repoFullName, taskMarkdown, createdBy, engine)
+        }
+      }
+
+  private fun insertSessionLocked(
+      jobId: JobId,
+      repoFullName: String,
+      taskMarkdown: String,
+      createdBy: String,
+      engine: Engine,
+  ): Session {
+    val session =
+        Session(
+            id = SessionId(UUID.randomUUID().toString()),
+            jobId = jobId,
+            repoFullName = repoFullName,
+            taskMarkdown = taskMarkdown,
+            state = SessionState.Pending,
+            createdAt = clock.instant(),
+            createdBy = createdBy,
+            claimedAt = null,
+            lastHeartbeatAt = null,
+            prUrl = null,
+            failureSummary = null,
+            engine = engine,
+        )
+    sessionsById[session.id] = session
+    return session
+  }
 
   override suspend fun list(
       limit: Int,
@@ -99,6 +127,30 @@ class InMemorySessionStore(
         sessionsById[claimed.id] = claimed
 
         claimed
+      }
+
+  override suspend fun claimNextJob(): List<Session> =
+      synchronized(lock) {
+        val oldestPending =
+            sessionsById.values
+                .filter { it.state == SessionState.Pending }
+                .minByOrNull { it.createdAt } ?: return@synchronized emptyList()
+
+        val now = clock.instant()
+        // Snapshot the job's pending sessions before mutating the map. Insertion order is
+        // preserved,
+        // so the primary (created first) comes before the shadow.
+        val jobPending =
+            sessionsById.values
+                .filter { it.state == SessionState.Pending && it.jobId == oldestPending.jobId }
+                .toList()
+
+        jobPending.map { pending ->
+          val claimed =
+              pending.copy(state = SessionState.Running, claimedAt = now, lastHeartbeatAt = now)
+          sessionsById[claimed.id] = claimed
+          claimed
+        }
       }
 
   override suspend fun appendEvent(

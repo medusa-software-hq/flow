@@ -36,33 +36,64 @@ class PostgresSessionStore(
       engine: Engine,
   ): Session =
       withContext(Dispatchers.IO) {
-        val session =
-            Session(
-                id = SessionId(UUID.randomUUID().toString()),
-                repoFullName = repoFullName,
-                taskMarkdown = taskMarkdown,
-                state = SessionState.Pending,
-                createdAt = clock.instant(),
-                createdBy = createdBy,
-                claimedAt = null,
-                lastHeartbeatAt = null,
-                prUrl = null,
-                failureSummary = null,
-                engine = engine,
-            )
+        insertSessionRow(
+            JobId(UUID.randomUUID().toString()),
+            repoFullName,
+            taskMarkdown,
+            createdBy,
+            engine,
+        )
+      }
 
-        queries.insertSession(
-            id = session.id.id,
-            repo_full_name = repoFullName,
-            task_markdown = taskMarkdown,
-            state = session.state.toDbValue(),
-            created_at = session.createdAt.toOffsetDateTime(),
-            created_by = createdBy,
-            engine = engine.toDbValue(),
+  override suspend fun createJob(
+      repoFullName: String,
+      taskMarkdown: String,
+      createdBy: String,
+      engines: List<Engine>,
+  ): List<Session> =
+      withContext(Dispatchers.IO) {
+        val jobId = JobId(UUID.randomUUID().toString())
+        database.transactionWithResult {
+          engines.map { insertSessionRow(jobId, repoFullName, taskMarkdown, createdBy, it) }
+        }
+      }
+
+  private fun insertSessionRow(
+      jobId: JobId,
+      repoFullName: String,
+      taskMarkdown: String,
+      createdBy: String,
+      engine: Engine,
+  ): Session {
+    val session =
+        Session(
+            id = SessionId(UUID.randomUUID().toString()),
+            jobId = jobId,
+            repoFullName = repoFullName,
+            taskMarkdown = taskMarkdown,
+            state = SessionState.Pending,
+            createdAt = clock.instant(),
+            createdBy = createdBy,
+            claimedAt = null,
+            lastHeartbeatAt = null,
+            prUrl = null,
+            failureSummary = null,
+            engine = engine,
         )
 
-        session
-      }
+    queries.insertSession(
+        id = session.id.id,
+        job_id = jobId.id,
+        repo_full_name = repoFullName,
+        task_markdown = taskMarkdown,
+        state = session.state.toDbValue(),
+        created_at = session.createdAt.toOffsetDateTime(),
+        created_by = createdBy,
+        engine = engine.toDbValue(),
+    )
+
+    return session
+  }
 
   override suspend fun list(
       limit: Int,
@@ -97,6 +128,13 @@ class PostgresSessionStore(
         val now = clock.instant().toOffsetDateTime()
         // Uniform workers: any worker can run any engine, so the claim is unconditional.
         queries.claimNextSession(now = now).executeAsOneOrNull()?.toDomain()
+      }
+
+  override suspend fun claimNextJob(): List<Session> =
+      withContext(Dispatchers.IO) {
+        val now = clock.instant().toOffsetDateTime()
+        // Claims every PENDING session of the oldest pending job in one guarded statement.
+        queries.claimNextJob(now = now).executeAsList().map { it.toDomain() }
       }
 
   override suspend fun appendEvent(
@@ -257,6 +295,7 @@ class PostgresSessionStore(
   private fun Sessions.toDomain(): Session =
       Session(
           id = SessionId(id),
+          jobId = JobId(job_id),
           repoFullName = repo_full_name,
           taskMarkdown = task_markdown,
           state = parseState(state),

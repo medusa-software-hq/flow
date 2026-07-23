@@ -9,6 +9,13 @@ interface WrkApiClient {
   suspend fun claimNextSession(): Session?
 
   /**
+   * Claims a whole job — all the sessions created together for one unit of work (a reconciled
+   * issue's Claude + built-in sessions). The worker runs them in parallel. Empty means the queue is
+   * empty.
+   */
+  suspend fun claimNextJob(): List<Session>
+
+  /**
    * Registers (or refreshes) this worker's fleet-registry entry (M5), so the control plane knows it
    * is alive and what build it runs. Called periodically, independent of session activity, by
    * [WrkRegistrationLoop].

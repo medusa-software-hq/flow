@@ -12,7 +12,12 @@ import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.session
 
 class WrkPollLoop_tests {
-  private fun testSession(id: String): Session = session { this.id = id }
+  // Each session defaults to its own 1-session job, so these claim one at a time; the parallel test
+  // below shares a job id across two sessions on purpose.
+  private fun testSession(id: String, jobId: String = "$id-job"): Session = session {
+    this.id = id
+    this.jobId = jobId
+  }
 
   @Test
   fun `claims and processes sessions one at a time, then keeps polling`() = runBlocking {
@@ -48,6 +53,41 @@ class WrkPollLoop_tests {
           it is WrkFakeApiClient.RecordedCall.CompleteSession && it.sessionId == "s1"
         },
     )
+  }
+
+  @Test
+  fun `claims a whole job and runs its sessions in parallel`() = runBlocking {
+    val apiClient = WrkFakeApiClient()
+    // Two sessions of one job — a reconciled issue's Claude + built-in engines.
+    apiClient.enqueue(testSession("claude", jobId = "job-1"))
+    apiClient.enqueue(testSession("builtin", jobId = "job-1"))
+
+    val started = java.util.Collections.synchronizedList(mutableListOf<String>())
+    val processed = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+    val processor = WrkSessionProcessor { session, _ ->
+      started.add(session.id)
+      // Neither finishes until BOTH have started: if the worker processed the job strictly
+      // sequentially this would deadlock (the second never starts), so reaching here proves the two
+      // engines run concurrently under one claim.
+      while (started.size < 2) yield()
+      processed.add(session.id)
+    }
+
+    val pollLoop =
+        WrkPollLoop(
+            apiClient = apiClient,
+            sessionProcessor = processor,
+            emptyPollDelayMillis = 5,
+            log = {},
+        )
+
+    val job = launch { pollLoop.run() }
+    while (processed.size < 2) yield()
+    job.cancel()
+    job.join()
+
+    assertEquals(setOf("claude", "builtin"), processed.toSet())
   }
 
   @Test

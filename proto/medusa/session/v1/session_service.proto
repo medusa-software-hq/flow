@@ -61,6 +61,10 @@ message Session {
   // RUN_COST event has landed; absent (no presence) while unknown / for engines
   // that don't report cost. Powers the sessions-list cost column.
   optional double total_cost_usd = 13;
+  // The job this session belongs to (M6). Sessions sharing a job_id are claimed
+  // and run together by one worker; a reconciled issue's Claude + built-in
+  // sessions share one.
+  string job_id = 14;
 }
 
 enum SessionEventKind {
@@ -140,7 +144,12 @@ message GetSessionResponse {
 // against an email allowlist.
 service WorkerService {
   // Atomically claims the oldest PENDING session (SKIP LOCKED); absent session if none.
+  // Deprecated by ClaimNextJob (kept for rollout compatibility with older workers).
   rpc ClaimNextSession(ClaimNextSessionRequest) returns (ClaimNextSessionResponse);
+  // Atomically claims the oldest PENDING *job* — all sessions sharing that job's
+  // id (a reconciled issue's Claude + built-in) — so one worker runs both engines
+  // in parallel. Empty sessions list means the queue is empty.
+  rpc ClaimNextJob(ClaimNextJobRequest) returns (ClaimNextJobResponse);
   // Appends a display event; also bumps the heartbeat.
   rpc AppendSessionEvent(AppendSessionEventRequest) returns (AppendSessionEventResponse);
   // Bare heartbeat for long silent phases.
@@ -210,6 +219,14 @@ message ClaimNextSessionRequest {
 // Absent session means the queue is empty.
 message ClaimNextSessionResponse {
   Session session = 1;
+}
+
+message ClaimNextJobRequest {}
+
+// The claimed job's sessions (already RUNNING), in a stable order (primary
+// first). Empty means the queue is empty.
+message ClaimNextJobResponse {
+  repeated Session sessions = 1;
 }
 
 message AppendSessionEventRequest {
