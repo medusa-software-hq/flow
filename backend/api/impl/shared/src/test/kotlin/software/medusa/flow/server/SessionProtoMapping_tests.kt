@@ -148,6 +148,7 @@ class SessionProtoMapping_tests {
             issueUrl = "https://github.com/acme/app/issues/42",
             state = IssuePipelineState.InProgress,
             sessionId = SessionId("s1"),
+            shadowSessionId = SessionId("s1-shadow"),
             prNumber = null,
             prUrl = null,
             mergeCommitSha = null,

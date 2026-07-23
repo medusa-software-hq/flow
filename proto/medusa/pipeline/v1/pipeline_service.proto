@@ -28,7 +28,9 @@ message IssuePipeline {
   string issue_title = 4;
   string issue_url = 5;
   IssuePipelineState state = 6;
-  // The session driving this pipeline (empty until one is created).
+  // The primary session driving this pipeline (Claude engine). Empty until one
+  // is created. This is the session the reconciler observes: its PR is watched,
+  // merge-gated, and drives issue close-out.
   string session_id = 7;
   // Set once the PR exists.
   string pr_url = 8;
@@ -40,6 +42,11 @@ message IssuePipeline {
   bool cleared = 12;
   // A flagged outbox entry exists for this pipeline — GitHub sync is behind.
   bool outbox_stuck = 13;
+  // The "shadow" session (built-in engine) run in parallel for comparison. It
+  // opens its own PR but is NOT observed: it never advances pipeline state,
+  // never gates the merge, and its PR is closed manually. Empty for pipelines
+  // predating dual-engine fan-out.
+  string shadow_session_id = 14;
 }
 
 // User-facing service, authenticated with a Google user ID token.

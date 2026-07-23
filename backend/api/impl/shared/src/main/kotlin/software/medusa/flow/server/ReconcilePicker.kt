@@ -45,12 +45,24 @@ class ReconcilePicker(
         candidates.filter { it.number !in takenIssueNumbers }.minByOrNull { it.createdAt }
             ?: return 0
 
-    val session =
+    // Dual-engine fan-out (M6): every picked issue runs two sessions in parallel — a primary Claude
+    // session that drives the pipeline (observed, merge-gated, closes the issue) and a built-in
+    // "shadow" session for comparison that opens its own PR but is never observed. The engine is no
+    // longer read from a `flow:engine=` label; both always run.
+    val task = taskMarkdownFor(chosen)
+    val primary =
         sessionStore.create(
             repoFullName = repoFullName,
-            taskMarkdown = taskMarkdownFor(chosen),
+            taskMarkdown = task,
             createdBy = reconcilerAuthor,
-            engine = GitHubCandidateClient.engineFromLabels(chosen.labels),
+            engine = Engine.Claude,
+        )
+    val shadow =
+        sessionStore.create(
+            repoFullName = repoFullName,
+            taskMarkdown = task,
+            createdBy = reconcilerAuthor,
+            engine = Engine.Builtin,
         )
 
     return when (
@@ -60,21 +72,30 @@ class ReconcilePicker(
                 issueNumber = chosen.number,
                 issueTitle = chosen.title,
                 issueUrl = chosen.url,
-                sessionId = session.id,
+                sessionId = primary.id,
+                shadowSessionId = shadow.id,
             )
     ) {
       is PickResult.Picked -> {
-        log.info("picked {}#{} → pipeline {}", repoFullName, chosen.number, result.pipeline.id.id)
+        log.info(
+            "picked {}#{} → pipeline {} (primary {}, shadow {})",
+            repoFullName,
+            chosen.number,
+            result.pipeline.id.id,
+            primary.id.id,
+            shadow.id.id,
+        )
         1
       }
       PickResult.RepoBusy -> {
         // Unreachable under the per-repo lock. If the invariant ever breaks, log loudly so the
-        // orphaned session is noticed rather than silently claimed by a worker.
+        // orphaned sessions are noticed rather than silently claimed by a worker.
         log.error(
-            "pick raced on {}#{}: repo became busy after the free check; session {} is orphaned",
+            "pick raced on {}#{}: repo became busy after the free check; sessions {}/{} orphaned",
             repoFullName,
             chosen.number,
-            session.id.id,
+            primary.id.id,
+            shadow.id.id,
         )
         0
       }
