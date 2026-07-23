@@ -3,8 +3,6 @@ package software.medusa.flow.server
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -236,8 +234,6 @@ class PostgresSessionStore(
         .executeAsList()
         .size
   }
-
-  private fun Instant.toOffsetDateTime(): OffsetDateTime = atOffset(ZoneOffset.UTC)
 
   private fun SessionState.toDbValue(): String =
       when (this) {

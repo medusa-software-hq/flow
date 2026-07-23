@@ -2,8 +2,6 @@ package software.medusa.flow.server
 
 import java.time.Clock
 import java.time.Duration
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.flow.db.FlowDatabase
@@ -60,8 +58,6 @@ class PostgresGithubOutboxStore(
 
   override suspend fun reposWithPendingEntries(): List<String> =
       withContext(Dispatchers.IO) { queries.reposWithPendingEntries().executeAsList() }
-
-  private fun java.time.Instant.toOffsetDateTime(): OffsetDateTime = atOffset(ZoneOffset.UTC)
 
   private fun Github_outbox.toDomain(): OutboxEntry =
       OutboxEntry(

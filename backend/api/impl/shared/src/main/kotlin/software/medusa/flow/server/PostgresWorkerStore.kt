@@ -1,9 +1,6 @@
 package software.medusa.flow.server
 
 import java.time.Clock
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.flow.db.FlowDatabase
@@ -37,8 +34,6 @@ class PostgresWorkerStore(
 
   override suspend fun list(): List<RegisteredWorker> =
       withContext(Dispatchers.IO) { queries.listWorkers().executeAsList().map { it.toDomain() } }
-
-  private fun Instant.toOffsetDateTime(): OffsetDateTime = atOffset(ZoneOffset.UTC)
 
   private fun Workers.toDomain(): RegisteredWorker =
       RegisteredWorker(
