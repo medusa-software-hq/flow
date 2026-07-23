@@ -15,6 +15,7 @@ import software.medusa.flow.physical_workspace.PhwWorkspace
 import software.medusa.flow.universal_project.UnpModuleConnection
 import software.medusa.flow.universal_project.UnpModuleManifest
 import software.medusa.flow.universal_project.UnpModuleManifestLoader
+import software.medusa.flow.universal_project.UnpToolchainGate
 import software.medusa.flow.universal_project.yaml.UnpYamlModuleManifestLoader.BoundJob.Companion.executeOrSuccess
 import software.medusa.yaml.Yaml
 
@@ -146,18 +147,23 @@ abstract class UnpYamlModuleManifestLoader<RawModuleDetailsT : Any, RawStepDetai
                 modulePath = modulePath,
             )
 
+        // The heavy toolchain phases run under the process-wide gate keyed by this module's
+        // toolchain (`filePrefix` is "gradle"/"nodejs"). This is what serializes the concurrent
+        // sessions' Gradle builds so they can't corrupt a shared cache; see [UnpToolchainGate].
+        val toolchain = filePrefix.content
+
         return object : UnpModuleConnection {
           override suspend fun bootstrap(): UnpModuleConnection.Result =
-              boundModule.bootstrapJob.executeOrSuccess()
+              UnpToolchainGate.gated(toolchain) { boundModule.bootstrapJob.executeOrSuccess() }
 
           override suspend fun analyze(): UnpModuleConnection.Result =
-              boundModule.analyzeJob.executeOrSuccess()
+              UnpToolchainGate.gated(toolchain) { boundModule.analyzeJob.executeOrSuccess() }
 
           override suspend fun test(): UnpModuleConnection.Result =
-              boundModule.testJob.executeOrSuccess()
+              UnpToolchainGate.gated(toolchain) { boundModule.testJob.executeOrSuccess() }
 
           override suspend fun normalize(): UnpModuleConnection.Result =
-              boundModule.normalizeJob.executeOrSuccess()
+              UnpToolchainGate.gated(toolchain) { boundModule.normalizeJob.executeOrSuccess() }
         }
       }
     }
