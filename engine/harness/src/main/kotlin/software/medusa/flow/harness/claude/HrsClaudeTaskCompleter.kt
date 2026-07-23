@@ -534,8 +534,14 @@ class HrsClaudeTaskCompleter(
           ) { (modulePath, moduleFailure) ->
             "${modulePath.toUnixAbsolutePathString()}:\n${moduleFailure.diagnosticOutput}"
           }
-      return "$diagnostics\n\nThe project's checks fail as shown above: fix these and stop when " +
-          "the checks pass."
+      // Must not start with `/`: the bounce prompt is fed to `claude -p …`, and Claude Code
+      // interprets a leading `/` on the *first line* as a slash command. The diagnostics begin with
+      // the failing module's path, which for a root module is `/` — so an unguarded prompt became
+      // `/: …`, was swallowed as an "Unknown command", and the whole diagnostic never reached the
+      // model (the bounce loop silently no-op'd). A safe leading line fixes it; later lines are not
+      // interpreted as commands.
+      return "Diagnostics:\n\n$diagnostics\n\nThe project's checks fail as shown above: fix these " +
+          "and stop when the checks pass."
     }
 
     /**
