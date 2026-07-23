@@ -21,6 +21,7 @@ import software.medusa.commons.unix.filesystem.UfsReadonlyDirectory
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
 import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.harness.HrsReadonlyTemporaryWorkspace
+import software.medusa.flow.v1.Engine
 
 private fun runGit(
     directory: Path,
@@ -423,9 +424,10 @@ class WrkProperGitHubPublisher_tests {
             result,
         )
 
-        // The push landed on the issue-scoped branch, not the session-scoped one.
+        // The push landed on the engine-scoped issue branch (Claude via the test helper default),
+        // not the session-scoped one.
         val bareShow =
-            ProcessBuilder("git", "show", "flow/issue-42:hello.txt")
+            ProcessBuilder("git", "show", "flow/issue-42-claude:hello.txt")
                 .directory(cloneDirectory.toFile())
                 .start()
         val shown = bareShow.inputStream.bufferedReader().readText()
@@ -501,12 +503,82 @@ class WrkProperGitHubPublisher_tests {
     assertEquals("# Manual\n\nBody.\n\n---\nSession: s3", body)
   }
 
+  @Test
+  fun `dual-engine issue runs get engine-scoped branches and title tags`() = runBlocking {
+    // Both sessions of one issue publish independently; the engine scopes the branch (so they don't
+    // collide) and tags the PR title (so they're told apart). Two clones keep the runs independent.
+    val (_, claudeClone) = setUpBareRepoAndClone()
+    val claudeClient =
+        buildCapturingPrServer(
+            responseJson = """{"html_url":"https://github.com/acme/app/pull/20"}""",
+        )
+    WrkProperGitHubPublisher(
+            tokenSupplierFactory = WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+            webClient = claudeClient,
+        )
+        .publish(
+            repoFullName = "acme/app",
+            sessionId = "primary",
+            taskHeading = "Fix the bug",
+            taskMarkdown = "# Fix the bug",
+            cloneDirectory = claudeClone,
+            workspace = fakeWorkspaceWith(fileName = "fix.txt", content = "claude fix\n"),
+            issueNumber = 42,
+            engine = Engine.ENGINE_CLAUDE,
+        )
+    assertEquals("[Claude] Fix the bug", capturedPrTitle)
+    assertTrue(showOnBranch(claudeClone, "flow/issue-42-claude", "fix.txt").contains("claude fix"))
+    server.stop().join()
+
+    val (_, builtinClone) = setUpBareRepoAndClone()
+    val builtinClient =
+        buildCapturingPrServer(
+            responseJson = """{"html_url":"https://github.com/acme/app/pull/21"}""",
+        )
+    WrkProperGitHubPublisher(
+            tokenSupplierFactory = WrkGitHubTokenSupplierFactory { { "unused-for-local-remote" } },
+            webClient = builtinClient,
+        )
+        .publish(
+            repoFullName = "acme/app",
+            sessionId = "shadow",
+            taskHeading = "Fix the bug",
+            taskMarkdown = "# Fix the bug",
+            cloneDirectory = builtinClone,
+            workspace = fakeWorkspaceWith(fileName = "fix.txt", content = "builtin fix\n"),
+            issueNumber = 42,
+            engine = Engine.ENGINE_BUILTIN,
+        )
+    assertEquals("[Built-in] Fix the bug", capturedPrTitle)
+    assertTrue(
+        showOnBranch(builtinClone, "flow/issue-42-builtin", "fix.txt").contains("builtin fix")
+    )
+  }
+
+  private fun showOnBranch(
+      cloneDirectory: Path,
+      branch: String,
+      path: String,
+  ): String {
+    val show =
+        ProcessBuilder("git", "show", "$branch:$path").directory(cloneDirectory.toFile()).start()
+    val output = show.inputStream.bufferedReader().readText()
+    show.waitFor()
+    return output
+  }
+
   @Volatile private var capturedPrRequestJson: String? = null
 
   /** The decoded `body` field of the captured PR-creation request. */
   private val capturedPrBody: String?
     get() = capturedPrRequestJson?.let {
       Json.parseToJsonElement(it).jsonObject.getValue("body").jsonPrimitive.content
+    }
+
+  /** The decoded `title` field of the captured PR-creation request. */
+  private val capturedPrTitle: String?
+    get() = capturedPrRequestJson?.let {
+      Json.parseToJsonElement(it).jsonObject.getValue("title").jsonPrimitive.content
     }
 
   /** Like [buildPrCreationServer] but records the PR request payload for assertions. */
