@@ -7,6 +7,7 @@ import { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
 import { PipelineService } from './gen/medusa/pipeline/v1/pipeline_service_pb.ts';
 import { SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
 import { NewSessionForm } from './NewSessionForm.tsx';
+import { PipelineDetailPage } from './PipelineDetailPage.tsx';
 import { PipelinesListPage } from './PipelinesListPage.tsx';
 import { SessionDetailPage } from './SessionDetailPage.tsx';
 import { SessionsListPage } from './SessionsListPage.tsx';
@@ -93,6 +94,19 @@ function AuthenticatedApp({ token }: { token: string }) {
             <Box p="md">
               <PipelinesListPage
                 client={pipelineClient}
+                headers={headers}
+                onUnauthorized={handleUnauthorized}
+              />
+            </Box>
+          }
+        />
+        <Route
+          path="/pipelines/:id"
+          element={
+            <Box p="md">
+              <PipelineDetailPage
+                pipelineClient={pipelineClient}
+                sessionClient={sessionClient}
                 headers={headers}
                 onUnauthorized={handleUnauthorized}
               />
