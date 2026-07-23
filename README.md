@@ -85,6 +85,24 @@ work; failures stop the repo until a human clears them in the web app.
 - Acceptance-demo runbook: [docs/m2-demo-runbook.md](docs/m2-demo-runbook.md)
 - Known edges deferred past M2: [docs/m2-follow-ups.md](docs/m2-follow-ups.md)
 
+## Hosting
+
+The web app and control-plane API run on managed cloud infrastructure, but the
+**workers run on on-premises hardware** — long-lived machines that poll the API,
+claim sessions, and run the engine. Each worker is a container managed via
+**[Workload](https://workload-baseline.medusa.software/)**: the running image is
+pinned by digest in a per-environment profile (`flow-worker-staging`,
+`flow-worker-prod`), with identity, environment, and secrets injected at spawn,
+so the same env-agnostic image serves every environment.
+
+Unlike the API — which promotes to prod automatically on merge — a worker is
+rolled by hand and deliberately: CI (`Publish CLI`) builds the worker image and
+prints its digest, then an operator pins that digest in a new Workload profile
+revision and restarts the worker. Because the two move on different cadences they
+can briefly skew; the smoke/loop gates report the running worker's version
+against the deployed API so any skew is visible. Mechanics are in
+[worker/README.md](worker/README.md).
+
 ## Building
 
 Kotlin/JVM throughout (Java 21 toolchain), Gradle with a version catalog at

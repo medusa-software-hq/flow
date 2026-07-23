@@ -16,14 +16,18 @@ import software.medusa.flow.v1.listSessionsRequest
 import software.medusa.flow.v1.reconcileRequest
 
 /**
- * The smoke tier (story 02): a 1:1 Kotlin port of `smoke/smoke.sh` — fast, stateless post-deploy
- * checks against a freshly deployed API + SPA, so a deploy that is up but broken (bad env var,
- * unreachable DB, wrong OAuth client) fails here and blocks promotion. `@Smoke` so the promotion
- * gate runs it as its own tier; needs **no** live worker (the claim-cycle test is its own client
- * acting as a worker), so a worker outage never blocks promoting an API-only fix.
+ * The smoke tier (story 02): fast, stateless post-deploy checks against a freshly deployed API +
+ * SPA, so a deploy that is up but broken (bad env var, unreachable DB, wrong OAuth client) fails
+ * here and blocks promotion. `@Smoke` so the promotion gate runs it as its own tier.
  *
- * Each check that creates a session cleans up after itself (try/finally), draining it to a terminal
- * state so staging data stays legible.
+ * Staging and prod always run a hosted worker (on-premises, managed via Workload), which
+ * continuously claims sessions. The worker path is therefore smoked by asserting that worker is
+ * *alive in the fleet* — not by racing it to claim a seeded session, which flaked whenever the real
+ * worker won the claim. A worker outage now fails the gate with a clear "staging worker down"
+ * diagnostic; that is intended — a promotion shouldn't proceed while the fleet is down.
+ *
+ * Each check that creates a session cleans up after itself (best-effort — the live worker may
+ * terminate it first), so staging data stays legible.
  */
 @Smoke
 class SmokeTierTests : SystemTestBase() {
@@ -72,18 +76,14 @@ class SmokeTierTests : SystemTestBase() {
   }
 
   @Test
-  fun `worker cycle (claim, heartbeat, fail) drains the queue`() = runBlocking {
-    // Seed one smoke session so there is always something to claim, then act as a worker: claim →
-    // heartbeat → fail, draining the queue clean. Matches smoke.sh's cycle.
-    clients.sessionService.createSession(
-        createSessionRequest {
-          repoFullName = smokeRepo
-          taskMarkdown = smokeTask
-        },
-    )
-
-    val claimed = drainClaimableSessions()
-    assertTrue(claimed >= 1) { "ClaimNextSession returned nothing to cycle" }
+  fun `a live worker is registered in the fleet`() = runBlocking {
+    // Assert the hosted worker is alive via the fleet registry (the same liveness check the loop
+    // tier preflights on) instead of racing it to claim a seeded session. requireLiveWorker throws
+    // StagingWorkerDownException — a clear, actionable failure — if no worker has registered within
+    // the freshness window, and logs the live worker's version/digest so skew against a
+    // freshly promoted API is visible in the gate summary.
+    val worker = WorkerLiveness.requireLiveWorker(clients, log = ::log)
+    assertTrue(worker.workerId.isNotBlank()) { "live worker has a blank id: $worker" }
   }
 
   @Test
@@ -122,11 +122,11 @@ class SmokeTierTests : SystemTestBase() {
   }
 
   /**
-   * Claims → heartbeats → fails every currently-claimable session (bounded at 20), acting as a
-   * worker client — the shared drain for the checks that create sessions. Returns how many it
-   * cycled. A faithful port of `smoke.sh`'s check 3: staging holds only test/sandbox sessions (no
-   * real users), so failing every claimed session is safe and is exactly what today's bash gate
-   * does. This is what makes the smoke tier need no live worker — it is its own worker.
+   * Best-effort cleanup for checks that create a session: claims → heartbeats → fails every
+   * currently-claimable session (bounded at 20), acting as a worker client, and returns how many it
+   * cycled. With a live worker present it usually drains nothing (the worker claimed first and will
+   * terminate the session itself); either way staging holds only test/sandbox sessions, so failing
+   * any we do claim is safe. No assertion depends on the count.
    */
   private suspend fun drainClaimableSessions(): Int {
     var drained = 0
