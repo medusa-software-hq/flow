@@ -108,7 +108,13 @@ class InMemorySessionStore(
       costUsd: Double?,
   ): GuardedResult<SessionEvent> =
       synchronized(lock) {
-        val running = runningOrNull(id) ?: return@synchronized GuardedResult.PreconditionFailed
+        val running =
+            when (val guard = writableSessionOrGuard(id)) {
+              is GuardedResult.Applied -> guard.value
+              GuardedResult.Aborted -> return@synchronized GuardedResult.Aborted
+              GuardedResult.PreconditionFailed ->
+                  return@synchronized GuardedResult.PreconditionFailed
+            }
 
         val events = eventsBySessionId.getOrPut(id) { mutableListOf() }
 
@@ -135,7 +141,13 @@ class InMemorySessionStore(
       id: SessionId,
   ): GuardedResult<Unit> =
       synchronized(lock) {
-        val running = runningOrNull(id) ?: return@synchronized GuardedResult.PreconditionFailed
+        val running =
+            when (val guard = writableSessionOrGuard(id)) {
+              is GuardedResult.Applied -> guard.value
+              GuardedResult.Aborted -> return@synchronized GuardedResult.Aborted
+              GuardedResult.PreconditionFailed ->
+                  return@synchronized GuardedResult.PreconditionFailed
+            }
 
         sessionsById[id] = running.copy(lastHeartbeatAt = clock.instant())
 
@@ -147,7 +159,13 @@ class InMemorySessionStore(
       prUrl: String,
   ): GuardedResult<Unit> =
       synchronized(lock) {
-        val running = runningOrNull(id) ?: return@synchronized GuardedResult.PreconditionFailed
+        val running =
+            when (val guard = writableSessionOrGuard(id)) {
+              is GuardedResult.Applied -> guard.value
+              GuardedResult.Aborted -> return@synchronized GuardedResult.Aborted
+              GuardedResult.PreconditionFailed ->
+                  return@synchronized GuardedResult.PreconditionFailed
+            }
 
         sessionsById[id] =
             running.copy(
@@ -164,7 +182,13 @@ class InMemorySessionStore(
       failureSummary: String,
   ): GuardedResult<Unit> =
       synchronized(lock) {
-        val running = runningOrNull(id) ?: return@synchronized GuardedResult.PreconditionFailed
+        val running =
+            when (val guard = writableSessionOrGuard(id)) {
+              is GuardedResult.Applied -> guard.value
+              GuardedResult.Aborted -> return@synchronized GuardedResult.Aborted
+              GuardedResult.PreconditionFailed ->
+                  return@synchronized GuardedResult.PreconditionFailed
+            }
 
         sessionsById[id] =
             running.copy(
@@ -174,6 +198,48 @@ class InMemorySessionStore(
             )
 
         GuardedResult.Applied(Unit)
+      }
+
+  override suspend fun abort(
+      id: SessionId,
+  ): GuardedResult<Unit> =
+      synchronized(lock) {
+        when (val session = sessionsById[id]) {
+          null -> GuardedResult.PreconditionFailed
+          else ->
+              when (session.state) {
+                SessionState.Running -> {
+                  sessionsById[id] =
+                      session.copy(
+                          state = SessionState.Aborted,
+                          lastHeartbeatAt = clock.instant(),
+                      )
+                  GuardedResult.Applied(Unit)
+                }
+                // Already aborted — idempotent-ish; not a caller error.
+                SessionState.Aborted -> GuardedResult.Aborted
+                else -> GuardedResult.PreconditionFailed
+              }
+        }
+      }
+
+  /**
+   * The guard shared by every worker-facing write: [GuardedResult.Applied] with the live session
+   * while it's RUNNING, [GuardedResult.Aborted] once it's ABORTED (the worker's cue to stop, not an
+   * error), and [GuardedResult.PreconditionFailed] for a missing session or any other terminal
+   * state.
+   */
+  private fun writableSessionOrGuard(
+      id: SessionId,
+  ): GuardedResult<Session> =
+      when (val session = sessionsById[id]) {
+        null -> GuardedResult.PreconditionFailed
+        else ->
+            when (session.state) {
+              SessionState.Running -> GuardedResult.Applied(session)
+              SessionState.Aborted -> GuardedResult.Aborted
+              else -> GuardedResult.PreconditionFailed
+            }
       }
 
   override suspend fun expireStale(): Int = synchronized(lock) { expireStaleLocked() }

@@ -13,6 +13,7 @@ enum class SessionState {
   Running,
   Completed,
   Failed,
+  Aborted,
 }
 
 /**
@@ -85,6 +86,14 @@ sealed interface GuardedResult<out T> {
       val value: T,
   ) : GuardedResult<T>
 
+  /**
+   * The write targeted a session that has been ABORTED. This is *not* a caller error — a worker
+   * can't know its session was aborted out from under it — so it is a distinct, expected outcome
+   * (surfaced to the worker as the `ABORTED` write-ack, its cue to stop), never a
+   * `FAILED_PRECONDITION`.
+   */
+  data object Aborted : GuardedResult<Nothing>
+
   data object PreconditionFailed : GuardedResult<Nothing>
 }
 
@@ -154,6 +163,15 @@ interface SessionStore {
   suspend fun fail(
       id: SessionId,
       failureSummary: String,
+  ): GuardedResult<Unit>
+
+  /**
+   * Transitions a `RUNNING` session to `ABORTED` (the human "stop"). Idempotent-ish: an
+   * already-`ABORTED` session returns [GuardedResult.Aborted]; any other non-`RUNNING` state (or a
+   * missing session) returns [GuardedResult.PreconditionFailed].
+   */
+  suspend fun abort(
+      id: SessionId,
   ): GuardedResult<Unit>
 
   /**

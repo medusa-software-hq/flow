@@ -13,6 +13,21 @@ enum SessionState {
   SESSION_STATE_RUNNING = 2;
   SESSION_STATE_COMPLETED = 3;
   SESSION_STATE_FAILED = 4;
+  // Terminated on purpose by a human (AbortSession) while it was running — not an
+  // engine failure. Terminal like COMPLETED/FAILED: no further worker writes apply.
+  SESSION_STATE_ABORTED = 5;
+}
+
+// The control plane's verdict on a worker's write to its session, returned on the
+// worker-write RPCs. ACCEPTED is the normal case. ABORTED is *not* an error and not
+// the worker's fault: the session was aborted out from under it, so this is its cue
+// to stop and kill the engine. Distinguishing this from a gRPC error is deliberate —
+// the worker did nothing wrong, so abort is modeled as an expected outcome, not a
+// FAILED_PRECONDITION.
+enum SessionWriteAck {
+  SESSION_WRITE_ACK_UNSPECIFIED = 0;
+  SESSION_WRITE_ACK_ACCEPTED = 1;
+  SESSION_WRITE_ACK_ABORTED = 2;
 }
 
 // The agentic engine that runs a session (M4). UNSPECIFIED = "the claiming
@@ -78,6 +93,18 @@ service SessionService {
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  // Human "stop": transition a RUNNING session to ABORTED. The worker holding it
+  // learns via the ABORTED write-ack on its next heartbeat/event and kills the
+  // engine. A no-op-ish FAILED_PRECONDITION if the session isn't RUNNING.
+  rpc AbortSession(AbortSessionRequest) returns (AbortSessionResponse);
+}
+
+message AbortSessionRequest {
+  string id = 1;
+}
+
+message AbortSessionResponse {
+  Session session = 1;
 }
 
 message CreateSessionRequest {
@@ -194,13 +221,20 @@ message AppendSessionEventRequest {
   optional double cost_usd = 4;
 }
 
-message AppendSessionEventResponse {}
+message AppendSessionEventResponse {
+  // ACCEPTED normally; ABORTED tells the worker its session was aborted (stop).
+  SessionWriteAck ack = 1;
+}
 
 message HeartbeatRequest {
   string session_id = 1;
 }
 
-message HeartbeatResponse {}
+message HeartbeatResponse {
+  // ACCEPTED normally; ABORTED tells the worker its session was aborted (stop).
+  // The heartbeat is the guaranteed ≤interval signal even during long silent phases.
+  SessionWriteAck ack = 1;
+}
 
 message CompleteSessionRequest {
   string session_id = 1;

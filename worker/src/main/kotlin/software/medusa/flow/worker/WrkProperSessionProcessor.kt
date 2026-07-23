@@ -1,6 +1,8 @@
 package software.medusa.flow.worker
 
 import java.nio.file.Files
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -9,6 +11,14 @@ import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
+
+/**
+ * Cancels the engine job when the control plane reports the session was aborted. A
+ * [CancellationException] so it tears the engine (and its process) down cleanly and is caught
+ * distinctly from a real engine failure.
+ */
+private class WrkSessionAbortedException :
+    CancellationException("session aborted by the control plane")
 
 /** Clones the repo, runs the engine pipeline, publishes, and reports progress. */
 class WrkProperSessionProcessor(
@@ -60,17 +70,34 @@ class WrkProperSessionProcessor(
       // default.
       val taskCompleter = engineResolver.resolve(session.engine)
 
-      val result = coroutineScope {
-        val heartbeatJob = launch { heartbeatLoop(session.id, apiClient) }
-        try {
+      val result: TaskCompletionResult? = coroutineScope {
+        val engineJob = async {
           taskCompleter.completeTask(
               sourceGitWorktree = gitWorktree,
               taskDescription = taskDescription,
               observer = observer,
           )
+        }
+        // The heartbeat doubles as the abort channel: an ABORTED write-ack cancels the engine
+        // job, whose cancellation kills the engine process — so an aborted session stops promptly
+        // instead of running to the wall-clock timeout.
+        val heartbeatJob = launch {
+          heartbeatLoop(session.id, apiClient) { engineJob.cancel(WrkSessionAbortedException()) }
+        }
+        try {
+          engineJob.await()
+        } catch (abort: WrkSessionAbortedException) {
+          null
         } finally {
           heartbeatJob.cancel()
         }
+      }
+
+      // Aborted: the control plane already terminated the session, and its write-acts fence any
+      // further writes, so there is nothing to publish or complete.
+      if (result == null) {
+        log("Session ${session.id}: aborted; engine stopped, nothing published")
+        return
       }
 
       when (result) {
@@ -143,14 +170,22 @@ class WrkProperSessionProcessor(
     )
   }
 
+  /**
+   * Heartbeats the session on an interval and, since the heartbeat carries the abort write-ack,
+   * calls [onAborted] and stops the moment the control plane reports the session was aborted.
+   */
   private suspend fun heartbeatLoop(
       sessionId: String,
       apiClient: WrkApiClient,
+      onAborted: () -> Unit,
   ) {
     while (true) {
       delay(heartbeatIntervalMillis)
       try {
-        apiClient.heartbeat(sessionId)
+        if (apiClient.heartbeat(sessionId)) {
+          onAborted()
+          return
+        }
       } catch (e: Exception) {
         log("Session $sessionId: heartbeat failed ($e)")
       }

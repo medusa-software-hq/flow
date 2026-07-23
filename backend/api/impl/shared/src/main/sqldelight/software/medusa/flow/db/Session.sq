@@ -96,6 +96,17 @@ SET state = 'FAILED', failure_summary = ?, last_heartbeat_at = :now
 WHERE id = ? AND state = 'RUNNING'
 RETURNING id;
 
+-- Human "stop": a RUNNING session -> ABORTED. Returns the id when it applied.
+abortIfRunning:
+UPDATE sessions SET state = 'ABORTED', last_heartbeat_at = :now
+WHERE id = ? AND state = 'RUNNING'
+RETURNING id;
+
+-- The current state of a session (or absent), to tell an ABORTED session apart
+-- from a genuinely-gone one after a guarded write finds it isn't RUNNING.
+selectSessionState:
+SELECT state FROM sessions WHERE id = ?;
+
 -- Lazy expiry: RUNNING sessions whose heartbeat is older than the cutoff are
 -- transitioned to FAILED ("worker lost"). Returns the ids it expired.
 expireStaleSessions:

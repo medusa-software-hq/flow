@@ -11,6 +11,7 @@ export const sessionStateLabel: Record<SessionState, string> = {
   [SessionState.RUNNING]: 'Running',
   [SessionState.COMPLETED]: 'Completed',
   [SessionState.FAILED]: 'Failed',
+  [SessionState.ABORTED]: 'Aborted',
 };
 
 export const sessionStateColor: Record<SessionState, string> = {
@@ -19,6 +20,7 @@ export const sessionStateColor: Record<SessionState, string> = {
   [SessionState.RUNNING]: 'blue',
   [SessionState.COMPLETED]: 'green',
   [SessionState.FAILED]: 'red',
+  [SessionState.ABORTED]: 'orange',
 };
 
 export const engineLabel: Record<Engine, string> = {

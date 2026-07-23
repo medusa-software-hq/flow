@@ -15,6 +15,7 @@ import software.medusa.flow.v1.ListWorkersRequest
 import software.medusa.flow.v1.ListWorkersResponse
 import software.medusa.flow.v1.RegisterWorkerRequest
 import software.medusa.flow.v1.RegisterWorkerResponse
+import software.medusa.flow.v1.SessionWriteAck
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 import software.medusa.flow.v1.appendSessionEventResponse
 import software.medusa.flow.v1.claimNextSessionResponse
@@ -63,10 +64,30 @@ class WorkerServiceImpl(
   ): T =
       when (this) {
         is GuardedResult.Applied -> value
+        // The terminal writes (complete/fail) don't carry a write-ack, so an aborted or
+        // otherwise-not-RUNNING session both surface as FAILED_PRECONDITION here; the guard already
+        // ensured the write didn't apply, so the ABORTED state is preserved either way.
+        GuardedResult.Aborted,
         GuardedResult.PreconditionFailed ->
             throw Status.FAILED_PRECONDITION.withDescription(
                     "Session $sessionId is not RUNNING",
                 )
+                .asRuntimeException()
+      }
+
+  /**
+   * Maps a signal-write result (heartbeat / append event) to the response write-ack: `ACCEPTED`
+   * while RUNNING, `ABORTED` once the session is aborted (the worker's cue to stop — not an error),
+   * and a `FAILED_PRECONDITION` for a genuinely-gone session.
+   */
+  private fun <T> GuardedResult<T>.toWriteAck(
+      sessionId: String,
+  ): SessionWriteAck =
+      when (this) {
+        is GuardedResult.Applied -> SessionWriteAck.SESSION_WRITE_ACK_ACCEPTED
+        GuardedResult.Aborted -> SessionWriteAck.SESSION_WRITE_ACK_ABORTED
+        GuardedResult.PreconditionFailed ->
+            throw Status.FAILED_PRECONDITION.withDescription("Session $sessionId is not RUNNING")
                 .asRuntimeException()
       }
 
@@ -93,16 +114,17 @@ class WorkerServiceImpl(
             ?: throw Status.INVALID_ARGUMENT.withDescription("kind must be set")
                 .asRuntimeException()
 
-    sessionStore
-        .appendEvent(
-            id = SessionId(request.sessionId),
-            kind = kind,
-            message = request.message,
-            costUsd = if (request.hasCostUsd()) request.costUsd else null,
-        )
-        .orFailedPrecondition(request.sessionId)
+    val writeAck =
+        sessionStore
+            .appendEvent(
+                id = SessionId(request.sessionId),
+                kind = kind,
+                message = request.message,
+                costUsd = if (request.hasCostUsd()) request.costUsd else null,
+            )
+            .toWriteAck(request.sessionId)
 
-    return appendSessionEventResponse {}
+    return appendSessionEventResponse { ack = writeAck }
   }
 
   override suspend fun heartbeat(
@@ -110,9 +132,10 @@ class WorkerServiceImpl(
   ): HeartbeatResponse {
     requireAuthorizedWorker()
 
-    sessionStore.heartbeat(SessionId(request.sessionId)).orFailedPrecondition(request.sessionId)
+    val writeAck =
+        sessionStore.heartbeat(SessionId(request.sessionId)).toWriteAck(request.sessionId)
 
-    return heartbeatResponse {}
+    return heartbeatResponse { ack = writeAck }
   }
 
   override suspend fun completeSession(

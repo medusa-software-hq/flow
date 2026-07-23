@@ -1,6 +1,8 @@
 package software.medusa.flow.server
 
 import io.grpc.Status
+import software.medusa.flow.v1.AbortSessionRequest
+import software.medusa.flow.v1.AbortSessionResponse
 import software.medusa.flow.v1.CreateSessionRequest
 import software.medusa.flow.v1.CreateSessionResponse
 import software.medusa.flow.v1.GetSessionRequest
@@ -8,6 +10,7 @@ import software.medusa.flow.v1.GetSessionResponse
 import software.medusa.flow.v1.ListSessionsRequest
 import software.medusa.flow.v1.ListSessionsResponse
 import software.medusa.flow.v1.SessionServiceGrpcKt
+import software.medusa.flow.v1.abortSessionResponse
 import software.medusa.flow.v1.createSessionResponse
 import software.medusa.flow.v1.getSessionResponse
 import software.medusa.flow.v1.listSessionsResponse
@@ -87,6 +90,33 @@ class SessionServiceImpl(
     return getSessionResponse {
       session = result.session.toProto(linkedPipeline)
       events += result.events.map { it.toProto() }
+    }
+  }
+
+  override suspend fun abortSession(
+      request: AbortSessionRequest,
+  ): AbortSessionResponse {
+    val id = SessionId(request.id)
+
+    when (sessionStore.abort(id)) {
+      // Aborted now, or already aborted — both are success for an idempotent "stop".
+      is GuardedResult.Applied,
+      GuardedResult.Aborted -> Unit
+      GuardedResult.PreconditionFailed ->
+          throw Status.FAILED_PRECONDITION.withDescription(
+                  "Session ${request.id} is not running, so it cannot be aborted",
+              )
+              .asRuntimeException()
+    }
+
+    // Re-read (no events) to return the now-ABORTED session; the worker learns via its write-acks.
+    val session =
+        sessionStore.get(id = id, afterSeq = Int.MAX_VALUE)?.session
+            ?: throw Status.NOT_FOUND.withDescription("No such session: ${request.id}")
+                .asRuntimeException()
+
+    return abortSessionResponse {
+      this.session = session.toProto(issuePipelineStore.findBySessionId(id))
     }
   }
 }

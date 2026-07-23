@@ -22,6 +22,7 @@ private fun SessionState.toProto(): ProtoSessionState =
       SessionState.Running -> ProtoSessionState.SESSION_STATE_RUNNING
       SessionState.Completed -> ProtoSessionState.SESSION_STATE_COMPLETED
       SessionState.Failed -> ProtoSessionState.SESSION_STATE_FAILED
+      SessionState.Aborted -> ProtoSessionState.SESSION_STATE_ABORTED
     }
 
 private fun Engine.toProto(): ProtoEngine =
