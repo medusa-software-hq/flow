@@ -40,13 +40,6 @@ class HermeticLoopScenario(
      * engine's CI flake history is separable. Empty for the builtin engine.
      */
     private val labelSuffix: String = "",
-    /**
-     * Extra labels on the ready issue, used to pin the session's engine. Workers are uniform (every
-     * worker runs every engine) and default an unpinned session to builtin, so the claude variant
-     * pins `flow:engine=claude` here rather than relying on a worker-side default. Empty (unpinned
-     * → builtin) for the builtin engine.
-     */
-    private val extraIssueLabels: Set<String> = emptySet(),
 ) {
   fun runWithOneRetry(
       fixture: LoopFixture,
@@ -111,7 +104,7 @@ class HermeticLoopScenario(
                 issueNumber,
                 fixture.issueTitle,
                 body = fixture.issueBody,
-                labels = setOf("flow:ready") + extraIssueLabels,
+                labels = setOf("flow:ready"),
             )
             harness.stub.seedIssue(
                 repoFullName,
@@ -136,7 +129,10 @@ class HermeticLoopScenario(
               }
               println("[loop] PR opened after ${(System.currentTimeMillis() - startedAt) / 1000}s")
 
-              val branch = "flow/issue-$issueNumber"
+              // The pipeline is driven by the primary (Claude) session, whose PR is opened first
+              // and
+              // whose branch is engine-scoped. (A builtin shadow also runs, on `-builtin`.)
+              val branch = "flow/issue-$issueNumber-claude"
 
               // 3. The branch really landed on the real remote...
               assertTrue(

@@ -146,7 +146,12 @@ private constructor(
 
   /**
    * Launches the shipped fat jar as `flow work`, exactly as a real worker runs — the artifact under
-   * test, not a re-wired composition root. The **real** (AI) engine; needs `OPENROUTER_API_KEY`.
+   * test, not a re-wired composition root. The **real** (AI) builtin engine; needs
+   * `OPENROUTER_API_KEY`.
+   *
+   * Dual-engine fan-out makes every pipeline's *primary* session Claude, so `FLOW_TEST_CLAUDE_AS_-
+   * BUILTIN` routes that primary to the builtin engine here — the full loop stays cheap and needs
+   * no real `claude`. (The builtin shadow session also runs, on its own `-builtin` branch.)
    */
   fun startWorker(): WorkerProcess =
       startWorkerProcess(
@@ -159,15 +164,17 @@ private constructor(
                         "OPENROUTER_API_KEY is not set — the loop test needs a real model"
                       },
                   "FLOW_TEST_CHEAP_MODELS" to "1",
+                  "FLOW_TEST_CLAUDE_AS_BUILTIN" to "1",
               ),
       )
 
   /**
    * Launches the shipped binary for a claude-engine run — the real `claude` CLI, in gated mode (the
    * `gradle` fixture ships a `project.yaml`, so the engine runs the real gradle analyze+test gate).
-   * Workers are uniform, so the engine is chosen per-session (the scenario pins
-   * `flow:engine=claude` on the issue); this only sets the auth rung `FLOW_CLAUDE_AUTH=personal` so
-   * the CLI authenticates with the operator's subscription token.
+   * Under fan-out the pipeline's *primary* session is always Claude, so this worker runs that
+   * primary on the real `claude` binary (unlike [startWorker], it does not route Claude to
+   * builtin); it only sets the auth rung `FLOW_CLAUDE_AUTH=personal` so the CLI authenticates with
+   * the operator's subscription token.
    *
    * Everything the CLI itself needs — `CLAUDE_CODE_OAUTH_TOKEN`, `PATH`, `HOME`, and the `claude`
    * binary on PATH — arrives by env inheritance from the CI step ([startWorkerProcess] inherits the
