@@ -13,6 +13,7 @@ CREATE TABLE issue_pipelines (
   issue_url        TEXT NOT NULL,
   state            TEXT NOT NULL,
   session_id       TEXT,
+  shadow_session_id TEXT,
   pr_number        INTEGER,
   pr_url           TEXT,
   merge_commit_sha TEXT,
@@ -25,15 +26,20 @@ CREATE TABLE issue_pipelines (
 insertIssuePipeline:
 INSERT INTO issue_pipelines (
   id, repo_full_name, issue_number, issue_title, issue_url, state, session_id,
-  created_at, updated_at
+  shadow_session_id, created_at, updated_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectById:
 SELECT * FROM issue_pipelines WHERE id = ?;
 
+-- Matches a pipeline by either of its sessions: the primary (session_id) or the
+-- built-in shadow (shadow_session_id). Callers that must act only for the
+-- primary (e.g. advancing pipeline state) check session_id themselves.
 selectBySessionId:
-SELECT * FROM issue_pipelines WHERE session_id = ? LIMIT 1;
+SELECT * FROM issue_pipelines
+WHERE session_id = :sessionId OR shadow_session_id = :sessionId
+LIMIT 1;
 
 listAll:
 SELECT * FROM issue_pipelines ORDER BY created_at DESC;

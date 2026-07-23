@@ -56,35 +56,27 @@ class ReconcilePicker_tests {
   }
 
   @Test
-  fun `a flow-engine label stamps the linked session's engine`() = runBlocking {
+  fun `pick fans out to a primary Claude session and a built-in shadow session`() = runBlocking {
     val fx = Fixture()
-    fx.candidates.candidatesByRepo[repo] =
-        listOf(
-            candidate(
-                1,
-                "2026-05-01T00:00:00Z",
-                labels = setOf("flow:ready", "flow:engine=claude"),
-            )
-        )
-
-    assertEquals(1, fx.picker.pick(repo))
-
-    val pipeline = fx.pipelines.list(repo).single()
-    val session = fx.sessions.get(pipeline.sessionId!!, afterSeq = 0)!!.session
-    assertEquals(Engine.Claude, session.engine)
-  }
-
-  @Test
-  fun `a candidate with no engine label defaults to Unspecified`() = runBlocking {
-    val fx = Fixture()
+    // No flow:engine label matters any more — both engines always run.
     fx.candidates.candidatesByRepo[repo] =
         listOf(candidate(1, "2026-05-01T00:00:00Z", labels = setOf("flow:ready")))
 
     assertEquals(1, fx.picker.pick(repo))
 
     val pipeline = fx.pipelines.list(repo).single()
-    val session = fx.sessions.get(pipeline.sessionId!!, afterSeq = 0)!!.session
-    assertEquals(Engine.Unspecified, session.engine)
+    val primary = fx.sessions.get(pipeline.sessionId!!, afterSeq = 0)!!.session
+    val shadow = fx.sessions.get(pipeline.shadowSessionId!!, afterSeq = 0)!!.session
+
+    // The primary drives the pipeline (Claude); the shadow runs unobserved (built-in).
+    assertEquals(Engine.Claude, primary.engine)
+    assertEquals(Engine.Builtin, shadow.engine)
+    assertTrue(primary.id != shadow.id)
+    // Both are PENDING/claimable and share the same task.
+    assertEquals(SessionState.Pending, shadow.state)
+    assertEquals("# Issue 1\n\nBody 1", shadow.taskMarkdown)
+    // Exactly the two fan-out sessions were created.
+    assertEquals(2, fx.sessions.list(limit = 100).size)
   }
 
   @Test

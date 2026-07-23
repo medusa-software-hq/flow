@@ -63,6 +63,29 @@ class InMemoryIssuePipelineStore_tests {
   }
 
   @Test
+  fun `pick links a shadow session - findBySessionId matches primary or shadow`() = runBlocking {
+    val (pipelines, _, _) = newStores()
+
+    val result =
+        pipelines.pick(
+            repoFullName = "acme/app",
+            issueNumber = 7,
+            issueTitle = "Issue 7",
+            issueUrl = "https://x/7",
+            sessionId = SessionId("primary"),
+            shadowSessionId = SessionId("shadow"),
+        )
+    val pipeline = assertIs<PickResult.Picked>(result).pipeline
+
+    assertEquals(SessionId("primary"), pipeline.sessionId)
+    assertEquals(SessionId("shadow"), pipeline.shadowSessionId)
+    // Either session resolves back to the same pipeline — display enrichment works for both tabs.
+    assertEquals(pipeline.id, pipelines.findBySessionId(SessionId("primary"))?.id)
+    assertEquals(pipeline.id, pipelines.findBySessionId(SessionId("shadow"))?.id)
+    assertEquals(null, pipelines.findBySessionId(SessionId("unrelated")))
+  }
+
+  @Test
   fun `a busy repo rejects a second pick (mutex)`() = runBlocking {
     val (pipelines, _, _) = newStores()
 
