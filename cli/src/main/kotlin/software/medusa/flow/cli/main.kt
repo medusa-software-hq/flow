@@ -14,7 +14,6 @@ import software.medusa.commons.system.SysProcessSpawner
 import software.medusa.flow.harness.HrsProperTaskCompleter
 import software.medusa.flow.harness.HrsScriptedTaskCompleter
 import software.medusa.flow.harness.HrsTaskCompleter
-import software.medusa.flow.harness.UnimplementedHrsTaskCompleter
 import software.medusa.flow.harness.ai_system.HrsAiPatchInterpreter
 import software.medusa.flow.harness.ai_system.HrsAiScoutDecisionInterpreter
 import software.medusa.flow.harness.ai_system.HrsLoggingOaiReporter
@@ -142,23 +141,22 @@ private fun buildPhysicalWorkspaceAllocator(
 }
 
 /**
- * A resolver for the scripted sad-path engine, which only ever runs `UNSPECIFIED`/builtin sessions:
- * the scripted completer takes the builtin slot, and the claude slot is an
- * [UnimplementedHrsTaskCompleter] — this test path runs on a runner without the `claude` binary, so
- * it must not try to build the real claude engine (which would locate `claude` at startup).
+ * A resolver for the scripted sad-path engine. Dual-engine fan-out creates a Claude **primary**
+ * session for every issue (and the primary is what drives the pipeline), so the scripted worker is
+ * now routed a Claude session too. Both engine slots are served from the one scripted completer —
+ * no real `claude` binary is located, so this still runs on a claude-less runner.
  */
 private fun buildScriptedEngineResolver(
     scope: CoroutineScope,
     behavior: HrsScriptedTaskCompleter.Behavior,
-): WrkEngineResolver =
-    WrkEngineResolver(
-        builtin =
-            HrsScriptedTaskCompleter(
-                physicalWorkspaceAllocator = buildPhysicalWorkspaceAllocator(scope),
-                behavior = behavior,
-            ),
-        claude = UnimplementedHrsTaskCompleter(engineName = "claude"),
-    )
+): WrkEngineResolver {
+  val scripted =
+      HrsScriptedTaskCompleter(
+          physicalWorkspaceAllocator = buildPhysicalWorkspaceAllocator(scope),
+          behavior = behavior,
+      )
+  return WrkEngineResolver(builtin = scripted, claude = scripted)
+}
 
 /**
  * Assembles the full worker engine composition: the builtin AI-system graph (frontline/expert plus
@@ -171,9 +169,15 @@ private fun buildWorkerEngineResolver(
 ): WrkEngineResolver {
   val physicalWorkspaceAllocator = buildPhysicalWorkspaceAllocator(scope)
 
+  // Fan-out makes every pipeline's *primary* session Claude. The hermetic builtin loop test runs
+  // that primary on the builtin engine (via this test-only env) so it needs no real `claude`
+  // binary/auth; a real worker leaves it unset and drives the actual `claude` binary.
+  val routeClaudeToBuiltin = System.getenv("FLOW_TEST_CLAUDE_AS_BUILTIN") != null
+
   // `claude` is a hard dependency of a real worker (the image ships it) — located once here so a
   // missing binary fails cleanly and loudly rather than deep inside the first claude session.
-  val claudeExecutableHandle = SysExecutableHandle.locate(commandName = "claude")
+  val claudeExecutableHandle =
+      if (routeClaudeToBuiltin) null else SysExecutableHandle.locate(commandName = "claude")
 
   val openRouterApiKey =
       OaiApiKey(
@@ -245,25 +249,29 @@ private fun buildWorkerEngineResolver(
 
   // Workers are uniform, so both the builtin and claude completers are always constructed. The
   // claude engine drives the real `claude` binary with its auth-rung env built from
-  // `FLOW_CLAUDE_AUTH`.
+  // `FLOW_CLAUDE_AUTH` — except in the hermetic loop test, which routes the Claude primary to the
+  // builtin completer (routeClaudeToBuiltin) so it stays cheap and needs no real claude.
   return WrkEngineResolver(
       builtin = builtinTaskCompleter,
       claude =
-          HrsClaudeTaskCompleter(
-              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-              claudeProcess = HrsProcessClaudeProcess(claudeExecutable = claudeExecutableHandle),
-              config =
-                  HrsClaudeEngineConfig(
-                      authEnvironment = WrkClaudeAuthEnvironment.build(),
-                      model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
-                      // Per-env cap tuning without a rebuild (set in the ms-workload profile);
-                      // falls back to the baked default when unset/blank/unparseable.
-                      maxBudgetUsd =
-                          System.getenv("FLOW_CLAUDE_MAX_BUDGET_USD")
-                              ?.takeIf { it.isNotBlank() }
-                              ?.toDoubleOrNull() ?: HrsClaudeEngineConfig.defaultMaxBudgetUsd,
-                  ),
-              projectManifestLoader = projectManifestLoader,
-          ),
+          if (routeClaudeToBuiltin) builtinTaskCompleter
+          else
+              HrsClaudeTaskCompleter(
+                  physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+                  claudeProcess =
+                      HrsProcessClaudeProcess(claudeExecutable = claudeExecutableHandle!!),
+                  config =
+                      HrsClaudeEngineConfig(
+                          authEnvironment = WrkClaudeAuthEnvironment.build(),
+                          model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
+                          // Per-env cap tuning without a rebuild (set in the ms-workload profile);
+                          // falls back to the baked default when unset/blank/unparseable.
+                          maxBudgetUsd =
+                              System.getenv("FLOW_CLAUDE_MAX_BUDGET_USD")
+                                  ?.takeIf { it.isNotBlank() }
+                                  ?.toDoubleOrNull() ?: HrsClaudeEngineConfig.defaultMaxBudgetUsd,
+                      ),
+                  projectManifestLoader = projectManifestLoader,
+              ),
   )
 }

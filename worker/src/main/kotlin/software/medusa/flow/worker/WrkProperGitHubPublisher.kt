@@ -17,6 +17,7 @@ import software.medusa.commons.git.worktree.GitWorktreeFilter
 import software.medusa.commons.unix.filesystem.impl.nio.UfsNioDirectory
 import software.medusa.commons.unix.filesystem.materializeIn
 import software.medusa.flow.harness.HrsReadonlyTemporaryWorkspace
+import software.medusa.flow.v1.Engine
 
 /**
  * Branches, syncs the materialized workspace over the clone, commits, pushes, and opens a PR via
@@ -47,13 +48,18 @@ class WrkProperGitHubPublisher(
       cloneDirectory: Path,
       workspace: HrsReadonlyTemporaryWorkspace,
       issueNumber: Int?,
+      engine: Engine,
   ): WrkPublishResult {
     // One refreshing installation-token supplier for this session's repo, shared by the git pushes
     // and the PR-create call below; each use resolves a current token.
     val gitHubToken = tokenSupplierFactory.forRepo(repoFullName)
     val directoryFile = cloneDirectory.toFile()
+    // An issue runs two engines in parallel, so the branch must be engine-scoped — else the primary
+    // and shadow sessions would both push to `flow/issue-<n>` and collide. Manual sessions are
+    // single-engine and keep the session-scoped branch.
     val branchName =
-        if (issueNumber != null) "flow/issue-$issueNumber" else "flow/session-$sessionId"
+        if (issueNumber != null) "flow/issue-$issueNumber-${engine.slug()}"
+        else "flow/session-$sessionId"
 
     val defaultBranch =
         WrkGitProcess.run(directoryFile, gitHubToken, "rev-parse", "--abbrev-ref", "HEAD").trim()
@@ -113,12 +119,14 @@ class WrkProperGitHubPublisher(
             repoFullName = repoFullName,
             branchName = branchName,
             baseBranch = defaultBranch,
-            title = taskHeading,
+            // Tag the engine on issue PRs so the primary and shadow PRs are told apart at a glance.
+            title = if (issueNumber != null) "[${engine.label()}] $taskHeading" else taskHeading,
             body =
                 composePrBody(
                     taskMarkdown = taskMarkdown,
                     sessionId = sessionId,
                     issueNumber = issueNumber,
+                    engine = engine,
                 ),
             gitHubToken = gitHubToken,
         )
@@ -135,12 +143,27 @@ class WrkProperGitHubPublisher(
       taskMarkdown: String,
       sessionId: String,
       issueNumber: Int?,
+      engine: Engine,
   ): String =
       if (issueNumber == null) {
         "$taskMarkdown\n\n---\nSession: $sessionId"
       } else {
         val safeMarkdown = WrkClosingKeywords.neutralize(taskMarkdown)
-        "$safeMarkdown\n\n---\nRefs #$issueNumber\nSession: $sessionId"
+        "$safeMarkdown\n\n---\nRefs #$issueNumber\nEngine: ${engine.label()}\nSession: $sessionId"
+      }
+
+  /** Short branch-safe engine slug. Anything not Claude is the built-in default. */
+  private fun Engine.slug(): String =
+      when (this) {
+        Engine.ENGINE_CLAUDE -> "claude"
+        else -> "builtin"
+      }
+
+  /** Human-facing engine label for PR titles/bodies. */
+  private fun Engine.label(): String =
+      when (this) {
+        Engine.ENGINE_CLAUDE -> "Claude"
+        else -> "Built-in"
       }
 
   private suspend fun syncWorkspaceInto(

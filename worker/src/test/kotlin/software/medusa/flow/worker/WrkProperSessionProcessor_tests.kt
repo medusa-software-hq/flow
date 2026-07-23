@@ -92,7 +92,7 @@ class WrkProperSessionProcessor_tests {
             gitCloner = WrkGitCloner { _, _ -> worktree },
             engineResolver = builtinResolver(blockingCompleter),
             publisher =
-                WrkPublisher { _, _, _, _, _, _, _ ->
+                WrkPublisher { _, _, _, _, _, _, _, _ ->
                   published = true
                   WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1")
                 },
@@ -126,7 +126,7 @@ class WrkProperSessionProcessor_tests {
             gitCloner = gitCloner,
             engineResolver = builtinResolver(taskCompleter),
             publisher =
-                WrkPublisher { _, _, _, _, _, _, _ ->
+                WrkPublisher { _, _, _, _, _, _, _, _ ->
                   WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1").also {
                     publishedPrUrl = it.prUrl
                   }
@@ -180,7 +180,7 @@ class WrkProperSessionProcessor_tests {
             gitCloner = WrkGitCloner { _, _ -> worktree },
             engineResolver = builtinResolver(taskCompleter),
             publisher =
-                WrkPublisher { _, _, _, _, _, _, _ ->
+                WrkPublisher { _, _, _, _, _, _, _, _ ->
                   WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1")
                 },
             log = {},
@@ -229,7 +229,7 @@ class WrkProperSessionProcessor_tests {
             WrkProperSessionProcessor(
                 gitCloner = gitCloner,
                 engineResolver = builtinResolver(taskCompleter),
-                publisher = WrkPublisher { _, _, _, _, _, _, _ -> error("must not be called") },
+                publisher = WrkPublisher { _, _, _, _, _, _, _, _ -> error("must not be called") },
                 log = {},
             )
 
@@ -274,7 +274,7 @@ class WrkProperSessionProcessor_tests {
         WrkProperSessionProcessor(
             gitCloner = gitCloner,
             engineResolver = builtinResolver(taskCompleter),
-            publisher = WrkPublisher { _, _, _, _, _, _, _ -> error("must not be called") },
+            publisher = WrkPublisher { _, _, _, _, _, _, _, _ -> error("must not be called") },
             log = {},
         )
 
@@ -303,7 +303,7 @@ class WrkProperSessionProcessor_tests {
                   gitCloner = WrkGitCloner { _, _ -> worktree },
                   engineResolver = resolver,
                   publisher =
-                      WrkPublisher { _, _, _, _, _, _, _ ->
+                      WrkPublisher { _, _, _, _, _, _, _, _ ->
                         WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1")
                       },
                   log = {},

@@ -33,7 +33,9 @@ class HermeticSadPaths_integrationTests {
   // worker's (also shortened) heartbeat interval, so a live worker is never mistaken for lost.
   private val heartbeatTimeout = Duration.ofSeconds(6)
   private val workerHeartbeatIntervalMillis = 500L
-  private val branch = "flow/issue-$issueNumber"
+  // Fan-out branches the primary (Claude) session's PR per engine; the primary is what drives the
+  // pipeline, so the sad-path assertions track its branch.
+  private val branch = "flow/issue-$issueNumber-claude"
 
   @Test
   fun `an empty diff fails the session with no branch pushed, and reconcile fails the pipeline`() =
@@ -85,7 +87,7 @@ class HermeticSadPaths_integrationTests {
         harness.reconcile()
         assertEquals(
             SessionState.Running,
-            harness.latestSession()?.state,
+            harness.primarySession()?.state,
             "heartbeats must keep the hung session alive\n${worker.output()}",
         )
         assertTrue(
@@ -168,8 +170,18 @@ class HermeticSadPaths_integrationTests {
     }
   }
 
-  private suspend fun HermeticLoopHarness.latestSession(): Session? =
-      sessions.list(limit = 10).firstOrNull()
+  /**
+   * The pipeline's **primary** (Claude) session — the one fan-out drives pipeline state from. The
+   * sad-path scenarios all manifest on the primary: the worker claims it first (oldest) and, for
+   * the hang/crash behaviors, never reaches the builtin shadow. Reading via `get` also expires
+   * stale sessions, which is what drives lazy expiry in the hang/crash tests.
+   */
+  private suspend fun HermeticLoopHarness.primarySession(): Session? {
+    val pipeline =
+        pipelines.list(repoFullName).firstOrNull { it.issueNumber == issueNumber } ?: return null
+    val id = pipeline.sessionId ?: return null
+    return sessions.get(id, afterSeq = 0)?.session
+  }
 
   private suspend fun HermeticLoopHarness.awaitSession(
       what: String,
@@ -179,8 +191,7 @@ class HermeticSadPaths_integrationTests {
     val session =
         withTimeoutOrNull(timeoutMillis) {
           while (true) {
-            // Reading the store also expires stale sessions, which is what drives lazy expiry here.
-            sessions.list(limit = 10).firstOrNull()?.takeIf(predicate)?.let {
+            primarySession()?.takeIf(predicate)?.let {
               return@withTimeoutOrNull it
             }
             delay(300)
