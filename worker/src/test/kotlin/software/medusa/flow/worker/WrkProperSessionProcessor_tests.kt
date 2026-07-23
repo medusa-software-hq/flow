@@ -2,7 +2,9 @@ package software.medusa.flow.worker
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.git.worktree.GitWorktreeFilter
@@ -63,6 +65,49 @@ class WrkProperSessionProcessor_tests {
     id = "s1"
     repoFullName = "acme/app"
     taskMarkdown = "# Do the thing"
+  }
+
+  @Test
+  fun `an aborted heartbeat cancels the engine and publishes nothing`() = runBlocking {
+    val worktree = tempGitWorktree()
+
+    // An engine that blocks until cancelled, so the abort has a live run to tear down.
+    val blockingCompleter =
+        object : HrsTaskCompleter {
+          override suspend fun completeTask(
+              sourceGitWorktree: GitWorktree,
+              taskDescription: HrsTaskDescription,
+              observer: Observer,
+          ): TaskCompletionResult {
+            observer.observePhase(software.medusa.flow.harness.HrsPipelinePhase.WorkspacePreparing)
+            awaitCancellation()
+          }
+        }
+
+    val apiClient = WrkFakeApiClient().apply { abortOnHeartbeat = true }
+    var published = false
+
+    val processor =
+        WrkProperSessionProcessor(
+            gitCloner = WrkGitCloner { _, _ -> worktree },
+            engineResolver = builtinResolver(blockingCompleter),
+            publisher =
+                WrkPublisher { _, _, _, _, _, _, _ ->
+                  published = true
+                  WrkPublishResult.Published(prUrl = "https://github.com/acme/app/pull/1")
+                },
+            heartbeatIntervalMillis = 10,
+            log = {},
+        )
+
+    // Returns (doesn't hang) because the ABORTED heartbeat cancels the engine job.
+    processor.process(session = testSession(), apiClient = apiClient)
+
+    assertFalse(published, "an aborted session must not publish a PR")
+    assertTrue(
+        apiClient.recordedCalls.none { it is WrkFakeApiClient.RecordedCall.CompleteSession },
+        "an aborted session must not be completed",
+    )
   }
 
   @Test

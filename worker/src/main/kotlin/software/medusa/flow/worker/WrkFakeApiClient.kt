@@ -54,8 +54,12 @@ class WrkFakeApiClient(
     recordedCalls.add(RecordedCall.AppendSessionEvent(sessionId, kind, message, costUsd))
   }
 
-  override suspend fun heartbeat(sessionId: String) {
+  /** When true, every heartbeat reports the session ABORTED — lets tests drive the abort path. */
+  var abortOnHeartbeat: Boolean = false
+
+  override suspend fun heartbeat(sessionId: String): Boolean {
     recordedCalls.add(RecordedCall.Heartbeat(sessionId))
+    return abortOnHeartbeat
   }
 
   override suspend fun completeSession(

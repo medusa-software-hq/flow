@@ -7,6 +7,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -35,6 +36,47 @@ class InMemorySessionStore_tests {
       clock: MutableClock = MutableClock(Instant.parse("2026-01-01T00:00:00Z")),
   ): Pair<InMemorySessionStore, MutableClock> =
       InMemorySessionStore(clock = clock, heartbeatTimeout = heartbeatTimeout) to clock
+
+  @Test
+  fun `abort transitions a running session to aborted and fences further worker writes`() =
+      runBlocking {
+        val (store, _) = newStore()
+        store.create(
+            repoFullName = "acme/app",
+            taskMarkdown = "# Task",
+            createdBy = "u@x",
+            engine = Engine.Unspecified,
+        )
+        val running = store.claimNext()!!
+        assertEquals(SessionState.Running, running.state)
+
+        // Abort applies while RUNNING.
+        assertIs<GuardedResult.Applied<Unit>>(store.abort(running.id))
+        assertEquals(SessionState.Aborted, store.get(running.id, afterSeq = 0)!!.session.state)
+
+        // The worker's signal writes now report Aborted (its cue to stop) — not a caller error —
+        // and don't mutate the session; and aborting again is idempotent.
+        assertEquals(GuardedResult.Aborted, store.heartbeat(running.id))
+        assertEquals(
+            GuardedResult.Aborted,
+            store.appendEvent(running.id, SessionEventKind.AgentAction, "late event"),
+        )
+        assertEquals(GuardedResult.Aborted, store.abort(running.id))
+        assertEquals(SessionState.Aborted, store.get(running.id, afterSeq = 0)!!.session.state)
+      }
+
+  @Test
+  fun `abort on a non-running session is a precondition failure`() = runBlocking {
+    val (store, _) = newStore()
+    val pending =
+        store.create(
+            repoFullName = "acme/app",
+            taskMarkdown = "# Task",
+            createdBy = "u@x",
+            engine = Engine.Unspecified,
+        )
+    assertEquals(GuardedResult.PreconditionFailed, store.abort(pending.id))
+  }
 
   @Test
   fun `create yields a pending session that list returns`() = runBlocking {

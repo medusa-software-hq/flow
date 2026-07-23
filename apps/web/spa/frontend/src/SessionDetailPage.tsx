@@ -125,6 +125,22 @@ export function SessionDetailPage({
     });
   }
 
+  const [aborting, setAborting] = useState(false);
+
+  // The "Stop": abort a running session. The response carries the now-ABORTED session, so the badge
+  // flips immediately; the worker learns via its next heartbeat and kills the engine.
+  async function abortSession() {
+    setAborting(true);
+    try {
+      const response = await client.abortSession({ id }, { headers });
+      if (response.session) {
+        setSession(response.session);
+      }
+    } finally {
+      setAborting(false);
+    }
+  }
+
   if (notFound) {
     return (
       <Alert color="red" title="Session not found">
@@ -167,6 +183,17 @@ export function SessionDetailPage({
         <Group justify="space-between" align="flex-start">
           <Title order={1}>{session.repoFullName}</Title>
           <Group gap="xs">
+            {isSessionActive(session.state) && (
+              <Button
+                color="orange"
+                variant="light"
+                size="xs"
+                loading={aborting}
+                onClick={() => void abortSession()}
+              >
+                Stop
+              </Button>
+            )}
             <Badge color={engineColor[session.engine]} variant="light" size="lg">
               {engineLabel[session.engine]}
             </Badge>

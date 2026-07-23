@@ -113,7 +113,7 @@ class PostgresSessionStore(
           // Doubles as the RUNNING guard and the heartbeat bump.
           queries
               .touchHeartbeatIfRunning(now = now.toOffsetDateTime(), id = id.id)
-              .executeAsOneOrNull() ?: return@transactionWithResult GuardedResult.PreconditionFailed
+              .executeAsOneOrNull() ?: return@transactionWithResult abortedOrPreconditionFailed(id)
 
           val seq = queries.selectMaxEventSeq(session_id = id.id).executeAsOne() + 1
 
@@ -140,10 +140,23 @@ class PostgresSessionStore(
       id: SessionId,
   ): GuardedResult<Unit> =
       withContext(Dispatchers.IO) {
-        queries
-            .touchHeartbeatIfRunning(now = clock.instant().toOffsetDateTime(), id = id.id)
-            .executeAsOneOrNull()
-            .toGuardedUnit()
+        val applied =
+            queries
+                .touchHeartbeatIfRunning(now = clock.instant().toOffsetDateTime(), id = id.id)
+                .executeAsOneOrNull()
+        if (applied != null) GuardedResult.Applied(Unit) else abortedOrPreconditionFailed(id)
+      }
+
+  override suspend fun abort(
+      id: SessionId,
+  ): GuardedResult<Unit> =
+      withContext(Dispatchers.IO) {
+        val applied =
+            queries
+                .abortIfRunning(now = clock.instant().toOffsetDateTime(), id = id.id)
+                .executeAsOneOrNull()
+        // Applied when it was RUNNING; already-ABORTED -> Aborted; otherwise PreconditionFailed.
+        if (applied != null) GuardedResult.Applied(Unit) else abortedOrPreconditionFailed(id)
       }
 
   override suspend fun complete(
@@ -194,6 +207,7 @@ class PostgresSessionStore(
         SessionState.Running -> "RUNNING"
         SessionState.Completed -> "COMPLETED"
         SessionState.Failed -> "FAILED"
+        SessionState.Aborted -> "ABORTED"
       }
 
   private fun parseState(
@@ -204,7 +218,23 @@ class PostgresSessionStore(
         "RUNNING" -> SessionState.Running
         "COMPLETED" -> SessionState.Completed
         "FAILED" -> SessionState.Failed
+        "ABORTED" -> SessionState.Aborted
         else -> error("Unknown session state: $value")
+      }
+
+  /**
+   * After a guarded `…IfRunning` write finds no RUNNING row: [GuardedResult.Aborted] if the session
+   * is now ABORTED (the worker's stop cue, not its fault), else [GuardedResult.PreconditionFailed].
+   */
+  private fun abortedOrPreconditionFailed(
+      id: SessionId,
+  ): GuardedResult<Nothing> =
+      if (
+          queries.selectSessionState(id.id).executeAsOneOrNull() == SessionState.Aborted.toDbValue()
+      ) {
+        GuardedResult.Aborted
+      } else {
+        GuardedResult.PreconditionFailed
       }
 
   private fun Engine.toDbValue(): String =

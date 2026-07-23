@@ -6,6 +6,7 @@ import software.medusa.flow.v1.IssuePipeline
 import software.medusa.flow.v1.PipelineServiceGrpcKt
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionServiceGrpcKt
+import software.medusa.flow.v1.abortSessionRequest
 import software.medusa.flow.v1.clearIssuePipelineRequest
 import software.medusa.flow.v1.getSessionRequest
 import software.medusa.flow.v1.listIssuePipelinesRequest
@@ -58,6 +59,10 @@ private constructor(
   /** One session with its full event log (the detail view). */
   suspend fun getSession(id: String): GetSessionResponse =
       sessionStub.getSession(getSessionRequest { this.id = id })
+
+  /** Aborts a RUNNING session (the "stop"); returns the now-ABORTED session. */
+  suspend fun abortSession(id: String): Session =
+      sessionStub.abortSession(abortSessionRequest { this.id = id }).session
 
   /** Live + recent issue pipelines, newest-first, optionally filtered to one `owner/name` repo. */
   suspend fun listIssuePipelines(repoFullName: String? = null): List<IssuePipeline> =

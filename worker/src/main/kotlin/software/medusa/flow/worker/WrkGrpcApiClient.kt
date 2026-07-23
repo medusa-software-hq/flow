@@ -7,6 +7,7 @@ import com.linecorp.armeria.client.grpc.GrpcClients
 import io.grpc.auth.MoreCallCredentials
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
+import software.medusa.flow.v1.SessionWriteAck
 import software.medusa.flow.v1.WorkerServiceGrpcKt
 import software.medusa.flow.v1.appendSessionEventRequest
 import software.medusa.flow.v1.claimNextSessionRequest
@@ -114,8 +115,9 @@ private constructor(
     )
   }
 
-  override suspend fun heartbeat(sessionId: String) {
-    stub.heartbeat(heartbeatRequest { this.sessionId = sessionId })
+  override suspend fun heartbeat(sessionId: String): Boolean {
+    val response = stub.heartbeat(heartbeatRequest { this.sessionId = sessionId })
+    return response.ack == SessionWriteAck.SESSION_WRITE_ACK_ABORTED
   }
 
   override suspend fun completeSession(

@@ -26,7 +26,8 @@ interface WrkApiClient {
       costUsd: Double? = null,
   )
 
-  suspend fun heartbeat(sessionId: String)
+  /** Heartbeats the session; returns `true` if the control plane reports it was ABORTED (stop). */
+  suspend fun heartbeat(sessionId: String): Boolean
 
   suspend fun completeSession(
       sessionId: String,

@@ -83,6 +83,13 @@ class ReconcileObserver(
                       "${session.failureSummary ?: "unknown error"}\n\n" +
                       "Clear this pipeline to let Flow try the issue again.",
           )
+      SessionState.Aborted ->
+          pipelineStore.markFailed(
+              pipeline.id,
+              failureSummary =
+                  "The Flow session for this issue was aborted.\n\n" +
+                      "Clear this pipeline to let Flow try the issue again.",
+          )
       SessionState.Pending,
       SessionState.Running -> null // still working
     }
