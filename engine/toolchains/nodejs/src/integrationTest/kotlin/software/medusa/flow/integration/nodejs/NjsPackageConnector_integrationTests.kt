@@ -1,7 +1,9 @@
 package software.medusa.flow.integration.nodejs
 
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.test.runTest
@@ -61,6 +63,32 @@ class NjsPackageConnector_integrationTests {
                 UfsAbsolutePath.of(UfsName.Literal("fixtures"), UfsName.Literal("yarn-project")),
             packageManager = NjsPackageManager.Yarn,
         )
+      }
+
+  @Test
+  fun `installDependencies surfaces the package manager's failure instead of swallowing it`() =
+      runTest(timeout = installTimeout) {
+        // `npm ci` with no package-lock.json fails immediately, offline — a stand-in for any
+        // install failure (a full disk, a lockfile mismatch, no registry access). Before the fix
+        // the non-zero exit was discarded and the first symptom was a misleading later
+        // "command could not be resolved"; now the failure is raised here, with the tool's output.
+        withMaterializedResource(
+            resourcePath =
+                UfsAbsolutePath.of(UfsName.Literal("fixtures"), UfsName.Literal("npm-broken")),
+        ) { packagePath ->
+          val connection =
+              packageConnector.connect(
+                  packagePath = packagePath,
+                  packageManager = NjsPackageManager.Npm,
+              )
+
+          val failure = assertFailsWith<IllegalStateException> { connection.installDependencies() }
+
+          val message = assertNotNull(failure.message)
+          assertContains(message, "npm ci")
+          // The package manager's own diagnostic is carried through, not thrown away.
+          assertContains(message, "package-lock")
+        }
       }
 
   private suspend fun assertTypeChecks(

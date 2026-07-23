@@ -13,7 +13,8 @@ class NjsYarnConnector(
     override suspend fun installDependencies(
         processSpawner: SysProcessSpawner,
     ) {
-      processSpawner.spawn(
+      processSpawner.runInstallOrThrow(
+          label = "yarn",
           executable = yarnExecutableHandle,
           workingDirectory = packagePath,
           arguments = listOf("install", "--frozen-lockfile"),
