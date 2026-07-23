@@ -16,13 +16,18 @@ private val timestampFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
 private const val emDash = "—"
 
-/** A proto [Timestamp] → `2026-07-17 14:08 UTC`; unset (default instance) or zero → `—`. */
+/**
+ * A proto [Timestamp] → `2026-07-17 14:08`; unset (default instance) or zero → `—`.
+ *
+ * Pinned to match the web app's `formatTimestamp` (ISO date + 24h UTC, no `UTC` suffix) — see
+ * `sessionDisplay.ts`. Keep the two in lockstep; a change to one without the other is a bug.
+ */
 fun formatTimestamp(timestamp: Timestamp?): String {
   if (timestamp == null || (timestamp.seconds == 0L && timestamp.nanos == 0)) return emDash
   return runCatching {
         Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong())
             .atZone(ZoneOffset.UTC)
-            .format(timestampFormatter) + " UTC"
+            .format(timestampFormatter)
       }
       .getOrDefault(emDash)
 }

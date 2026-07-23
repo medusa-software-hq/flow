@@ -79,7 +79,12 @@ export function formatCostUsd(costUsd: number | undefined): string {
   return `$${costUsd.toFixed(4)}`;
 }
 
-/** A proto Timestamp → `2026-07-23 15:18` in UTC, 24h clock. Unset or zero → "—". */
+/**
+ * A proto Timestamp → `2026-07-23 15:18` in UTC, 24h clock. Unset or zero → "—".
+ *
+ * Pinned to match the CLI's `formatTimestamp` (same ISO date + 24h UTC shape, no `UTC` suffix)
+ * — see `FlowFormat.kt`. Keep the two in lockstep; a change to one without the other is a bug.
+ */
 export function formatTimestamp(timestamp: Timestamp | undefined): string {
   if (!timestamp || (timestamp.seconds === 0n && timestamp.nanos === 0)) {
     return '—';
