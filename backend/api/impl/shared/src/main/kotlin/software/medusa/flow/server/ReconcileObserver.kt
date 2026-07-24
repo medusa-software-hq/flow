@@ -1,7 +1,8 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import org.slf4j.LoggerFactory
 
 /**
@@ -22,12 +23,12 @@ class ReconcileObserver(
     private val pipelineStore: IssuePipelineStore,
     private val sessionStore: SessionStore,
     private val prClient: GitHubPrClient,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock = Clock.System,
     private val noRunsGracePeriod: Duration = defaultNoRunsGracePeriod,
 ) : PipelineObserver {
   companion object {
     /** ~two scheduler ticks — long enough not to race Actions startup after a merge. */
-    val defaultNoRunsGracePeriod: Duration = Duration.ofMinutes(6)
+    val defaultNoRunsGracePeriod: Duration = 6.minutes
   }
 
   private val log = LoggerFactory.getLogger(ReconcileObserver::class.java)
@@ -168,7 +169,7 @@ class ReconcileObserver(
   ): Boolean {
     // updatedAt was set when the pipeline entered AWAITING_MERGE_CHECKS and isn't touched while
     // pending, so it measures how long we've been waiting for runs to appear.
-    val elapsed = Duration.between(pipeline.updatedAt, clock.instant())
+    val elapsed = clock.now() - pipeline.updatedAt
     return elapsed >= noRunsGracePeriod
   }
 }

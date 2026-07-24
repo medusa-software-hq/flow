@@ -1,9 +1,10 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
 import java.util.UUID
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 import software.medusa.flow.server.SessionStore.Companion.truncateMessage
 import software.medusa.flow.server.SessionStore.Companion.workerLostSummary
 
@@ -16,11 +17,11 @@ import software.medusa.flow.server.SessionStore.Companion.workerLostSummary
  * store's non-blocking, purely in-memory operations.
  */
 class InMemorySessionStore(
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock = Clock.System,
     private val heartbeatTimeout: Duration = defaultHeartbeatTimeout,
 ) : SessionStore {
   companion object {
-    val defaultHeartbeatTimeout: Duration = Duration.ofMinutes(3)
+    val defaultHeartbeatTimeout: Duration = 3.minutes
   }
 
   private val lock = Any()
@@ -72,7 +73,7 @@ class InMemorySessionStore(
             repoFullName = repoFullName,
             taskMarkdown = taskMarkdown,
             state = SessionState.Pending,
-            createdAt = clock.instant(),
+            createdAt = clock.now(),
             createdBy = createdBy,
             claimedAt = null,
             lastHeartbeatAt = null,
@@ -115,7 +116,7 @@ class InMemorySessionStore(
                 .filter { it.state == SessionState.Pending }
                 .minByOrNull { it.createdAt } ?: return@synchronized null
 
-        val now = clock.instant()
+        val now = clock.now()
 
         val claimed =
             oldestPending.copy(
@@ -136,7 +137,7 @@ class InMemorySessionStore(
                 .filter { it.state == SessionState.Pending }
                 .minByOrNull { it.createdAt } ?: return@synchronized emptyList()
 
-        val now = clock.instant()
+        val now = clock.now()
         // Snapshot the job's pending sessions before mutating the map. Insertion order is
         // preserved,
         // so the primary (created first) comes before the shadow.
@@ -173,7 +174,7 @@ class InMemorySessionStore(
         val event =
             SessionEvent(
                 seq = (events.maxOfOrNull { it.seq } ?: 0) + 1,
-                createdAt = clock.instant(),
+                createdAt = clock.now(),
                 kind = kind,
                 message = truncateMessage(message),
             )
@@ -182,7 +183,7 @@ class InMemorySessionStore(
 
         sessionsById[id] =
             running.copy(
-                lastHeartbeatAt = clock.instant(),
+                lastHeartbeatAt = clock.now(),
                 totalCostUsd = costUsd ?: running.totalCostUsd,
             )
 
@@ -201,7 +202,7 @@ class InMemorySessionStore(
                   return@synchronized GuardedResult.PreconditionFailed
             }
 
-        sessionsById[id] = running.copy(lastHeartbeatAt = clock.instant())
+        sessionsById[id] = running.copy(lastHeartbeatAt = clock.now())
 
         GuardedResult.Applied(Unit)
       }
@@ -223,7 +224,7 @@ class InMemorySessionStore(
             running.copy(
                 state = SessionState.Completed,
                 prUrl = prUrl,
-                lastHeartbeatAt = clock.instant(),
+                lastHeartbeatAt = clock.now(),
             )
 
         GuardedResult.Applied(Unit)
@@ -246,7 +247,7 @@ class InMemorySessionStore(
             running.copy(
                 state = SessionState.Failed,
                 failureSummary = failureSummary,
-                lastHeartbeatAt = clock.instant(),
+                lastHeartbeatAt = clock.now(),
             )
 
         GuardedResult.Applied(Unit)
@@ -264,7 +265,7 @@ class InMemorySessionStore(
                   sessionsById[id] =
                       session.copy(
                           state = SessionState.Aborted,
-                          lastHeartbeatAt = clock.instant(),
+                          lastHeartbeatAt = clock.now(),
                       )
                   GuardedResult.Applied(Unit)
                 }
@@ -297,7 +298,7 @@ class InMemorySessionStore(
   override suspend fun expireStale(): Int = synchronized(lock) { expireStaleLocked() }
 
   private fun expireStaleLocked(): Int {
-    val cutoff = clock.instant().minus(heartbeatTimeout)
+    val cutoff = clock.now().minus(heartbeatTimeout)
 
     val staleSessions =
         sessionsById.values.filter { session ->
@@ -318,5 +319,5 @@ class InMemorySessionStore(
 
   private fun Session.isHeartbeatOlderThan(
       cutoff: Instant,
-  ): Boolean = lastHeartbeatAt != null && lastHeartbeatAt.isBefore(cutoff)
+  ): Boolean = lastHeartbeatAt != null && lastHeartbeatAt < cutoff
 }

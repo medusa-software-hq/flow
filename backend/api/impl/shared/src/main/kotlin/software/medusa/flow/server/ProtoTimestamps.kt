@@ -1,11 +1,11 @@
 package software.medusa.flow.server
 
 import com.google.protobuf.Timestamp
-import java.time.Instant
+import kotlin.time.Instant
 
 /**
  * Shared domain↔proto conversion for timestamps. Every proto mapper routes through this single
- * seam, so a future `kotlin.time` migration only has to change it here.
+ * seam, so the `kotlin.time ↔ java.time` boundary lives here rather than at each call site.
  */
 fun Instant.toProtoTimestamp(): Timestamp =
-    Timestamp.newBuilder().setSeconds(epochSecond).setNanos(nano).build()
+    Timestamp.newBuilder().setSeconds(epochSeconds).setNanos(nanosecondsOfSecond).build()

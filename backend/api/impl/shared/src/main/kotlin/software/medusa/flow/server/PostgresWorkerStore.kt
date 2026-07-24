@@ -1,6 +1,6 @@
 package software.medusa.flow.server
 
-import java.time.Clock
+import kotlin.time.Clock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.flow.db.FlowDatabase
@@ -13,7 +13,7 @@ import software.medusa.flow.db.Workers
  */
 class PostgresWorkerStore(
     private val database: FlowDatabase,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock = Clock.System,
 ) : WorkerStore {
   private val queries = database.workerQueries
 
@@ -27,7 +27,7 @@ class PostgresWorkerStore(
           worker_id = workerId,
           worker_version = workerVersion,
           image_digest = imageDigest,
-          now = clock.instant().toOffsetDateTime(),
+          now = clock.now().toOffsetDateTime(),
       )
     }
   }
@@ -40,7 +40,7 @@ class PostgresWorkerStore(
           workerId = worker_id,
           workerVersion = worker_version,
           imageDigest = image_digest,
-          firstSeenAt = first_seen_at.toInstant(),
-          lastSeenAt = last_seen_at.toInstant(),
+          firstSeenAt = first_seen_at.toKotlinInstant(),
+          lastSeenAt = last_seen_at.toKotlinInstant(),
       )
 }

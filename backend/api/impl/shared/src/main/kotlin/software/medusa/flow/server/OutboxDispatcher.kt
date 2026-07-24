@@ -1,6 +1,8 @@
 package software.medusa.flow.server
 
-import java.time.Duration
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Drains the GitHub outbox for a repo: turns due [OutboxEntry] rows into GitHub API calls, in
@@ -19,8 +21,8 @@ import java.time.Duration
 class OutboxDispatcher(
     private val outboxStore: GithubOutboxStore,
     private val gitHubIssueClient: GitHubIssueClient,
-    private val baseBackoff: Duration = Duration.ofSeconds(30),
-    private val maxBackoff: Duration = Duration.ofMinutes(30),
+    private val baseBackoff: Duration = 30.seconds,
+    private val maxBackoff: Duration = 30.minutes,
 ) {
   /**
    * Executes every currently-due entry in [repoFullName]. Returns how many were dispatched
@@ -90,8 +92,8 @@ class OutboxDispatcher(
   private fun backoffFor(
       entry: OutboxEntry,
   ): Duration {
-    val multiplier = 1L shl entry.attempts.coerceAtMost(20) // 2^attempts, guarded against overflow
-    val scaled = baseBackoff.multipliedBy(multiplier)
+    val multiplier = 1 shl entry.attempts.coerceAtMost(20) // 2^attempts, guarded against overflow
+    val scaled = baseBackoff * multiplier
     return if (scaled > maxBackoff) maxBackoff else scaled
   }
 }

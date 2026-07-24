@@ -1,6 +1,7 @@
 package software.medusa.flow.server
 
-import java.time.Instant
+import kotlin.time.Duration
+import kotlin.time.Instant
 
 @JvmInline
 value class OutboxEntryId(
@@ -69,7 +70,7 @@ interface GithubOutboxStore {
   suspend fun markFailed(
       id: OutboxEntryId,
       error: String,
-      backoff: java.time.Duration,
+      backoff: Duration,
   )
 
   /**

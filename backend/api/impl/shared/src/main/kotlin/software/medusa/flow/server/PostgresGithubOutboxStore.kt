@@ -1,7 +1,7 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
+import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.flow.db.FlowDatabase
@@ -13,7 +13,7 @@ import software.medusa.flow.db.Github_outbox
  */
 class PostgresGithubOutboxStore(
     private val database: FlowDatabase,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock = Clock.System,
 ) : GithubOutboxStore {
   private val queries = database.githubOutboxQueries
 
@@ -22,7 +22,7 @@ class PostgresGithubOutboxStore(
   ): List<OutboxEntry> =
       withContext(Dispatchers.IO) {
         queries
-            .dueEntries(repo_full_name = repoFullName, now = clock.instant().toOffsetDateTime())
+            .dueEntries(repo_full_name = repoFullName, now = clock.now().toOffsetDateTime())
             .executeAsList()
             .map { it.toDomain() }
       }
@@ -31,7 +31,7 @@ class PostgresGithubOutboxStore(
       id: OutboxEntryId,
   ) {
     withContext(Dispatchers.IO) {
-      queries.markDispatched(now = clock.instant().toOffsetDateTime(), id = id.id)
+      queries.markDispatched(now = clock.now().toOffsetDateTime(), id = id.id)
     }
   }
 
@@ -43,7 +43,7 @@ class PostgresGithubOutboxStore(
     withContext(Dispatchers.IO) {
       queries.markFailed(
           last_error = error,
-          next_attempt_at = clock.instant().plus(backoff).toOffsetDateTime(),
+          next_attempt_at = (clock.now() + backoff).toOffsetDateTime(),
           id = id.id,
       )
     }
@@ -67,10 +67,10 @@ class PostgresGithubOutboxStore(
           seq = seq,
           action = parseOutboxAction(action),
           payload = payload,
-          createdAt = created_at.toInstant(),
-          dispatchedAt = dispatched_at?.toInstant(),
+          createdAt = created_at.toKotlinInstant(),
+          dispatchedAt = dispatched_at?.toKotlinInstant(),
           attempts = attempts,
           lastError = last_error,
-          nextAttemptAt = next_attempt_at.toInstant(),
+          nextAttemptAt = next_attempt_at.toKotlinInstant(),
       )
 }

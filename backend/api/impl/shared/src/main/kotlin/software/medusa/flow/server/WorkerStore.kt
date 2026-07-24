@@ -1,6 +1,6 @@
 package software.medusa.flow.server
 
-import java.time.Instant
+import kotlin.time.Instant
 
 /**
  * A registered worker's last-known state (M5). Toolchain- and transport-agnostic (no proto types),

@@ -3,16 +3,16 @@ package software.medusa.flow.server
 import com.linecorp.armeria.client.grpc.GrpcClients
 import io.grpc.Status
 import io.grpc.StatusException
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlinx.coroutines.runBlocking
 import software.medusa.flow.v1.Engine as ProtoEngine
 import software.medusa.flow.v1.SessionServiceGrpcKt
@@ -30,20 +30,15 @@ class SessionServiceImpl_serverTests {
   /** A [Clock] whose instant can be advanced, so heartbeat expiry is deterministic. */
   private class MutableClock(
       var current: Instant,
-      private val zone: ZoneId = ZoneOffset.UTC,
-  ) : Clock() {
-    override fun getZone(): ZoneId = zone
-
-    override fun withZone(zone: ZoneId): Clock = MutableClock(current, zone)
-
-    override fun instant(): Instant = current
+  ) : Clock {
+    override fun now(): Instant = current
 
     fun advance(duration: Duration) {
-      current = current.plus(duration)
+      current += duration
     }
   }
 
-  private val heartbeatTimeout = Duration.ofMinutes(3)
+  private val heartbeatTimeout = 3.minutes
   private val clock = MutableClock(Instant.parse("2026-01-01T00:00:00Z"))
   private val store = InMemorySessionStore(clock = clock, heartbeatTimeout = heartbeatTimeout)
 
@@ -167,7 +162,7 @@ class SessionServiceImpl_serverTests {
 
     // Claim it directly on the store to move PENDING → RUNNING, then let the heartbeat go stale.
     store.claimNext()
-    clock.advance(heartbeatTimeout.plusSeconds(1))
+    clock.advance(heartbeatTimeout + 1.seconds)
 
     val got = client.getSession(getSessionRequest { id = created.session.id })
     assertEquals(ProtoSessionState.SESSION_STATE_FAILED, got.session.state)

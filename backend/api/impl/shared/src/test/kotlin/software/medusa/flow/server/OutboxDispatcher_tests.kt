@@ -1,27 +1,22 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlinx.coroutines.runBlocking
 
 private class TickingClock(
     var current: Instant,
-    private val zone: ZoneId = ZoneOffset.UTC,
-) : Clock() {
-  override fun getZone(): ZoneId = zone
-
-  override fun withZone(zone: ZoneId): Clock = TickingClock(current, zone)
-
-  override fun instant(): Instant = current
+) : Clock {
+  override fun now(): Instant = current
 
   fun advance(duration: Duration) {
-    current = current.plus(duration)
+    current += duration
   }
 }
 
@@ -95,7 +90,7 @@ class OutboxDispatcher_tests {
   fun `a failing entry backs off and blocks only its own issue`() = runBlocking {
     val (pipelines, outbox, clock) = fixture()
     val github = FakeGitHubIssueClient()
-    val dispatcher = OutboxDispatcher(outbox, github, baseBackoff = Duration.ofSeconds(30))
+    val dispatcher = OutboxDispatcher(outbox, github, baseBackoff = 30.seconds)
 
     // Issue 1: pick then drive to DONE so the repo frees; issue 2 gets its own queue.
     val p1 = (pipelines.pick(1) as PickResult.Picked).pipeline
@@ -125,7 +120,7 @@ class OutboxDispatcher_tests {
 
     // Once it recovers and the backoff elapses, the whole issue-1 queue drains.
     github.failureFor = { null }
-    clock.advance(Duration.ofSeconds(31))
+    clock.advance(31.seconds)
     while (dispatcher.drain(repo) > 0) {
       /* drain */
     }
@@ -137,7 +132,7 @@ class OutboxDispatcher_tests {
       runBlocking {
         val (pipelines, outbox, clock) = fixture()
         val github = FakeGitHubIssueClient()
-        val dispatcher = OutboxDispatcher(outbox, github, baseBackoff = Duration.ofSeconds(30))
+        val dispatcher = OutboxDispatcher(outbox, github, baseBackoff = 30.seconds)
         // Fail the entry action itself (label-ensure is best-effort and separate).
         github.failureFor = { call ->
           if (call is FakeGitHubIssueClient.Call.AddLabel) "always fails" else null
@@ -148,20 +143,20 @@ class OutboxDispatcher_tests {
         // Attempt 1: backoff 30s. Not stuck yet.
         assertEquals(0, dispatcher.drain(repo))
         assertTrue(outbox.dueEntries(repo).isEmpty()) // backed off
-        clock.advance(Duration.ofSeconds(29))
+        clock.advance(29.seconds)
         assertTrue(outbox.dueEntries(repo).isEmpty()) // still backed off
-        clock.advance(Duration.ofSeconds(2)) // now past 30s
+        clock.advance(2.seconds) // now past 30s
 
         // Attempt 2: backoff 60s.
         dispatcher.drain(repo)
-        clock.advance(Duration.ofSeconds(59))
+        clock.advance(59.seconds)
         assertTrue(outbox.dueEntries(repo).isEmpty())
-        clock.advance(Duration.ofSeconds(2))
+        clock.advance(2.seconds)
 
         // A few more attempts push it past the stuck threshold — still present, never dropped.
         repeat(4) {
           dispatcher.drain(repo)
-          clock.advance(Duration.ofMinutes(40)) // well past any capped backoff
+          clock.advance(40.minutes) // well past any capped backoff
         }
         val stuck = outbox.stuckEntries(GithubOutboxStore.defaultStuckAttempts)
         assertEquals(1, stuck.size)

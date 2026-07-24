@@ -1,8 +1,8 @@
 package software.medusa.flow.server
 
-import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Instant
 import software.medusa.flow.v1.SessionEventKind as ProtoSessionEventKind
 import software.medusa.flow.v1.SessionState as ProtoSessionState
 
@@ -32,8 +32,8 @@ class SessionProtoMapping_tests {
     assertEquals("abc", proto.id)
     assertEquals("acme/app", proto.repoFullName)
     assertEquals(ProtoSessionState.SESSION_STATE_RUNNING, proto.state)
-    assertEquals(createdAt.epochSecond, proto.createdAt.seconds)
-    assertEquals(createdAt.nano, proto.createdAt.nanos)
+    assertEquals(createdAt.epochSeconds, proto.createdAt.seconds)
+    assertEquals(createdAt.nanosecondsOfSecond, proto.createdAt.nanos)
     assertEquals("u@x", proto.createdBy)
     assertEquals("", proto.prUrl)
     assertEquals("", proto.failureSummary)
@@ -48,10 +48,10 @@ class SessionProtoMapping_tests {
             repoFullName = "acme/app",
             taskMarkdown = "t",
             state = SessionState.Completed,
-            createdAt = Instant.EPOCH,
+            createdAt = Instant.fromEpochSeconds(0),
             createdBy = "u@x",
-            claimedAt = Instant.EPOCH,
-            lastHeartbeatAt = Instant.EPOCH,
+            claimedAt = Instant.fromEpochSeconds(0),
+            lastHeartbeatAt = Instant.fromEpochSeconds(0),
             prUrl = "https://pr/1",
             failureSummary = null,
             engine = Engine.Unspecified,
@@ -91,7 +91,13 @@ class SessionProtoMapping_tests {
 
     expected.forEach { (domain, proto) ->
       val event =
-          SessionEvent(seq = 1, createdAt = Instant.EPOCH, kind = domain, message = "m").toProto()
+          SessionEvent(
+                  seq = 1,
+                  createdAt = Instant.fromEpochSeconds(0),
+                  kind = domain,
+                  message = "m",
+              )
+              .toProto()
 
       assertEquals(proto, event.kind)
 
@@ -112,10 +118,10 @@ class SessionProtoMapping_tests {
             repoFullName = "acme/app",
             taskMarkdown = "t",
             state = SessionState.Completed,
-            createdAt = Instant.EPOCH,
+            createdAt = Instant.fromEpochSeconds(0),
             createdBy = "u@x",
-            claimedAt = Instant.EPOCH,
-            lastHeartbeatAt = Instant.EPOCH,
+            claimedAt = Instant.fromEpochSeconds(0),
+            lastHeartbeatAt = Instant.fromEpochSeconds(0),
             prUrl = "https://pr/1",
             failureSummary = null,
             engine = Engine.Claude,
@@ -134,7 +140,7 @@ class SessionProtoMapping_tests {
             repoFullName = "acme/app",
             taskMarkdown = "# Task",
             state = SessionState.Running,
-            createdAt = Instant.EPOCH,
+            createdAt = Instant.fromEpochSeconds(0),
             createdBy = "flow-reconciler",
             claimedAt = null,
             lastHeartbeatAt = null,
@@ -157,8 +163,8 @@ class SessionProtoMapping_tests {
             prUrl = null,
             mergeCommitSha = null,
             failureSummary = null,
-            createdAt = Instant.EPOCH,
-            updatedAt = Instant.EPOCH,
+            createdAt = Instant.fromEpochSeconds(0),
+            updatedAt = Instant.fromEpochSeconds(0),
             clearedAt = null,
         )
 

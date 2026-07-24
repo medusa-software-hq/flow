@@ -1,11 +1,10 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -15,13 +14,9 @@ import kotlinx.coroutines.runBlocking
 class InMemoryWorkerStore_tests {
   /** A clock whose instant the test advances between calls, to drive last-seen recency. */
   private class MutableClock(
-      var now: Instant,
-  ) : Clock() {
-    override fun instant(): Instant = now
-
-    override fun getZone(): ZoneOffset = ZoneOffset.UTC
-
-    override fun withZone(zone: java.time.ZoneId?): Clock = this
+      var current: Instant,
+  ) : Clock {
+    override fun now(): Instant = current
   }
 
   @Test
@@ -32,12 +27,12 @@ class InMemoryWorkerStore_tests {
     store.register("w1", "1.0.0", "")
     val firstSeen = store.list().single().firstSeenAt
 
-    clock.now = clock.now.plus(Duration.ofSeconds(30))
+    clock.current = clock.current + 30.seconds
     store.register("w1", "1.1.0", "sha256:xyz")
 
     val worker = store.list().single()
     assertEquals(firstSeen, worker.firstSeenAt)
-    assertEquals(clock.now, worker.lastSeenAt)
+    assertEquals(clock.current, worker.lastSeenAt)
     assertEquals("1.1.0", worker.workerVersion)
     assertEquals("sha256:xyz", worker.imageDigest)
   }
@@ -48,7 +43,7 @@ class InMemoryWorkerStore_tests {
     val store = InMemoryWorkerStore(clock)
 
     store.register("old", "1.0.0", "")
-    clock.now = clock.now.plus(Duration.ofSeconds(10))
+    clock.current = clock.current + 10.seconds
     store.register("new", "1.0.0", "")
 
     assertEquals(listOf("new", "old"), store.list().map { it.workerId })

@@ -1,8 +1,8 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Instant
 import java.util.UUID
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.flow.db.FlowDatabase
@@ -23,7 +23,7 @@ import software.medusa.flow.server.IssuePipelineStore.Companion.labelPrOpen
  */
 class PostgresIssuePipelineStore(
     private val database: FlowDatabase,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock = Clock.System,
 ) : IssuePipelineStore {
   private val pipelines = database.issuePipelineQueries
   private val outbox = database.githubOutboxQueries
@@ -42,7 +42,7 @@ class PostgresIssuePipelineStore(
             return@transactionWithResult PickResult.RepoBusy
           }
 
-          val now = clock.instant()
+          val now = clock.now()
           val id = IssuePipelineId(UUID.randomUUID().toString())
 
           pipelines.insertIssuePipeline(
@@ -77,7 +77,7 @@ class PostgresIssuePipelineStore(
   ): PipelineTransition =
       withContext(Dispatchers.IO) {
         database.transactionWithResult {
-          val now = clock.instant()
+          val now = clock.now()
           val updated =
               pipelines
                   .markPrOpenIfInProgress(prNumber, prUrl, now.toOffsetDateTime(), id.id)
@@ -110,7 +110,7 @@ class PostgresIssuePipelineStore(
         // No outbox: flow:pr-open already covers AWAITING_MERGE_CHECKS.
         val updated =
             pipelines
-                .markAwaitingIfPrOpen(mergeCommitSha, clock.instant().toOffsetDateTime(), id.id)
+                .markAwaitingIfPrOpen(mergeCommitSha, clock.now().toOffsetDateTime(), id.id)
                 .executeAsOneOrNull()
         if (updated == null) rejected(id) else PipelineTransition.Applied(updated.toDomain())
       }
@@ -121,7 +121,7 @@ class PostgresIssuePipelineStore(
   ): PipelineTransition =
       withContext(Dispatchers.IO) {
         database.transactionWithResult {
-          val now = clock.instant()
+          val now = clock.now()
           val updated =
               pipelines.markDoneIfAwaiting(now.toOffsetDateTime(), id.id).executeAsOneOrNull()
                   ?: return@transactionWithResult rejected(id)
@@ -165,7 +165,7 @@ class PostgresIssuePipelineStore(
                   ?: return@transactionWithResult rejected(id)
           val priorLabel = labelFor(current.state)
 
-          val now = clock.instant()
+          val now = clock.now()
           val updated =
               pipelines
                   .markFailedIfLive(failureSummary, now.toOffsetDateTime(), id.id)
@@ -204,7 +204,7 @@ class PostgresIssuePipelineStore(
   ): PipelineTransition =
       withContext(Dispatchers.IO) {
         database.transactionWithResult {
-          val now = clock.instant()
+          val now = clock.now()
           val updated =
               pipelines.clearIfFailed(now.toOffsetDateTime(), id.id).executeAsOneOrNull()
                   ?: return@transactionWithResult rejected(id)
@@ -289,9 +289,9 @@ class PostgresIssuePipelineStore(
           prUrl = pr_url,
           mergeCommitSha = merge_commit_sha,
           failureSummary = failure_summary,
-          createdAt = created_at.toInstant(),
-          updatedAt = updated_at.toInstant(),
-          clearedAt = cleared_at?.toInstant(),
+          createdAt = created_at.toKotlinInstant(),
+          updatedAt = updated_at.toKotlinInstant(),
+          clearedAt = cleared_at?.toKotlinInstant(),
       )
 }
 
