@@ -1,36 +1,31 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlinx.coroutines.runBlocking
 
 /** A [Clock] whose instant can be advanced, so expiry and ordering are deterministic. */
 private class MutableClock(
     var current: Instant,
-    private val zone: ZoneId = ZoneOffset.UTC,
-) : Clock() {
-  override fun getZone(): ZoneId = zone
-
-  override fun withZone(zone: ZoneId): Clock = MutableClock(current, zone)
-
-  override fun instant(): Instant = current
+) : Clock {
+  override fun now(): Instant = current
 
   fun advance(duration: Duration) {
-    current = current.plus(duration)
+    current += duration
   }
 }
 
 class InMemorySessionStore_tests {
-  private val heartbeatTimeout = Duration.ofMinutes(3)
+  private val heartbeatTimeout = 3.minutes
 
   private fun newStore(
       clock: MutableClock = MutableClock(Instant.parse("2026-01-01T00:00:00Z")),
@@ -71,7 +66,7 @@ class InMemorySessionStore_tests {
 
     // An older manual session (its own 1-session job), then a fan-out job of two engines.
     val manual = store.create("acme/app", "# Manual", "u@x", Engine.Builtin)
-    clock.advance(Duration.ofSeconds(1))
+    clock.advance(1.seconds)
     val job =
         store.createJob(
             "acme/app",
@@ -140,9 +135,9 @@ class InMemorySessionStore_tests {
     val (store, clock) = newStore()
 
     val first = store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
-    clock.advance(Duration.ofSeconds(1))
+    clock.advance(1.seconds)
     val second = store.create("acme/b", "t", "u@x", engine = Engine.Unspecified)
-    clock.advance(Duration.ofSeconds(1))
+    clock.advance(1.seconds)
     val third = store.create("acme/c", "t", "u@x", engine = Engine.Unspecified)
 
     assertEquals(listOf(third.id, second.id, first.id), store.list(limit = 100).map { it.id })
@@ -161,7 +156,7 @@ class InMemorySessionStore_tests {
     val (store, clock) = newStore()
 
     val first = store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
-    clock.advance(Duration.ofSeconds(1))
+    clock.advance(1.seconds)
     val second = store.create("acme/b", "t", "u@x", engine = Engine.Unspecified)
 
     val firstClaim = store.claimNext()
@@ -181,7 +176,7 @@ class InMemorySessionStore_tests {
     val (store, clock) = newStore()
 
     val claude = store.create("acme/a", "t", "u@x", engine = Engine.Claude)
-    clock.advance(Duration.ofSeconds(1))
+    clock.advance(1.seconds)
     store.create("acme/b", "t", "u@x", engine = Engine.Builtin)
 
     // Every worker runs every engine, so the claim is unconditional: oldest first, even if CLAUDE.
@@ -284,9 +279,9 @@ class InMemorySessionStore_tests {
     val claimed = store.claimNext()!!
 
     // Almost at the timeout, then a heartbeat resets the clock-of-death.
-    clock.advance(heartbeatTimeout.minusSeconds(10))
+    clock.advance(heartbeatTimeout - 10.seconds)
     assertApplied(store.heartbeat(claimed.id))
-    clock.advance(heartbeatTimeout.minusSeconds(10))
+    clock.advance(heartbeatTimeout - 10.seconds)
 
     assertEquals(0, store.expireStale())
     assertEquals(SessionState.Running, store.get(claimed.id, afterSeq = 0)!!.session.state)
@@ -299,7 +294,7 @@ class InMemorySessionStore_tests {
     store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
     val claimed = store.claimNext()!!
 
-    clock.advance(heartbeatTimeout.plusSeconds(1))
+    clock.advance(heartbeatTimeout + 1.seconds)
 
     // The read itself performs expiry.
     val read = store.get(claimed.id, afterSeq = 0)!!.session
@@ -317,7 +312,7 @@ class InMemorySessionStore_tests {
     store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
     val staleClaim = store.claimNext()!!
 
-    clock.advance(heartbeatTimeout.plusSeconds(1))
+    clock.advance(heartbeatTimeout + 1.seconds)
 
     store.create("acme/b", "t", "u@x", engine = Engine.Unspecified)
     val freshClaim = store.claimNext()!!

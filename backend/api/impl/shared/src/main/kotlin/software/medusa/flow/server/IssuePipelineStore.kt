@@ -1,6 +1,6 @@
 package software.medusa.flow.server
 
-import java.time.Instant
+import kotlin.time.Instant
 
 @JvmInline
 value class IssuePipelineId(

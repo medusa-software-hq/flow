@@ -1,27 +1,21 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 import kotlinx.coroutines.runBlocking
 
 private class SteppableClock(
     var current: Instant,
-    private val zone: ZoneId = ZoneOffset.UTC,
-) : Clock() {
-  override fun getZone(): ZoneId = zone
-
-  override fun withZone(zone: ZoneId): Clock = SteppableClock(current, zone)
-
-  override fun instant(): Instant = current
+) : Clock {
+  override fun now(): Instant = current
 
   fun advance(duration: Duration) {
-    current = current.plus(duration)
+    current += duration
   }
 }
 
@@ -40,7 +34,7 @@ class ReconcileObserver_tests {
             sessions,
             prClient,
             clock,
-            noRunsGracePeriod = Duration.ofMinutes(6),
+            noRunsGracePeriod = 6.minutes,
         )
   }
 
@@ -145,12 +139,12 @@ class ReconcileObserver_tests {
         fx.prClient.mergeStatusBySha["sha1"] = MergeCheckStatus.NoRuns
 
         // Within grace → still awaiting.
-        clock.advance(Duration.ofMinutes(5))
+        clock.advance(5.minutes)
         assertEquals(0, fx.observer.observe(repo))
         assertEquals(IssuePipelineState.AwaitingMergeChecks, fx.pipelines.get(p.id)!!.state)
 
         // Past grace → vacuous success (no merge workflows configured).
-        clock.advance(Duration.ofMinutes(2))
+        clock.advance(2.minutes)
         assertEquals(1, fx.observer.observe(repo))
         assertEquals(IssuePipelineState.Done, fx.pipelines.get(p.id)!!.state)
       }
@@ -164,13 +158,13 @@ class ReconcileObserver_tests {
 
         // First reconcile: no runs yet, within grace.
         fx.prClient.mergeStatusBySha["sha1"] = MergeCheckStatus.NoRuns
-        clock.advance(Duration.ofMinutes(1))
+        clock.advance(1.minutes)
         fx.observer.observe(repo)
         assertEquals(IssuePipelineState.AwaitingMergeChecks, fx.pipelines.get(p.id)!!.state)
 
         // Runs appear and pass before the grace would have elapsed → DONE, not vacuous.
         fx.prClient.mergeStatusBySha["sha1"] = MergeCheckStatus.Green
-        clock.advance(Duration.ofMinutes(1))
+        clock.advance(1.minutes)
         assertEquals(1, fx.observer.observe(repo))
         assertEquals(IssuePipelineState.Done, fx.pipelines.get(p.id)!!.state)
       }

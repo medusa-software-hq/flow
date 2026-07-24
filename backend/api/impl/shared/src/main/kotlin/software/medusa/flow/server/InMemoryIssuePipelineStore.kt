@@ -1,7 +1,7 @@
 package software.medusa.flow.server
 
-import java.time.Instant
 import java.util.UUID
+import kotlin.time.Instant
 import software.medusa.flow.server.IssuePipelineStore.Companion.labelFailed
 import software.medusa.flow.server.IssuePipelineStore.Companion.labelFor
 import software.medusa.flow.server.IssuePipelineStore.Companion.labelInProgress
@@ -29,7 +29,7 @@ class InMemoryIssuePipelineStore(
       synchronized(backend.lock) {
         if (isRepoBusyLocked(repoFullName)) return@synchronized PickResult.RepoBusy
 
-        val now = clock.instant()
+        val now = clock.now()
         val pipeline =
             IssuePipeline(
                 id = IssuePipelineId(UUID.randomUUID().toString()),
@@ -159,7 +159,7 @@ class InMemoryIssuePipelineStore(
             pipeline.copy(
                 state = IssuePipelineState.Failed,
                 failureSummary = failureSummary,
-                updatedAt = clock.instant(),
+                updatedAt = clock.now(),
             )
         backend.pipelinesById[id] = updated
         PipelineTransition.Applied(updated)
@@ -186,7 +186,7 @@ class InMemoryIssuePipelineStore(
             OutboxPayloads.label(labelFailed),
         )
 
-        val now = clock.instant()
+        val now = clock.now()
         val updated = pipeline.copy(clearedAt = now, updatedAt = now)
         backend.pipelinesById[id] = updated
         PipelineTransition.Applied(updated)
@@ -253,5 +253,5 @@ class InMemoryIssuePipelineStore(
         PipelineTransition.Applied(updated)
       }
 
-  private fun clockInstant(): Instant = clock.instant()
+  private fun clockInstant(): Instant = clock.now()
 }

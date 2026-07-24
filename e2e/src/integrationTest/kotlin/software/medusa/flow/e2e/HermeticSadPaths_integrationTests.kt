@@ -1,13 +1,13 @@
 package software.medusa.flow.e2e
 
 import java.nio.file.Files
-import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -31,7 +31,7 @@ import software.medusa.flow.test_utils.withMaterializedResource
 class HermeticSadPaths_integrationTests {
   // Short enough that a lost worker's session expires in seconds; comfortably longer than the
   // worker's (also shortened) heartbeat interval, so a live worker is never mistaken for lost.
-  private val heartbeatTimeout = Duration.ofSeconds(6)
+  private val heartbeatTimeout = 6.seconds
   private val workerHeartbeatIntervalMillis = 500L
 
   // Both engines run the scripted behavior in parallel, so either's branch may land (for a crash,

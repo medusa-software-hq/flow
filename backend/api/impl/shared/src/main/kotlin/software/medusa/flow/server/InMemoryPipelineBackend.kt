@@ -1,7 +1,7 @@
 package software.medusa.flow.server
 
-import java.time.Clock
 import java.util.UUID
+import kotlin.time.Clock
 
 /**
  * Shared in-memory state for [InMemoryIssuePipelineStore] and [InMemoryGithubOutboxStore]. Both
@@ -12,7 +12,7 @@ import java.util.UUID
  * A [Clock] is injectable so timestamps and ordering are deterministic in tests.
  */
 class InMemoryPipelineBackend(
-    val clock: Clock = Clock.systemUTC(),
+    val clock: Clock = Clock.System,
 ) {
   val lock = Any()
 
@@ -38,7 +38,7 @@ class InMemoryPipelineBackend(
     val seq = nextSeqByIssue.getOrDefault(issueKey, 0) + 1
     nextSeqByIssue[issueKey] = seq
 
-    val now = clock.instant()
+    val now = clock.now()
 
     outboxEntries +=
         OutboxEntry(

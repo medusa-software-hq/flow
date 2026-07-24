@@ -1,9 +1,9 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
 import java.util.UUID
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.medusa.flow.db.FlowDatabase
@@ -22,7 +22,7 @@ import software.medusa.flow.server.SessionStore.Companion.workerLostSummary
  */
 class PostgresSessionStore(
     private val database: FlowDatabase,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock = Clock.System,
     private val heartbeatTimeout: Duration = InMemorySessionStore.defaultHeartbeatTimeout,
 ) : SessionStore {
   private val queries = database.sessionQueries
@@ -70,7 +70,7 @@ class PostgresSessionStore(
             repoFullName = repoFullName,
             taskMarkdown = taskMarkdown,
             state = SessionState.Pending,
-            createdAt = clock.instant(),
+            createdAt = clock.now(),
             createdBy = createdBy,
             claimedAt = null,
             lastHeartbeatAt = null,
@@ -123,14 +123,14 @@ class PostgresSessionStore(
 
   override suspend fun claimNext(): Session? =
       withContext(Dispatchers.IO) {
-        val now = clock.instant().toOffsetDateTime()
+        val now = clock.now().toOffsetDateTime()
         // Uniform workers: any worker can run any engine, so the claim is unconditional.
         queries.claimNextSession(now = now).executeAsOneOrNull()?.toDomain()
       }
 
   override suspend fun claimNextJob(): List<Session> =
       withContext(Dispatchers.IO) {
-        val now = clock.instant().toOffsetDateTime()
+        val now = clock.now().toOffsetDateTime()
         // Claims every PENDING session of the oldest pending job in one guarded statement.
         queries.claimNextJob(now = now).executeAsList().map { it.toDomain() }
       }
@@ -142,7 +142,7 @@ class PostgresSessionStore(
       costUsd: Double?,
   ): GuardedResult<SessionEvent> =
       withContext(Dispatchers.IO) {
-        val now = clock.instant()
+        val now = clock.now()
         val truncated = truncateMessage(message)
 
         database.transactionWithResult {
@@ -178,7 +178,7 @@ class PostgresSessionStore(
       withContext(Dispatchers.IO) {
         val applied =
             queries
-                .touchHeartbeatIfRunning(now = clock.instant().toOffsetDateTime(), id = id.id)
+                .touchHeartbeatIfRunning(now = clock.now().toOffsetDateTime(), id = id.id)
                 .executeAsOneOrNull()
         if (applied != null) GuardedResult.Applied(Unit) else abortedOrPreconditionFailed(id)
       }
@@ -189,7 +189,7 @@ class PostgresSessionStore(
       withContext(Dispatchers.IO) {
         val applied =
             queries
-                .abortIfRunning(now = clock.instant().toOffsetDateTime(), id = id.id)
+                .abortIfRunning(now = clock.now().toOffsetDateTime(), id = id.id)
                 .executeAsOneOrNull()
         // Applied when it was RUNNING; already-ABORTED -> Aborted; otherwise PreconditionFailed.
         if (applied != null) GuardedResult.Applied(Unit) else abortedOrPreconditionFailed(id)
@@ -201,7 +201,7 @@ class PostgresSessionStore(
   ): GuardedResult<Unit> =
       withContext(Dispatchers.IO) {
         queries
-            .completeIfRunning(pr_url = prUrl, now = clock.instant().toOffsetDateTime(), id = id.id)
+            .completeIfRunning(pr_url = prUrl, now = clock.now().toOffsetDateTime(), id = id.id)
             .executeAsOneOrNull()
             .toGuardedUnit()
       }
@@ -214,7 +214,7 @@ class PostgresSessionStore(
         queries
             .failIfRunning(
                 failure_summary = failureSummary,
-                now = clock.instant().toOffsetDateTime(),
+                now = clock.now().toOffsetDateTime(),
                 id = id.id,
             )
             .executeAsOneOrNull()
@@ -224,7 +224,7 @@ class PostgresSessionStore(
   override suspend fun expireStale(): Int = withContext(Dispatchers.IO) { expireStaleBlocking() }
 
   private fun expireStaleBlocking(): Int {
-    val cutoff = clock.instant().minus(heartbeatTimeout)
+    val cutoff = clock.now().minus(heartbeatTimeout)
 
     return queries
         .expireStaleSessions(
@@ -295,10 +295,10 @@ class PostgresSessionStore(
           repoFullName = repo_full_name,
           taskMarkdown = task_markdown,
           state = parseState(state),
-          createdAt = created_at.toInstant(),
+          createdAt = created_at.toKotlinInstant(),
           createdBy = created_by,
-          claimedAt = claimed_at?.toInstant(),
-          lastHeartbeatAt = last_heartbeat_at?.toInstant(),
+          claimedAt = claimed_at?.toKotlinInstant(),
+          lastHeartbeatAt = last_heartbeat_at?.toKotlinInstant(),
           prUrl = pr_url,
           failureSummary = failure_summary,
           engine = parseEngine(engine),
@@ -308,7 +308,7 @@ class PostgresSessionStore(
   private fun Session_events.toDomain(): SessionEvent =
       SessionEvent(
           seq = seq,
-          createdAt = created_at.toInstant(),
+          createdAt = created_at.toKotlinInstant(),
           kind = SessionEventKind.valueOf(kind),
           message = message,
       )

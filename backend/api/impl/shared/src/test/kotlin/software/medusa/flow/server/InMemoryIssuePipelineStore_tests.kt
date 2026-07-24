@@ -1,29 +1,25 @@
 package software.medusa.flow.server
 
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlinx.coroutines.runBlocking
 
 private class MovableClock(
     var current: Instant,
-    private val zone: ZoneId = ZoneOffset.UTC,
-) : Clock() {
-  override fun getZone(): ZoneId = zone
-
-  override fun withZone(zone: ZoneId): Clock = MovableClock(current, zone)
-
-  override fun instant(): Instant = current
+) : Clock {
+  override fun now(): Instant = current
 
   fun advance(duration: Duration) {
-    current = current.plus(duration)
+    current += duration
   }
 }
 
@@ -200,7 +196,7 @@ class InMemoryIssuePipelineStore_tests {
     val (pipelines, _, clock) = newStores()
 
     val a = pipelines.pickA(repo = "acme/a", issue = 1)
-    clock.advance(Duration.ofSeconds(1))
+    clock.advance(1.seconds)
     val b = pipelines.pickA(repo = "acme/b", issue = 2)
 
     // Drive a to DONE.
@@ -239,7 +235,7 @@ class InMemoryIssuePipelineStore_tests {
     assertEquals(1, head.seq)
 
     // A failed dispatch keeps the head at the front (still the only due entry).
-    outbox.markFailed(head.id, "boom", Duration.ofMinutes(1))
+    outbox.markFailed(head.id, "boom", 1.minutes)
     assertTrue(outbox.dueEntries("acme/app").isEmpty()) // backed off, not yet due
 
     // Dispatching the head advances the queue to seq 2.
@@ -262,7 +258,7 @@ class InMemoryIssuePipelineStore_tests {
 
     // Block issue 1's head far into the future.
     val issue1Head = outbox.dueEntries("acme/app").single { it.issueNumber == 1 }
-    outbox.markFailed(issue1Head.id, "boom", Duration.ofHours(1))
+    outbox.markFailed(issue1Head.id, "boom", 1.hours)
 
     // Issue 2's head is still due — independent queue.
     val due = outbox.dueEntries("acme/app")

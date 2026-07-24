@@ -4,8 +4,8 @@ import com.linecorp.armeria.client.WebClient
 import com.linecorp.armeria.client.grpc.GrpcClients
 import com.linecorp.armeria.server.Server
 import java.nio.file.Path
-import java.time.Duration
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration
 import kotlinx.coroutines.delay
 import software.medusa.flow.githubapp.GitHubAppConfig
 import software.medusa.flow.githubstub.BareRepoFixture

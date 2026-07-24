@@ -1,6 +1,6 @@
 package software.medusa.flow.server
 
-import java.time.Duration
+import kotlin.time.Duration
 
 /**
  * An in-memory [GithubOutboxStore] over the state shared with [InMemoryIssuePipelineStore] (see
@@ -16,7 +16,7 @@ class InMemoryGithubOutboxStore(
       repoFullName: String,
   ): List<OutboxEntry> =
       synchronized(backend.lock) {
-        val now = clock.instant()
+        val now = clock.now()
 
         backend.outboxEntries
             .filter { it.repoFullName == repoFullName && it.dispatchedAt == null }
@@ -25,14 +25,14 @@ class InMemoryGithubOutboxStore(
             .groupBy { it.issueNumber }
             .values
             .mapNotNull { issueEntries -> issueEntries.minByOrNull { it.seq } }
-            .filter { !it.nextAttemptAt.isAfter(now) }
+            .filter { it.nextAttemptAt <= now }
             .sortedWith(compareBy({ it.issueNumber }, { it.seq }))
       }
 
   override suspend fun markDispatched(
       id: OutboxEntryId,
   ) {
-    synchronized(backend.lock) { replace(id) { it.copy(dispatchedAt = clock.instant()) } }
+    synchronized(backend.lock) { replace(id) { it.copy(dispatchedAt = clock.now()) } }
   }
 
   override suspend fun markFailed(
@@ -45,7 +45,7 @@ class InMemoryGithubOutboxStore(
         it.copy(
             attempts = it.attempts + 1,
             lastError = error,
-            nextAttemptAt = clock.instant().plus(backoff),
+            nextAttemptAt = clock.now() + backoff,
         )
       }
     }

@@ -2,13 +2,13 @@ package software.medusa.flow.server
 
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlinx.coroutines.runBlocking
 import software.medusa.flow.v1.ListIssuePipelinesRequest
 import software.medusa.flow.v1.clearIssuePipelineRequest
