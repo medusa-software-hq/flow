@@ -11,7 +11,7 @@ data class CandidateIssue(
     val createdAt: Instant,
     /**
      * The issue's label names. No longer used to pick an engine (dual-engine fan-out runs both);
-     * retained for possible future label-driven routing.
+     * read for [IssuePriority] label-driven queue ordering.
      */
     val labels: Set<String> = emptySet(),
 )

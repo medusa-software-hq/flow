@@ -3,14 +3,14 @@ package software.medusa.flow.server
 import org.slf4j.LoggerFactory
 
 /**
- * The reconcile pick phase (story 07): if the repo is free, start work on the oldest unblocked
- * `ready` issue.
+ * The reconcile pick phase (story 07): if the repo is free, start work on the highest-priority
+ * unblocked `ready` issue (oldest first within a priority tier — see [IssuePriority]).
  *
  * The repo mutex ([IssuePipelineStore.isRepoBusy], which counts a non-cleared `FAILED` row as busy
  * — maximum caution) gates picking: one failure stops the repo until a human clears it. Candidates
  * come from [GitHubCandidateClient] (already filtered to open, `ready`, zero-open-blockers); we
- * drop any that already have a non-cleared pipeline row, take the oldest, create an issue's
- * session, and start the pipeline.
+ * drop any that already have a non-cleared pipeline row, take the highest-priority/oldest, create
+ * an issue's session, and start the pipeline.
  *
  * Atomicity: the session and the `pick` are two store calls, made safe by the reconciler's per-repo
  * lock ([RepoLock]) — no other pick for this repo can interleave in M2's single-instance control
@@ -42,7 +42,9 @@ class ReconcilePicker(
             .toSet()
 
     val chosen =
-        candidates.filter { it.number !in takenIssueNumbers }.minByOrNull { it.createdAt }
+        candidates
+            .filter { it.number !in takenIssueNumbers }
+            .minWithOrNull(compareBy({ IssuePriority.of(it.labels).rank }, { it.createdAt }))
             ?: return 0
 
     // Dual-engine fan-out (M6): every picked issue runs two sessions in parallel — a primary Claude

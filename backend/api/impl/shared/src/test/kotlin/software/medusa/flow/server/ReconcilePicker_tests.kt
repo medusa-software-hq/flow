@@ -156,4 +156,85 @@ class ReconcilePicker_tests {
 
     assertEquals(1, fx.pipelines.list(repo).size)
   }
+
+  @Test
+  fun `priority beats age - a newer urgent issue is picked over an older unlabeled one`() =
+      runBlocking {
+        val fx = Fixture()
+        fx.candidates.candidatesByRepo[repo] =
+            listOf(
+                candidate(1, "2026-05-01T00:00:00Z"), // older, unlabeled (medium)
+                candidate(2, "2026-05-02T00:00:00Z", labels = setOf("priority:urgent")), // newer
+            )
+
+        assertEquals(1, fx.picker.pick(repo))
+
+        val pipeline = fx.pipelines.list(repo).single()
+        assertEquals(2, pipeline.issueNumber)
+      }
+
+  @Test
+  fun `within the same priority tier the oldest wins`() = runBlocking {
+    val fx = Fixture()
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(
+            candidate(2, "2026-05-02T00:00:00Z", labels = setOf("priority:high")),
+            candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:high")), // oldest
+        )
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    assertEquals(1, pipeline.issueNumber)
+  }
+
+  @Test
+  fun `an unlabeled issue is treated as medium priority`() = runBlocking {
+    val fx = Fixture()
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(
+            candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:low")), // oldest, low
+            candidate(2, "2026-05-02T00:00:00Z"), // newer, unlabeled → medium, beats low
+        )
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    assertEquals(2, pipeline.issueNumber)
+  }
+
+  @Test
+  fun `multiple priority labels on one issue resolve to the highest`() = runBlocking {
+    val fx = Fixture()
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(
+            candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:high")),
+            // Misconfigured: carries both low and urgent — should resolve to urgent and win.
+            candidate(
+                2,
+                "2026-05-02T00:00:00Z",
+                labels = setOf("priority:low", "priority:urgent"),
+            ),
+        )
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    assertEquals(2, pipeline.issueNumber)
+  }
+
+  @Test
+  fun `a blocked urgent issue is not among candidates and does not get picked`() = runBlocking {
+    val fx = Fixture()
+    // Eligibility (open + ready + no open blockers) is enforced upstream by the candidate client;
+    // a still-blocked urgent issue never appears here, so the picker falls through to what's
+    // actually eligible regardless of its (unseen) priority.
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:low")))
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    assertEquals(1, pipeline.issueNumber)
+  }
 }
