@@ -63,8 +63,9 @@ data class HrsClaudeEngineConfig(
     // A runaway-guard, not a target: a real multi-file task (e.g. a repo-wide removal touching
     // frontend + backend + proto + a DB migration) legitimately spends a few dollars of Claude
     // tool-calls, so a sub-dollar cap guillotines genuine work mid-run (observed on flow#132's
-    // re-run). The worker overrides this per-env via FLOW_CLAUDE_MAX_BUDGET_USD.
-    const val defaultMaxBudgetUsd = 5.00
+    // re-run; the $5 cap itself was still too tight for flow#168's Instant migration). The worker
+    // overrides this per-env via FLOW_CLAUDE_MAX_BUDGET_USD.
+    const val defaultMaxBudgetUsd = 10.00
     val defaultWallClockTimeout: Duration = 30.minutes
 
     /** The CLI version A1 verified the flag surface against; bumped by deliberate PRs. */

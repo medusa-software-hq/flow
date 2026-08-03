@@ -270,7 +270,7 @@ class HrsClaudeTaskCompleter_tests {
         args,
         listOf("--disallowedTools", "Bash(git push:*) Bash(gh:*) WebFetch WebSearch"),
     )
-    assertContainsSubsequence(args, listOf("--max-budget-usd", "5.0"))
+    assertContainsSubsequence(args, listOf("--max-budget-usd", "10.0"))
   }
 
   @Test
