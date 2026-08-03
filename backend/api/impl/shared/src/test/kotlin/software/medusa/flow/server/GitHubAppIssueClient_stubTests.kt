@@ -54,4 +54,32 @@ class GitHubAppIssueClient_stubTests {
     client.removeLabel("acme/app", 7, "flow:in-progress") // already gone
     assertFalse("flow:in-progress" in issue.labels)
   }
+
+  @Test
+  fun `ensureLabelsExist provisions the whole flow manifest, including flow-ready, on a bare repo`() =
+      runBlocking {
+        stub.seedRepo("acme/bare") // no labels hand-created — the onboarding scenario
+
+        client.ensureLabelsExist("acme/bare")
+
+        val defined = stub.definedLabels("acme/bare")
+        GitHubIssueClient.flowLabels.forEach { label ->
+          assertEquals(
+              FakeGitHubServer.LabelDef(label.color, label.description),
+              defined[label.name],
+              "expected ${label.name} to be provisioned with canonical color/description",
+          )
+        }
+      }
+
+  @Test
+  fun `ensureLabelsExist twice is a no-op the second time`() = runBlocking {
+    stub.seedRepo("acme/bare")
+
+    client.ensureLabelsExist("acme/bare")
+    val afterFirst = stub.definedLabels("acme/bare")
+    client.ensureLabelsExist("acme/bare") // must not throw, must not change anything
+
+    assertEquals(afterFirst, stub.definedLabels("acme/bare"))
+  }
 }

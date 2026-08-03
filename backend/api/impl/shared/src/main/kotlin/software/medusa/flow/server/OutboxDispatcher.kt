@@ -1,5 +1,6 @@
 package software.medusa.flow.server
 
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -17,6 +18,11 @@ import kotlin.time.Duration.Companion.seconds
  * call succeeding and [GithubOutboxStore.markDispatched] committing can therefore duplicate an
  * annotation comment on the next drain — an accepted trade-off (comments are annotations, not
  * state; labels and close are idempotent).
+ *
+ * This is also Flow's repo-onboarding path: [drain] ensures the `flow:` label manifest exists
+ * *before* looking for outbox work, not only as a side effect of having some, so a repo with none
+ * of the `flow:` labels gets them provisioned the first time reconcile ever touches it — including
+ * `flow:ready`, before any issue is ever hand-labeled with it.
  */
 class OutboxDispatcher(
     private val outboxStore: GithubOutboxStore,
@@ -24,24 +30,24 @@ class OutboxDispatcher(
     private val baseBackoff: Duration = 30.seconds,
     private val maxBackoff: Duration = 30.minutes,
 ) {
+  // Repos whose labels have been successfully ensured this process's lifetime — avoids re-hitting
+  // GitHub on every drain (most of which find no due work) once onboarding has succeeded once.
+  // Idempotent either way; this is purely a call-volume optimization. A restart re-ensures once per
+  // repo, which is harmless (create-if-absent).
+  private val labelsEnsuredRepos = ConcurrentHashMap.newKeySet<String>()
+
   /**
    * Executes every currently-due entry in [repoFullName]. Returns how many were dispatched
-   * successfully (for the reconcile summary). Ensures the `flow:*` label definitions exist first.
+   * successfully (for the reconcile summary). Ensures the `flow:` label manifest exists first,
+   * regardless of whether there's any outbox work.
    */
   suspend fun drain(
       repoFullName: String,
   ): Int {
+    ensureLabelsOnce(repoFullName)
+
     val dueEntries = outboxStore.dueEntries(repoFullName)
     if (dueEntries.isEmpty()) return 0
-
-    // Best-effort, first-use label setup. A transient failure here must not block the whole drain:
-    // the labels may already exist from a prior run, and any add-label that genuinely can't find
-    // its label will fail and back off on its own below.
-    try {
-      gitHubIssueClient.ensureLabelsExist(repoFullName)
-    } catch (_: Exception) {
-      // Ignored — see above.
-    }
 
     var dispatched = 0
     for (entry in dueEntries) {
@@ -60,6 +66,23 @@ class OutboxDispatcher(
       }
     }
     return dispatched
+  }
+
+  /**
+   * Best-effort, first-use label provisioning, cached per repo so a steady stream of drains against
+   * a repo with nothing due doesn't re-hit GitHub every time. A transient failure isn't cached, so
+   * the next [drain] call retries — it must never block draining otherwise-ready outbox entries.
+   */
+  private suspend fun ensureLabelsOnce(
+      repoFullName: String,
+  ) {
+    if (repoFullName in labelsEnsuredRepos) return
+    try {
+      gitHubIssueClient.ensureLabelsExist(repoFullName)
+      labelsEnsuredRepos += repoFullName
+    } catch (_: Exception) {
+      // Ignored — see above; retried on the next drain() for this repo.
+    }
   }
 
   private suspend fun execute(

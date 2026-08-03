@@ -50,19 +50,15 @@ class OutboxDispatcher_tests {
           /* keep draining until the queue is empty */
         }
 
+        // Labels are ensured once per repo (cached across drains), up front — not once per action.
         assertEquals(
             listOf(
                 FakeGitHubIssueClient.Call.EnsureLabels(repo),
                 FakeGitHubIssueClient.Call.AddLabel(repo, 1, "flow:in-progress"),
-                FakeGitHubIssueClient.Call.EnsureLabels(repo),
                 FakeGitHubIssueClient.Call.RemoveLabel(repo, 1, "flow:in-progress"),
-                FakeGitHubIssueClient.Call.EnsureLabels(repo),
                 FakeGitHubIssueClient.Call.AddLabel(repo, 1, "flow:pr-open"),
-                FakeGitHubIssueClient.Call.EnsureLabels(repo),
                 FakeGitHubIssueClient.Call.RemoveLabel(repo, 1, "flow:pr-open"),
-                FakeGitHubIssueClient.Call.EnsureLabels(repo),
                 FakeGitHubIssueClient.Call.PostComment(repo, 1, "done"),
-                FakeGitHubIssueClient.Call.EnsureLabels(repo),
                 FakeGitHubIssueClient.Call.CloseIssue(repo, 1),
             ),
             github.calls,
@@ -84,6 +80,48 @@ class OutboxDispatcher_tests {
 
     assertEquals(0, dispatcher.drain(repo))
     assertEquals(callsAfterFirst, github.calls.size) // no further GitHub calls
+  }
+
+  @Test
+  fun `drain ensures labels exist even when there is no outbox work`() = runBlocking {
+    // The onboarding gap this closes: a freshly-installed repo has no pipeline/outbox activity yet,
+    // so `flow:ready` must be provisioned independent of ever having something due to dispatch.
+    val (_, outbox, _) = fixture()
+    val github = FakeGitHubIssueClient()
+    val dispatcher = OutboxDispatcher(outbox, github)
+
+    assertEquals(0, dispatcher.drain(repo))
+    assertEquals(
+        listOf<FakeGitHubIssueClient.Call>(FakeGitHubIssueClient.Call.EnsureLabels(repo)),
+        github.calls,
+    )
+
+    // Cached — a second empty drain doesn't re-hit GitHub.
+    assertEquals(0, dispatcher.drain(repo))
+    assertEquals(
+        listOf<FakeGitHubIssueClient.Call>(FakeGitHubIssueClient.Call.EnsureLabels(repo)),
+        github.calls,
+    )
+  }
+
+  @Test
+  fun `a failed label-ensure is retried on the next drain, not cached`() = runBlocking {
+    val (_, outbox, _) = fixture()
+    val github = FakeGitHubIssueClient()
+    github.failureFor = { call ->
+      if (call is FakeGitHubIssueClient.Call.EnsureLabels) "boom" else null
+    }
+    val dispatcher = OutboxDispatcher(outbox, github)
+
+    assertEquals(0, dispatcher.drain(repo)) // ensure fails silently (best-effort), nothing due
+    assertTrue(github.calls.isEmpty()) // the fake doesn't record a call that throws
+
+    github.failureFor = { null }
+    assertEquals(0, dispatcher.drain(repo))
+    assertEquals(
+        listOf<FakeGitHubIssueClient.Call>(FakeGitHubIssueClient.Call.EnsureLabels(repo)),
+        github.calls,
+    )
   }
 
   @Test
