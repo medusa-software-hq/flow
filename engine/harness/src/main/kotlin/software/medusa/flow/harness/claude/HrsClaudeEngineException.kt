@@ -80,6 +80,26 @@ class HrsClaudeEngineException(
                     "`result` message. stderr tail:\n${standardError.takeStderrTail()}",
         )
 
+    /**
+     * The process itself is authoritative: a non-zero exit is a failure even when the terminal
+     * `result` message (if any) reported success. Without this, a run that crashes at the process
+     * level after streaming a `success` result would sail through as
+     * [TaskCompletionResult.Success].
+     */
+    fun processFailed(
+        exitCode: Int,
+        standardError: String,
+        lastAssistantText: String?,
+    ): HrsClaudeEngineException =
+        HrsClaudeEngineException(
+            kind = Kind.SubprocessFailure,
+            message =
+                "The `claude` subprocess exited with a non-zero code (exit=$exitCode); the process " +
+                    "outcome is authoritative even if its result payload reported success. Last " +
+                    "assistant message: ${lastAssistantText?.ifBlank { "<empty>" } ?: "<none>"}. " +
+                    "stderr tail:\n${standardError.takeStderrTail()}",
+        )
+
     fun timedOut(
         timeout: String,
         standardError: String,

@@ -54,6 +54,7 @@ class HrsClaudeTaskCompleter_tests {
     val agentActions = mutableListOf<String>()
     val banners = mutableListOf<HrsEngineBanner>()
     val costs = mutableListOf<HrsRunCost>()
+    val engineWarnings = mutableListOf<String>()
 
     override fun observeAgentAction(
         summary: String,
@@ -71,6 +72,12 @@ class HrsClaudeTaskCompleter_tests {
         cost: HrsRunCost,
     ) {
       costs += cost
+    }
+
+    override fun observeEngineWarning(
+        message: String,
+    ) {
+      engineWarnings += message
     }
 
     override fun observeScouting(): ScoutingObserver = ScoutingObserver.Noop
@@ -355,6 +362,83 @@ class HrsClaudeTaskCompleter_tests {
         assertFailsWith<HrsClaudeEngineException> { completeWith(claudeProcess = process) }
     assertEquals(HrsClaudeEngineException.Kind.AuthFailure, exception.kind)
     assertTrue(exception.message!!.contains("personal"))
+  }
+
+  @Test
+  fun `a success result with a non-zero exit throws SubprocessFailure -- the process outcome is authoritative`() {
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages =
+                listOf(
+                    HrsClaudeMessage.Assistant(text = "looks done to me"),
+                    HrsClaudeMessage.Result(
+                        isError = false,
+                        subtype = "success",
+                        totalCostUsd = 0.01,
+                        numTurns = 2,
+                        durationMs = 100,
+                    ),
+                ),
+            termination =
+                HrsClaudeRun.Termination(
+                    exitCode = 1,
+                    standardError = "Oops, something went wrong",
+                ),
+        )
+
+    val exception =
+        assertFailsWith<HrsClaudeEngineException> { completeWith(claudeProcess = process) }
+    assertEquals(HrsClaudeEngineException.Kind.SubprocessFailure, exception.kind)
+    assertTrue(exception.message!!.contains("1"))
+    assertTrue(exception.message!!.contains("Oops, something went wrong"))
+    assertTrue(exception.message!!.contains("looks done to me"))
+  }
+
+  @Test
+  fun `a non-zero exit still prefers a cap or auth subtype over the generic process failure`() {
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages =
+                listOf(
+                    HrsClaudeMessage.Result(
+                        isError = true,
+                        subtype = "error_max_budget_usd",
+                        totalCostUsd = 0.5,
+                        numTurns = 7,
+                        durationMs = 9999,
+                    ),
+                ),
+            termination = HrsClaudeRun.Termination(exitCode = 1, standardError = ""),
+        )
+
+    val exception =
+        assertFailsWith<HrsClaudeEngineException> { completeWith(claudeProcess = process) }
+    assertEquals(HrsClaudeEngineException.Kind.CapExceeded, exception.kind)
+  }
+
+  @Test
+  fun `exit 0 plus a success result but non-empty stderr succeeds and emits an engine warning`() {
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages =
+                listOf(
+                    HrsClaudeMessage.Result(
+                        isError = false,
+                        subtype = "success",
+                        totalCostUsd = 0.01,
+                        numTurns = 1,
+                        durationMs = 50,
+                    ),
+                ),
+            termination =
+                HrsClaudeRun.Termination(exitCode = 0, standardError = "a harmless warning"),
+        )
+    val observer = RecordingObserver()
+
+    val result = completeWith(claudeProcess = process, observer = observer)
+
+    assertIs<TaskCompletionResult.Success>(result)
+    assertEquals(listOf("a harmless warning"), observer.engineWarnings)
   }
 
   // ---------------------------------------------------------------------------------------------

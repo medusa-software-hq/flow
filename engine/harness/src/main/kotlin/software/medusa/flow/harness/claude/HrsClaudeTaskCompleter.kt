@@ -302,6 +302,12 @@ class HrsClaudeTaskCompleter(
 
     interpretOutcome(outcome = outcome)
 
+    // No blind spots on success: an otherwise-clean run that still wrote to stderr is worth
+    // surfacing, even though it didn't flip the exit code or the result's `is_error` flag.
+    outcome.termination.standardError
+        .takeIf { it.isNotBlank() }
+        ?.let { observer.observeEngineWarning(it) }
+
     return outcome
   }
 
@@ -423,27 +429,55 @@ class HrsClaudeTaskCompleter(
     return ProjectHealthStatus.Healthy
   }
 
-  /** Maps a completed run to a verdict: returns cleanly on success, throws on any failure mode. */
+  /**
+   * Maps a completed run to a verdict: returns cleanly on success, throws on any failure mode.
+   *
+   * The process outcome is the primary gate: a non-zero exit is a failure **even if the streamed
+   * `result` message reported success** — a claude run can write "success" to its payload while the
+   * process itself exits non-zero (and/or writes an error to stderr), and that must not sail
+   * through as [TaskCompletionResult.Success]. A known subtype (cap trip, auth failure) still
+   * labels the failure precisely when one is available; otherwise it's a generic [processFailed].
+   */
   private fun interpretOutcome(
       outcome: RunOutcome,
   ) {
+    val exitCode = outcome.termination.exitCode
+    val standardError = outcome.termination.standardError
+    val subtype = outcome.result?.subtype
+
+    if (exitCode != 0) {
+      if (isAuthFailure(subtype = subtype, standardError = standardError)) {
+        throw HrsClaudeEngineException.authFailure(
+            authRung = authRungName(),
+            detail = subtype ?: standardError.take(200),
+        )
+      }
+      if (subtype != null && isCapSubtype(subtype)) {
+        throw HrsClaudeEngineException.capExceeded(subtype)
+      }
+      throw HrsClaudeEngineException.processFailed(
+          exitCode = exitCode,
+          standardError = standardError,
+          lastAssistantText = outcome.lastAssistantText,
+      )
+    }
+
     val result =
         outcome.result
             ?: throw HrsClaudeEngineException.missingResult(
-                exitCode = outcome.termination.exitCode,
-                standardError = outcome.termination.standardError,
+                exitCode = exitCode,
+                standardError = standardError,
             )
 
     if (!result.isError) return
 
-    val subtype = result.subtype
     when {
       subtype != null && isCapSubtype(subtype) ->
           throw HrsClaudeEngineException.capExceeded(subtype)
-      isAuthFailure(subtype = subtype, standardError = outcome.termination.standardError) ->
+      isAuthFailure(subtype = subtype, standardError = standardError) ->
           throw HrsClaudeEngineException.authFailure(
               authRung = authRungName(),
-              detail = subtype ?: outcome.termination.standardError.take(200),
+              detail = subtype ?: standardError.take(200),
           )
       else ->
           throw HrsClaudeEngineException.resultError(
