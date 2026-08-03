@@ -18,12 +18,13 @@ class GitHubAppIssueClient(
   override suspend fun ensureLabelsExist(
       repoFullName: String,
   ) {
-    GitHubIssueClient.flowLabelColors.forEach { (name, color) ->
+    GitHubIssueClient.flowLabels.forEach { (name, color, description) ->
       val body =
           gitHubJson.encodeToString(
               buildJsonObject {
                 put("name", name)
                 put("color", color)
+                put("description", description)
               },
           )
 

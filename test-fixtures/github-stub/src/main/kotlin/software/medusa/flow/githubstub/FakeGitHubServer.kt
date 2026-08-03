@@ -166,6 +166,11 @@ class FakeGitHubServer : AutoCloseable {
       number: Int,
   ): Issue = repo(repoFullName).issues[number] ?: error("no issue #$number in $repoFullName")
 
+  /** The repo's label *definitions* (name -> color/description) created via `ensureLabelsExist`. */
+  fun definedLabels(
+      repoFullName: String,
+  ): Map<String, LabelDef> = repo(repoFullName).definedLabels.toMap()
+
   /**
    * POSTs a `sha256`-HMAC-signed webhook (GitHub's `X-Hub-Signature-256` scheme) to [targetUrl].
    */
@@ -223,7 +228,9 @@ class FakeGitHubServer : AutoCloseable {
     }
     if (method == "POST" && path == "/graphql") return graphQl(body)
 
-    labelsRegex.matchEntire(path)?.let { m -> if (method == "POST") return createLabel(m.repo) }
+    labelsRegex.matchEntire(path)?.let { m ->
+      if (method == "POST") return createLabel(m.repo, body)
+    }
     issueLabelsRegex.matchEntire(path)?.let { m ->
       if (method == "POST") return addLabel(m.repo, m.number.toInt(), body)
     }
@@ -278,10 +285,16 @@ class FakeGitHubServer : AutoCloseable {
 
   private fun createLabel(
       repoFullName: String,
+      body: String,
   ): HttpResponse {
     // Idempotent ensure: always report created; a real repo would 422 on a dup, which Flow also
-    // treats as success — either is fine, so 201 keeps it simple.
-    seedRepo(repoFullName)
+    // treats as success — either is fine, so 201 keeps it simple. The definition is recorded
+    // (upserted) either way, so a re-ensure with the same name/color/description is a true no-op.
+    val fields = Json.parseToJsonElement(body).jsonObject
+    val name = fields["name"]!!.jsonPrimitive.content
+    val color = fields["color"]?.jsonPrimitive?.content ?: "ededed"
+    val description = fields["description"]?.jsonPrimitive?.content ?: ""
+    seedRepo(repoFullName).definedLabels[name] = LabelDef(color, description)
     return json(HttpStatus.CREATED, buildJsonObject { put("id", 1) })
   }
 
@@ -598,7 +611,14 @@ class FakeGitHubServer : AutoCloseable {
     val pulls = ConcurrentHashMap<Int, PullRequest>()
     val checksByCommit = ConcurrentHashMap<String, MutableList<CheckRun>>()
     val nextPrNumber = AtomicInteger(1)
+    val definedLabels = ConcurrentHashMap<String, LabelDef>()
   }
+
+  /** A repo-level label *definition* (name -> color/description), as opposed to an issue's set. */
+  data class LabelDef(
+      val color: String,
+      val description: String,
+  )
 
   class Issue(
       val number: Int,
