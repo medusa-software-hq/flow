@@ -284,6 +284,65 @@ class HrsClaudeTaskCompleter_tests {
         ),
     )
     assertContainsSubsequence(args, listOf("--max-budget-usd", "10.0"))
+    assertContainsSubsequence(
+        args,
+        listOf("--append-system-prompt", HrsClaudeEngineConfig.defaultAppendSystemPrompt),
+    )
+  }
+
+  @Test
+  fun `a bounce also carries the append-system-prompt hints`() {
+    val process =
+        FakeHrsClaudeProcess.withRuns(
+            cannedRuns = listOf(successRun("sess-1"), successRun("sess-1")),
+        )
+
+    completeWith(
+        claudeProcess = process,
+        projectManifestLoader =
+            analyzeFailsOnCallLoader(failOnAnalyzeCall = 2, diagnostic = "boom"),
+        withManifest = true,
+    )
+
+    assertEquals(2, process.spawnCount)
+    process.invocations.forEach { invocation ->
+      assertContainsSubsequence(
+          invocation.arguments,
+          listOf("--append-system-prompt", HrsClaudeEngineConfig.defaultAppendSystemPrompt),
+      )
+    }
+  }
+
+  @Test
+  fun `a blank appendSystemPrompt omits the flag`() {
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages = listOf(HrsClaudeMessage.Result(false, "success", null, null, null)),
+        )
+
+    runBlocking {
+      HrsClaudeTaskCompleter(
+              physicalWorkspaceAllocator = FakePhwWorkspaceAllocator(),
+              projectManifestLoader = UnusedProjectManifestLoader,
+              claudeProcess = process,
+              config = config().copy(appendSystemPrompt = "  "),
+          )
+          .completeTask(
+              sourceGitWorktree = loadGitWorktree(withManifest = false),
+              taskDescription =
+                  HrsTaskDescription(
+                      body =
+                          MdChapter.leaf(
+                              title = MdInlineContent.of("Task"),
+                              element = MdElement.Empty,
+                          ),
+                  ),
+              observer = Observer.Noop,
+          )
+    }
+
+    val args = checkNotNull(process.lastInvocation).arguments
+    assertFalse(args.contains("--append-system-prompt"))
   }
 
   @Test
