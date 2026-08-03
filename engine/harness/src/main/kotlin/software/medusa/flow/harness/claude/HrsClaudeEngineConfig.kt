@@ -20,6 +20,13 @@ import kotlin.time.Duration.Companion.minutes
  * @property toolPolicy the non-interactive permission posture (see [ToolPolicy]).
  * @property pinnedCliVersion the `claude --version` string this engine is built against, recorded
  *   for the banner; verified live at worker startup, not in A3's code paths.
+ * @property appendSystemPrompt Flow's operating hints, passed verbatim as `--append-system-prompt`
+ *   on every invocation (initial run and every bounce, since both go through the shared
+ *   `buildArguments`). Tells the otherwise-unframed agent that the prompt it is given **is** the
+ *   task to solve, non-interactively, with no user available to ask for clarification — without
+ *   this, the raw issue body reads as context awaiting an explicit ask, and the agent stalls out
+ *   asking scoping questions instead of implementing (observed on flow#195, flow#196). Blank skips
+ *   the flag.
  */
 data class HrsClaudeEngineConfig(
     val authEnvironment: Map<String, String>,
@@ -28,6 +35,7 @@ data class HrsClaudeEngineConfig(
     val wallClockTimeout: Duration = defaultWallClockTimeout,
     val toolPolicy: ToolPolicy = ToolPolicy.Default,
     val pinnedCliVersion: String = defaultPinnedCliVersion,
+    val appendSystemPrompt: String = defaultAppendSystemPrompt,
 ) {
   /**
    * The tool/permission policy, materialized as CLI flags. Non-interactive by construction: no
@@ -78,5 +86,18 @@ data class HrsClaudeEngineConfig(
 
     /** The CLI version A1 verified the flag surface against; bumped by deliberate PRs. */
     const val defaultPinnedCliVersion = "2.1.52 (Claude Code)"
+
+    /**
+     * Flow's default operating hints: the single message the agent receives is a GitHub issue body
+     * with no other framing, so without this it reads as context awaiting an explicit ask rather
+     * than the ask itself. Kept in one place; a later increment may source this from the control
+     * plane instead.
+     */
+    const val defaultAppendSystemPrompt =
+        "You are an autonomous coding agent. You're running non-interactively. The single " +
+            "message you are given is the text of a GitHub issue, and your job is to implement " +
+            "and solve it fully. Do not wait for further instructions, an explicit go-ahead, or " +
+            "scope confirmation. Never ask for clarification; make reasonable assumptions and " +
+            "implement. Do not push commits or open PRs yourself."
   }
 }

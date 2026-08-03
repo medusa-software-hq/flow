@@ -270,6 +270,13 @@ class HrsClaudeTaskCompleter(
       add(it)
     }
 
+    config.appendSystemPrompt
+        .takeIf { it.isNotBlank() }
+        ?.let {
+          add("--append-system-prompt")
+          add(it)
+        }
+
     resumeSessionId?.let {
       add("--resume")
       add(it)
