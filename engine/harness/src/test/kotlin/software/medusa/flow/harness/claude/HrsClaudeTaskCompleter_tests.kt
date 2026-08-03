@@ -284,6 +284,13 @@ class HrsClaudeTaskCompleter_tests {
         ),
     )
     assertContainsSubsequence(args, listOf("--max-budget-usd", "10.0"))
+    assertContainsSubsequence(
+        args,
+        listOf(
+            "--append-system-prompt",
+            HrsClaudeEngineConfig.defaultAppendSystemPrompt,
+        ),
+    )
   }
 
   @Test
@@ -647,6 +654,16 @@ class HrsClaudeTaskCompleter_tests {
     // The 2nd (resume) invocation carries --resume <sessionId> and the diagnostics in its prompt.
     val resumeArgs = process.invocations[1].arguments
     assertContainsSubsequence(resumeArgs, listOf("--resume", "sess-1"))
+    // The bounce invocation must also carry the system prompt.
+    val bounceArgs = process.invocations[1].arguments
+    assertContainsSubsequence(
+        bounceArgs,
+        listOf(
+            "--append-system-prompt",
+            HrsClaudeEngineConfig.defaultAppendSystemPrompt,
+        ),
+    )
+
     val resumePrompt = resumeArgs[resumeArgs.indexOf("-p") + 1]
     assertTrue(
         resumePrompt.contains(diagnostic),

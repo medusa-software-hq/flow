@@ -20,6 +20,7 @@ import kotlin.time.Duration.Companion.minutes
  * @property toolPolicy the non-interactive permission posture (see [ToolPolicy]).
  * @property pinnedCliVersion the `claude --version` string this engine is built against, recorded
  *   for the banner; verified live at worker startup, not in A3's code paths.
+ * @property appendSystemPrompt optional `--append-system-prompt` text injected on every invocation.
  */
 data class HrsClaudeEngineConfig(
     val authEnvironment: Map<String, String>,
@@ -28,6 +29,7 @@ data class HrsClaudeEngineConfig(
     val wallClockTimeout: Duration = defaultWallClockTimeout,
     val toolPolicy: ToolPolicy = ToolPolicy.Default,
     val pinnedCliVersion: String = defaultPinnedCliVersion,
+    val appendSystemPrompt: String = defaultAppendSystemPrompt,
 ) {
   /**
    * The tool/permission policy, materialized as CLI flags. Non-interactive by construction: no
@@ -78,5 +80,13 @@ data class HrsClaudeEngineConfig(
 
     /** The CLI version A1 verified the flag surface against; bumped by deliberate PRs. */
     const val defaultPinnedCliVersion = "2.1.52 (Claude Code)"
+
+    /** Flow operating hints injected via `--append-system-prompt` on every invocation. */
+    const val defaultAppendSystemPrompt =
+        "You are an autonomous coding agent. You're running non-interactively. The single message " +
+            "you are given is the text of a GitHub issue, and your job is to implement and solve " +
+            "it fully. Do not wait for further instructions, an explicit go-ahead, or scope " +
+            "confirmation. Never ask for clarification; make reasonable assumptions and implement. " +
+            "Do not push commits or open PRs yourself."
   }
 }

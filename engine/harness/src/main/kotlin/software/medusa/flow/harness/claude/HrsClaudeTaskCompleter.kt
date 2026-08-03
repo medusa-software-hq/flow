@@ -270,6 +270,13 @@ class HrsClaudeTaskCompleter(
       add(it)
     }
 
+    config.appendSystemPrompt
+        .takeIf { it.isNotBlank() }
+        ?.let {
+          add("--append-system-prompt")
+          add(it)
+        }
+
     resumeSessionId?.let {
       add("--resume")
       add(it)
@@ -574,7 +581,7 @@ class HrsClaudeTaskCompleter(
       // `/: …`, was swallowed as an "Unknown command", and the whole diagnostic never reached the
       // model (the bounce loop silently no-op'd). A safe leading line fixes it; later lines are not
       // interpreted as commands.
-      return "Diagnostics:\n\n$diagnostics\n\nThe project's checks fail as shown above: fix these " +
+      return "Diagnostics:\n\n$diagnostics\nThe project's checks fail as shown above: fix these " +
           "and stop when the checks pass."
     }
 
