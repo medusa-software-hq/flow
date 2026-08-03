@@ -129,6 +129,14 @@ class WrkReportingTaskObserver(
     )
   }
 
+  override fun observeEngineWarning(
+      message: String,
+  ) {
+    // Reuses the agent-action event kind: this is a low-severity, non-fatal notice, not worth a
+    // dedicated SessionEventKind wire type.
+    sendEvent(SessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION, "⚠️ Engine warning:\n$message")
+  }
+
   override fun observePhase(
       phase: HrsPipelinePhase,
   ) {

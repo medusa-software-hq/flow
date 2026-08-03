@@ -161,6 +161,14 @@ interface HrsTaskCompleter {
     fun observeRunCost(
         cost: HrsRunCost,
     ) {}
+
+    /**
+     * A low-severity engine-level warning that didn't fail the run — e.g. non-empty stderr on a
+     * process that otherwise exited clean with a successful result. No-op by default.
+     */
+    fun observeEngineWarning(
+        message: String,
+    ) {}
   }
 
   interface ScoutingObserver {
