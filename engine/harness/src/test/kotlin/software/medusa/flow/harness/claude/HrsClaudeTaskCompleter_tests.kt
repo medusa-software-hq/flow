@@ -272,10 +272,16 @@ class HrsClaudeTaskCompleter_tests {
     assertTrue(args.contains("--verbose"))
     assertContainsSubsequence(args, listOf("--setting-sources", "project"))
     assertContainsSubsequence(args, listOf("--permission-mode", "acceptEdits"))
-    assertContainsSubsequence(args, listOf("--allowedTools", "Read Edit Write Bash Glob Grep"))
     assertContainsSubsequence(
         args,
-        listOf("--disallowedTools", "Bash(git push:*) Bash(gh:*) WebFetch WebSearch"),
+        listOf("--allowedTools", "Read Edit Write Bash Glob Grep Task"),
+    )
+    assertContainsSubsequence(
+        args,
+        listOf(
+            "--disallowedTools",
+            "Bash(git push:*) Bash(gh:*) WebFetch WebSearch AskUserQuestion",
+        ),
     )
     assertContainsSubsequence(args, listOf("--max-budget-usd", "10.0"))
   }

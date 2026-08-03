@@ -36,7 +36,8 @@ data class HrsClaudeEngineConfig(
    * @property allowedTools passed as a single space-separated `--allowedTools` argument.
    * @property disallowedTools passed as a single space-separated `--disallowedTools` argument;
    *   git-push and GitHub tooling live here (publishing belongs to Flow's publisher), plus web
-   *   tools which are off by default in M4.
+   *   tools which are off by default in M4. `AskUserQuestion` is disallowed too: the worker runs
+   *   non-interactively, so there is no user to answer it.
    * @property permissionMode the `--permission-mode` value.
    * @property settingSources the `--setting-sources` value — `project` loads the target repo's
    *   `.claude/` + `CLAUDE.md` while excluding the host's `~/.claude` (hermeticity).
@@ -51,8 +52,15 @@ data class HrsClaudeEngineConfig(
       /** The design's default posture (01-claude-engine.md + 03-cli-notes.md). */
       val Default =
           ToolPolicy(
-              allowedTools = listOf("Read", "Edit", "Write", "Bash", "Glob", "Grep"),
-              disallowedTools = listOf("Bash(git push:*)", "Bash(gh:*)", "WebFetch", "WebSearch"),
+              allowedTools = listOf("Read", "Edit", "Write", "Bash", "Glob", "Grep", "Task"),
+              disallowedTools =
+                  listOf(
+                      "Bash(git push:*)",
+                      "Bash(gh:*)",
+                      "WebFetch",
+                      "WebSearch",
+                      "AskUserQuestion",
+                  ),
               permissionMode = "acceptEdits",
               settingSources = "project",
           )
