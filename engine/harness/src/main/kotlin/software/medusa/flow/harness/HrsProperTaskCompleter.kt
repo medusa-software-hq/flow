@@ -13,10 +13,12 @@ import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealth
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.SolutionImplementationLog
 import software.medusa.flow.harness.ai_system.HrsPatchInterpreter
 import software.medusa.flow.harness.ai_system.HrsScoutDecisionInterpreter
+import software.medusa.flow.physical_workspace.PhwWorkspace
 import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.allocateWorkspace
 import software.medusa.flow.universal_project.UnpProjectConnection
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
+import software.medusa.flow.universal_project.UnpProjectManifest
 import software.medusa.flow.universal_project.UnpProjectManifestLoader
 import software.medusa.flow.virtual_editor.VedTimestamp
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -73,6 +75,27 @@ class HrsProperTaskCompleter(
             templateDirectory = sourceRootDirectory,
         )
 
+    // A structured failure, a thrown exception, or a session-abort cancellation must all close
+    // `physicalWorkspace` here — only a Success return hands it off (see flow's worker-workspace
+    // leak fix).
+    return physicalWorkspace.closeUnlessSuccessful {
+      runPipeline(
+          sourceGitWorktree = sourceGitWorktree,
+          taskDescription = taskDescription,
+          observer = observer,
+          projectManifest = projectManifest,
+          physicalWorkspace = physicalWorkspace,
+      )
+    }
+  }
+
+  private suspend fun runPipeline(
+      sourceGitWorktree: GitWorktree,
+      taskDescription: HrsTaskDescription,
+      observer: Observer,
+      projectManifest: UnpProjectManifest,
+      physicalWorkspace: PhwWorkspace,
+  ): TaskCompletionResult {
     val physicalRootDirectory = physicalWorkspace.rootDirectory
 
     val projectConnection = projectManifest.connect(physicalWorkspace = physicalWorkspace)

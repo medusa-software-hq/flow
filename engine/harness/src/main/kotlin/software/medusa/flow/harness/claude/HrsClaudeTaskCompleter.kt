@@ -18,6 +18,7 @@ import software.medusa.flow.harness.HrsTaskCompleter
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailureReport
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
+import software.medusa.flow.harness.closeUnlessSuccessful
 import software.medusa.flow.physical_workspace.PhwWorkspace
 import software.medusa.flow.physical_workspace.PhwWorkspaceAllocator
 import software.medusa.flow.physical_workspace.allocateWorkspace
@@ -78,21 +79,26 @@ class HrsClaudeTaskCompleter(
     // rather than catch that exception.)
     val manifestPresent = workspaceRoot.resolve(projectManifestFileName).exists()
 
-    return if (manifestPresent) {
-      completeGated(
-          workspace = workspace,
-          workspaceRoot = workspaceRoot,
-          sourceRootDirectory = sourceRootDirectory,
-          taskDescription = taskDescription,
-          observer = observer,
-      )
-    } else {
-      completeManifestLess(
-          workspace = workspace,
-          workspaceRoot = workspaceRoot,
-          taskDescription = taskDescription,
-          observer = observer,
-      )
+    // A structured failure, a thrown HrsClaudeEngineException, or a session-abort cancellation must
+    // all close `workspace` here — only a Success return hands it off (see flow's worker-workspace
+    // leak fix).
+    return workspace.closeUnlessSuccessful {
+      if (manifestPresent) {
+        completeGated(
+            workspace = workspace,
+            workspaceRoot = workspaceRoot,
+            sourceRootDirectory = sourceRootDirectory,
+            taskDescription = taskDescription,
+            observer = observer,
+        )
+      } else {
+        completeManifestLess(
+            workspace = workspace,
+            workspaceRoot = workspaceRoot,
+            taskDescription = taskDescription,
+            observer = observer,
+        )
+      }
     }
   }
 

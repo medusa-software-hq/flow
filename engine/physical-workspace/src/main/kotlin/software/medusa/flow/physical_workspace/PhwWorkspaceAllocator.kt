@@ -15,9 +15,17 @@ interface PhwWorkspaceAllocator {
       // `materializeIn` propagates the executable bit whereas `copyRecursivelyTo` drops it — using
       // the overlay helper here silently stripped 100755 from files like `gradlew`, which then
       // showed up as spurious mode-only diffs and junk PRs on no-op runs.
-      sourceRootDirectory.materializeIn(
-          targetDirectory = allocatedWorkspace.rootDirectory,
-      )
+      try {
+        sourceRootDirectory.materializeIn(
+            targetDirectory = allocatedWorkspace.rootDirectory,
+        )
+      } catch (e: Throwable) {
+        // A cancelled session (or a mid-copy I/O failure) must not orphan the freshly-allocated
+        // temp directory — the workspace has no other owner yet, so this is the only place that
+        // can close it.
+        allocatedWorkspace.close()
+        throw e
+      }
 
       return allocatedWorkspace
     }
@@ -33,9 +41,16 @@ suspend fun PhwWorkspaceAllocator.allocateWorkspace(
 
   // See the companion overload above: a clean mirror into the empty workspace, preserving exec
   // bits.
-  templateDirectory.materializeIn(
-      targetDirectory = allocatedWorkspace.rootDirectory,
-  )
+  try {
+    templateDirectory.materializeIn(
+        targetDirectory = allocatedWorkspace.rootDirectory,
+    )
+  } catch (e: Throwable) {
+    // Same reasoning as the companion overload: nothing else owns this workspace yet, so a
+    // cancelled session or a mid-copy failure must close it here or it leaks on disk.
+    allocatedWorkspace.close()
+    throw e
+  }
 
   return allocatedWorkspace
 }
