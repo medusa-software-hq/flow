@@ -12,3 +12,16 @@ body {
   border-inline: 1px solid var(--mantine-color-default-border);
   box-sizing: border-box;
 }
+
+/* Long unbroken tokens (exception class names, stack traces) must wrap instead of
+   overflowing their card horizontally. */
+.failure-summary {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.failure-summary pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

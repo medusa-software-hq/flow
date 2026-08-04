@@ -271,7 +271,9 @@ function PipelineRow({ row, onClear }: { row: IssuePipeline; onClear: () => void
               <Text size="xs" c="dimmed" mb={4}>
                 Failure summary
               </Text>
-              <Markdown>{row.failureSummary}</Markdown>
+              <div className="failure-summary">
+                <Markdown>{row.failureSummary}</Markdown>
+              </div>
             </Paper>
           </Table.Td>
         </Table.Tr>

@@ -199,7 +199,9 @@ export function SessionPanel({
 
       {session.state === SessionState.FAILED && (
         <Alert color="red" title="Failed">
-          <Markdown>{session.failureSummary}</Markdown>
+          <div className="failure-summary">
+            <Markdown>{session.failureSummary}</Markdown>
+          </div>
           <Button mt="sm" variant="light" onClick={retryAsNewSession}>
             Retry as new session
           </Button>
