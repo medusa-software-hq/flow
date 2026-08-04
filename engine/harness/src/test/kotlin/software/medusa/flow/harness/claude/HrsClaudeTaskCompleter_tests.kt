@@ -145,6 +145,11 @@ class HrsClaudeTaskCompleter_tests {
   private fun config(): HrsClaudeEngineConfig =
       HrsClaudeEngineConfig(authEnvironment = mapOf("CLAUDE_CODE_OAUTH_TOKEN" to "fake-token"))
 
+  /**
+   * Mirrors the private `HrsClaudeTaskCompleter.maxNarrativeLength` (not visible from this file).
+   */
+  private val maxNarrativeLength = 4096
+
   private fun completeWith(
       claudeProcess: HrsClaudeProcess,
       observer: Observer = Observer.Noop,
@@ -244,15 +249,78 @@ class HrsClaudeTaskCompleter_tests {
     assertEquals("claude-sonnet-4-6", banner.model)
     assertEquals(HrsEngineRunMode.ManifestLess, banner.runMode)
 
-    // assistant text → one throttled narrative summary (first non-blank line), then tool actions.
+    // assistant text → the full narrative (every line, not just the first), then tool actions.
     assertEquals(
-        listOf("Editing the file now.", "edited `src/App.tsx`", "ran `gradle test`"),
+        listOf(
+            "Editing the file now.\nsecond line ignored",
+            "edited `src/App.tsx`",
+            "ran `gradle test`",
+        ),
         observer.agentActions,
     )
 
     // result → cost.
     val cost = observer.costs.single()
     assertEquals(HrsRunCost(totalCostUsd = 0.0421, numTurns = 5, durationMs = 8123), cost)
+  }
+
+  @Test
+  fun `a multi-line narrative under the wire cap is stored verbatim`() {
+    val narrative =
+        "Here's my implementation plan:\n\n1. Add SettingsService\n2. Migrate the DB\n3. Wire " +
+            "up the UI"
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages =
+                listOf(
+                    HrsClaudeMessage.Assistant(text = narrative),
+                    HrsClaudeMessage.Result(false, "success", null, null, null),
+                ),
+        )
+    val observer = RecordingObserver()
+
+    completeWith(claudeProcess = process, observer = observer)
+
+    assertEquals(listOf(narrative), observer.agentActions)
+  }
+
+  @Test
+  fun `a narrative exactly at the wire cap is stored verbatim, with no truncation marker`() {
+    val narrative = "x".repeat(maxNarrativeLength)
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages =
+                listOf(
+                    HrsClaudeMessage.Assistant(text = narrative),
+                    HrsClaudeMessage.Result(false, "success", null, null, null),
+                ),
+        )
+    val observer = RecordingObserver()
+
+    completeWith(claudeProcess = process, observer = observer)
+
+    assertEquals(listOf(narrative), observer.agentActions)
+  }
+
+  @Test
+  fun `a narrative over the wire cap is truncated at the cap with a marker, not silently cut`() {
+    val narrative = "y".repeat(maxNarrativeLength + 900)
+    val process =
+        FakeHrsClaudeProcess(
+            cannedMessages =
+                listOf(
+                    HrsClaudeMessage.Assistant(text = narrative),
+                    HrsClaudeMessage.Result(false, "success", null, null, null),
+                ),
+        )
+    val observer = RecordingObserver()
+
+    completeWith(claudeProcess = process, observer = observer)
+
+    val stored = observer.agentActions.single()
+    assertEquals(maxNarrativeLength, stored.length)
+    assertTrue(stored.endsWith("…[truncated]"))
+    assertTrue(narrative.startsWith(stored.substringBeforeLast("\n\n…[truncated]")))
   }
 
   @Test

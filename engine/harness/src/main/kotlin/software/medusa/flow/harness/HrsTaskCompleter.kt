@@ -144,9 +144,10 @@ interface HrsTaskCompleter {
     )
 
     /**
-     * A short human-readable summary of a single agent action (assistant narrative or a tool action
-     * such as "edited `x/y.kt`"). Engine-agnostic; no-op by default so classic/scripted engines and
-     * existing observers are unaffected. Volume is bounded by the reporting adapter, not here.
+     * A human-readable record of a single agent action: either a full assistant narrative (which
+     * may be multi-line, up to the wire cap) or a short one-line tool action such as "edited
+     * `x/y.kt`". Engine-agnostic; no-op by default so classic/scripted engines and existing
+     * observers are unaffected. Volume is bounded by the reporting adapter, not here.
      */
     fun observeAgentAction(
         summary: String,

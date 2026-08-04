@@ -341,7 +341,7 @@ class HrsClaudeTaskCompleter(
                 observer.observeEngineBanner(bannerOf(init = message, runMode = runMode))
               }
               is HrsClaudeMessage.Assistant -> {
-                // assistant text → a throttled narrative summary; tool_use → one-line actions.
+                // assistant text → the full narrative (wire-capped); tool_use → one-line actions.
                 summarizeNarrative(message.text)?.let { observer.observeAgentAction(it) }
                 message.toolActions.forEach { observer.observeAgentAction(it) }
                 if (message.text.isNotBlank()) lastAssistantText = message.text
@@ -548,8 +548,13 @@ class HrsClaudeTaskCompleter(
     /** Total gated implementation attempts = the initial run plus [bounceBudget] resume bounces. */
     const val maxImplementationAttempts = 1 + bounceBudget
 
-    /** Longest narrative summary emitted per assistant turn; longer text is truncated. */
-    const val maxNarrativeLength = 200
+    /**
+     * Longest narrative emitted per assistant turn; longer text is truncated. Set to the
+     * control-plane wire cap for `SessionEvent.message` (see `SessionStore.maxEventMessageLength`),
+     * not some smaller "looks tidy" number — the whole point is to carry as much of the narrative
+     * as the wire allows, not to shorten it for its own sake.
+     */
+    const val maxNarrativeLength = 4096
 
     /**
      * The augmentation appended to a manifest-less run's prompt: with no Flow gate, Claude itself
@@ -593,16 +598,20 @@ class HrsClaudeTaskCompleter(
     }
 
     /**
-     * Condenses an assistant text block to a short one-line narrative: the first non-blank line,
-     * truncated. Blank text yields `null` (nothing to narrate).
+     * Preserves an assistant text block as its narrative, in full — every line, not just the first
+     * — up to [maxNarrativeLength]; text beyond that is cut with a trailing marker so the loss is
+     * visible rather than silent. Blank text yields `null` (nothing to narrate). The UI is free to
+     * headline this with its first line and let the rest expand; this function's only job is to not
+     * throw the rest away before it ever reaches the control plane.
      */
     fun summarizeNarrative(
         text: String,
     ): String? {
-      val firstLine = text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }
-      return firstLine?.let {
-        if (it.length <= maxNarrativeLength) it else it.take(maxNarrativeLength).trimEnd() + "…"
-      }
+      val trimmed = text.trim()
+      if (trimmed.isEmpty()) return null
+      if (trimmed.length <= maxNarrativeLength) return trimmed
+      val truncationMarker = "\n\n…[truncated]"
+      return trimmed.take(maxNarrativeLength - truncationMarker.length).trimEnd() + truncationMarker
     }
 
     /** Cap trips are surfaced by the CLI as `error_max_*` result subtypes (e.g. budget). */
