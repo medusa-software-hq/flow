@@ -9,7 +9,13 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.commons.git.worktree.GitWorktreeFilter
 import software.medusa.commons.markdown.MdChapter
@@ -128,7 +134,12 @@ class HrsClaudeTaskCompleter_tests {
             projectPath: UfsLiteralAbsolutePath,
         ): GrdProjectConnection = error("not used by this test")
 
-        override fun close() = Unit
+        // Mirrors PhwTempWorkspace's real cleanup, so tests can assert the workspace directory is
+        // actually gone on every non-Success exit (flow's worker-workspace leak fix), not just
+        // that `close()` was called.
+        override fun close() {
+          dir.deleteRecursively()
+        }
       }
     }
   }
@@ -473,6 +484,13 @@ class HrsClaudeTaskCompleter_tests {
     assertEquals(HrsClaudeEngineException.Kind.SubprocessFailure, exception.kind)
     assertTrue(exception.message!!.contains("137"))
     assertTrue(exception.message!!.contains("boom: killed by signal"))
+
+    // Regression (flow: worker leaks per-session workspaces): a killed run (137 = SIGKILL, the
+    // OOM-kill shape from the field incident) must not leave its temp workspace behind on disk.
+    assertFalse(
+        allocatedDirs.single().exists(),
+        "an operational engine failure must close (and delete) the allocated workspace",
+    )
   }
 
   @Test
@@ -869,6 +887,13 @@ class HrsClaudeTaskCompleter_tests {
         bouncePrompt.startsWith("/"),
         "the bounce prompt must not begin with '/' or Claude Code eats it as a slash command",
     )
+
+    // Regression (flow: worker leaks per-session workspaces): a structured AttemptsExhausted
+    // failure must not leave its temp workspace behind on disk.
+    assertFalse(
+        allocatedDirs.single().exists(),
+        "AttemptsExhausted must close (and delete) the allocated workspace",
+    )
   }
 
   @Test
@@ -888,6 +913,13 @@ class HrsClaudeTaskCompleter_tests {
     assertEquals(HrsTaskCompleter.JointOperationPhase.InitialProjectAnalysis, failure.phase)
     assertEquals(0, process.spawnCount, "claude must never run on a broken baseline")
     assertEquals(listOf("WorkspacePreparing", "HealthGate"), observer.phases)
+
+    // Regression (flow: worker leaks per-session workspaces): a structured JointOperation failure
+    // must not leave its temp workspace behind on disk.
+    assertFalse(
+        allocatedDirs.single().exists(),
+        "JointOperation must close (and delete) the allocated workspace",
+    )
   }
 
   @Test
@@ -916,6 +948,73 @@ class HrsClaudeTaskCompleter_tests {
         "the manifest-less prompt must instruct claude to run the repo's own checks: $prompt",
     )
   }
+
+  /**
+   * Regression (flow: worker leaks per-session workspaces): the worker cancels the engine job when
+   * the control plane reports a session abort ([WrkProperSessionProcessor]'s `engineJob.cancel`).
+   * That cancellation must unwind through the workspace allocated deep inside `completeTask` and
+   * close it — not just the eventual Success/Failure returns.
+   */
+  @Test
+  fun `a cancelled run -- session aborted mid-flight -- still closes the allocated workspace`() =
+      runBlocking {
+        val hangingProcess =
+            object : HrsClaudeProcess {
+              override fun spawn(
+                  invocation: HrsClaudeInvocation,
+              ): HrsClaudeRun =
+                  object : HrsClaudeRun {
+                    override val messages: Flow<HrsClaudeMessage> = flow {
+                      // Never emits: mirrors a `claude` subprocess still running when the control
+                      // plane cancels the session.
+                      delay(Long.MAX_VALUE)
+                    }
+
+                    override suspend fun sendUserMessage(
+                        text: String,
+                    ) = Unit
+
+                    override suspend fun awaitTermination(): HrsClaudeRun.Termination =
+                        HrsClaudeRun.Termination(exitCode = -1, standardError = "")
+
+                    override fun close() = Unit
+                  }
+            }
+
+        // Calls `completeTask` directly (not the `completeWith` helper, which wraps its own
+        // `runBlocking` and so would not observe this test's `engineJob.cancel()` at all).
+        val engineJob = launch {
+          HrsClaudeTaskCompleter(
+                  physicalWorkspaceAllocator = FakePhwWorkspaceAllocator(),
+                  projectManifestLoader = UnusedProjectManifestLoader,
+                  claudeProcess = hangingProcess,
+                  config = config(),
+              )
+              .completeTask(
+                  sourceGitWorktree = loadGitWorktree(),
+                  taskDescription =
+                      HrsTaskDescription(
+                          body =
+                              MdChapter.leaf(
+                                  title = MdInlineContent.of("Task"),
+                                  element = MdElement.Empty,
+                              ),
+                      ),
+                  observer = Observer.Noop,
+              )
+        }
+
+        // Let completeTask allocate + materialize the workspace before cancelling mid-flight.
+        while (allocatedDirs.isEmpty()) yield()
+        assertTrue(allocatedDirs.single().exists(), "sanity: the workspace was actually allocated")
+
+        engineJob.cancelAndJoin()
+
+        assertFalse(
+            allocatedDirs.single().exists(),
+            "an aborted (cancelled) session must close (and delete) the allocated workspace",
+        )
+      }
 
   private fun assertContainsSubsequence(
       actual: List<String>,

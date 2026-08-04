@@ -71,17 +71,22 @@ class HrsScriptedTaskCompleter(
                 templateDirectory = sourceGitWorktree.rootDirectory.asFilteredFilesystemEntity,
             )
 
-        if (behavior == Behavior.Patch) {
-          // A new file is the simplest edit that yields a diff regardless of the fixture project.
-          workspace.rootDirectory.createFile(
-              name = UfsName.Literal(scriptedChangeFileName),
-              initialContent = "scripted change\n".encodeToByteString(),
+        // Mirrors the real completers: a thrown exception (e.g. the file write below) or a
+        // session-abort cancellation must close `workspace` here rather than leak it.
+        workspace.closeUnlessSuccessful {
+          if (behavior == Behavior.Patch) {
+            // A new file is the simplest edit that yields a diff regardless of the fixture
+            // project.
+            workspace.rootDirectory.createFile(
+                name = UfsName.Literal(scriptedChangeFileName),
+                initialContent = "scripted change\n".encodeToByteString(),
+            )
+          }
+
+          HrsTaskCompleter.TaskCompletionResult.Success(
+              temporaryWorkspace = HrsPhysicalTemporaryWorkspace(physicalWorkspace = workspace),
           )
         }
-
-        HrsTaskCompleter.TaskCompletionResult.Success(
-            temporaryWorkspace = HrsPhysicalTemporaryWorkspace(physicalWorkspace = workspace),
-        )
       }
     }
   }
