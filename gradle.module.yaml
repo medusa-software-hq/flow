@@ -1,3 +1,8 @@
+normalize:
+  steps:
+    - name: format
+      task: ktfmtFormat
+
 analyze:
   steps:
     - name: format

@@ -388,6 +388,10 @@ class HrsClaudeTaskCompleter(
       )
     }
 
+    // Formatting is mechanical and deterministic: normalize the workspace before the analyze gate
+    // checks it, instead of failing the gate over a formatting-only miss.
+    projectConnection.normalizeAll()
+
     val initialAnalyzeResult = projectConnection.analyzeAll()
     if (initialAnalyzeResult is JointResult.Failure) {
       return HrsTaskCompleter.TaskCompletionResult.Failure.JointOperation(
@@ -411,6 +415,9 @@ class HrsClaudeTaskCompleter(
   private suspend fun verifySolutionHealth(
       projectConnection: UnpProjectConnection,
   ): ProjectHealthStatus {
+    // See the initial gate's normalizeAll() call: normalize before every analyze, not just once.
+    projectConnection.normalizeAll()
+
     val analyzeResult = projectConnection.analyzeAll()
     if (analyzeResult is JointResult.Failure) {
       return ProjectHealthStatus.Unhealthy(
