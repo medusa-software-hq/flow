@@ -12,6 +12,7 @@ import software.medusa.flow.v1.SessionState
 import software.medusa.flow.v1.issuePipeline
 import software.medusa.flow.v1.session
 import software.medusa.flow.v1.sessionEvent
+import software.medusa.flow.v1.settings
 
 private fun ts(epochSecond: Long): Timestamp =
     Timestamp.newBuilder().setSeconds(epochSecond).build()
@@ -152,5 +153,11 @@ class FlowFormatTest {
     assertTrue(lines[1].contains("cleared"))
     assertTrue(lines[1].contains("github-sync-behind"))
     assertTrue(lines[1].contains("s-9"))
+  }
+
+  @Test
+  fun `formatSettings renders auto-merge on and off`() {
+    assertEquals("Auto-merge: off", formatSettings(settings { autoMerge = false }))
+    assertEquals("Auto-merge: on", formatSettings(settings { autoMerge = true }))
   }
 }

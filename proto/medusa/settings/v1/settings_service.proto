@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package medusa.settings.v1;
+
+option java_multiple_files = true;
+option java_package = "software.medusa.flow.v1";
+
+// Quick Settings: a single global, per-deployment configuration object for Flow,
+// persisted as one row in the control-plane DB. Grows by adding fields — each
+// new setting is one field here plus one column on the `settings` table.
+message Settings {
+  // When on, Flow arms GitHub auto-merge (merge method) on the primary PR it
+  // drives as soon as the pipeline reaches PR_OPEN, so a green PR merges itself
+  // instead of waiting for a human click. The built-in shadow PR is never
+  // armed. Off by default.
+  bool auto_merge = 1;
+}
+
+// Global Quick Settings, authenticated with a Google user ID token (read/write
+// from both the Web app and the CLI). Reads dominate; the only mutation is
+// `UpdateSettings`.
+service SettingsService {
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  // Full replace of the settings object.
+  rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
+}
+
+message GetSettingsRequest {}
+
+message GetSettingsResponse {
+  Settings settings = 1;
+}
+
+message UpdateSettingsRequest {
+  Settings settings = 1;
+}
+
+message UpdateSettingsResponse {
+  Settings settings = 1;
+}

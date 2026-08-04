@@ -25,6 +25,9 @@ class ReconcileObserver(
     private val prClient: GitHubPrClient,
     private val clock: Clock = Clock.System,
     private val noRunsGracePeriod: Duration = defaultNoRunsGracePeriod,
+    // Quick Settings' `auto_merge`, defaulted to an always-off store so most tests need not supply
+    // one.
+    private val settingsStore: SettingsStore = InMemorySettingsStore(),
 ) : PipelineObserver {
   companion object {
     /** ~two scheduler ticks — long enough not to race Actions startup after a merge. */
@@ -106,7 +109,10 @@ class ReconcileObserver(
     val prNumber = pipeline.prNumber ?: return null // PR_OPEN always has one; defensive.
 
     return when (val state = prClient.getPullRequestState(pipeline.repoFullName, prNumber)) {
-      PullRequestState.Open -> null
+      PullRequestState.Open -> {
+        armAutoMergeIfEnabled(pipeline, prNumber)
+        null
+      }
       is PullRequestState.Merged ->
           pipelineStore.markAwaitingMergeChecks(pipeline.id, state.mergeCommitSha)
       PullRequestState.ClosedUnmerged ->
@@ -115,6 +121,35 @@ class ReconcileObserver(
               failureSummary =
                   "The pull request ${pipeline.prUrl} was closed without merging, so this issue " +
                       "wasn't completed. Clear this pipeline to let Flow try the issue again.",
+          )
+    }
+  }
+
+  /**
+   * Arms GitHub auto-merge (Quick Settings' `auto_merge`) on the primary PR while it's still open.
+   * Only the pipeline's own (primary/Claude) PR is ever considered here — the built-in shadow PR
+   * isn't tracked by pipeline state at all, so it can never reach this call. Re-attempted every
+   * observe cycle the PR stays open, which is harmless (GitHub's mutation is idempotent) and means
+   * arming isn't lost to whichever path (worker RPC or this observer's own backstop) happened to
+   * perform the IN_PROGRESS → PR_OPEN transition. A repo/PR that can't support auto-merge degrades
+   * gracefully: logged, never thrown, so a reconcile cycle is never lost over it — the pipeline
+   * still merge-watches and a human can merge.
+   */
+  private suspend fun armAutoMergeIfEnabled(
+      pipeline: IssuePipeline,
+      prNumber: Int,
+  ) {
+    if (!settingsStore.get().autoMerge) return
+
+    when (val result = prClient.armAutoMerge(pipeline.repoFullName, prNumber)) {
+      AutoMergeResult.Armed -> {}
+      is AutoMergeResult.Failed ->
+          log.info(
+              "could not arm auto-merge for {}#{} ({}): {}",
+              pipeline.repoFullName,
+              prNumber,
+              pipeline.id.id,
+              result.reason,
           )
     }
   }

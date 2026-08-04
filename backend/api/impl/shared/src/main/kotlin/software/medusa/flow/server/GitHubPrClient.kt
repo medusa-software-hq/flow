@@ -36,10 +36,35 @@ sealed interface MergeCheckStatus {
   data object NoRuns : MergeCheckStatus
 }
 
+/** The merge method GitHub arms auto-merge with. Quick Settings' auto-merge is fixed to [Merge]. */
+enum class MergeMethod {
+  Merge,
+  Squash,
+  Rebase,
+}
+
+/**
+ * Outcome of [GitHubPrClient.armAutoMerge] — never throws; a failure is a value, not an exception.
+ */
+sealed interface AutoMergeResult {
+  /** GitHub accepted the request; the PR merges itself once required checks pass. */
+  data object Armed : AutoMergeResult
+
+  /**
+   * GitHub rejected the request (auto-merge disabled for the repo, no branch protection / required
+   * checks, or the PR already merged/closed). [reason] is logged; the caller must otherwise treat
+   * this like [Armed] never happened — the pipeline still merge-watches and a human can merge.
+   */
+  data class Failed(
+      val reason: String,
+  ) : AutoMergeResult
+}
+
 /**
  * The read side of GitHub used by the reconcile observe phase: PR state and merge-commit check
- * results. A port (following the `GitHub*` pattern) with a real impl ([GitHubAppPrClient]) and a
- * scriptable [FakeGitHubPrClient] for tests.
+ * results, plus the one write — arming auto-merge (Quick Settings' `auto_merge`). A port (following
+ * the `GitHub*` pattern) with a real impl ([GitHubAppPrClient]) and a scriptable
+ * [FakeGitHubPrClient] for tests.
  */
 interface GitHubPrClient {
   suspend fun getPullRequestState(
@@ -51,4 +76,16 @@ interface GitHubPrClient {
       repoFullName: String,
       commitSha: String,
   ): MergeCheckStatus
+
+  /**
+   * Arms GitHub auto-merge on `repoFullName#prNumber` (GraphQL `enablePullRequestAutoMerge`). Never
+   * throws — a repo/PR that can't support auto-merge (no branch protection, required checks
+   * missing, auto-merge disabled repo-wide, ...) surfaces as [AutoMergeResult.Failed], not an
+   * exception, so a reconcile cycle is never lost over it.
+   */
+  suspend fun armAutoMerge(
+      repoFullName: String,
+      prNumber: Int,
+      mergeMethod: MergeMethod = MergeMethod.Merge,
+  ): AutoMergeResult
 }

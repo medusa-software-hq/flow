@@ -2,15 +2,20 @@ package software.medusa.flow.cli
 
 import com.linecorp.armeria.client.grpc.GrpcClients
 import software.medusa.flow.v1.GetSessionResponse
+import software.medusa.flow.v1.GetSettingsRequest
 import software.medusa.flow.v1.IssuePipeline
 import software.medusa.flow.v1.PipelineServiceGrpcKt
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionServiceGrpcKt
+import software.medusa.flow.v1.Settings
+import software.medusa.flow.v1.SettingsServiceGrpcKt
 import software.medusa.flow.v1.abortSessionRequest
 import software.medusa.flow.v1.clearIssuePipelineRequest
 import software.medusa.flow.v1.getSessionRequest
 import software.medusa.flow.v1.listIssuePipelinesRequest
 import software.medusa.flow.v1.listSessionsRequest
+import software.medusa.flow.v1.settings
+import software.medusa.flow.v1.updateSettingsRequest
 
 /**
  * gRPC client for the deployed Flow API — the human-facing surface the web app also uses
@@ -30,6 +35,7 @@ class FlowApiClient
 private constructor(
     private val sessionStub: SessionServiceGrpcKt.SessionServiceCoroutineStub,
     private val pipelineStub: PipelineServiceGrpcKt.PipelineServiceCoroutineStub,
+    private val settingsStub: SettingsServiceGrpcKt.SettingsServiceCoroutineStub,
 ) {
   companion object {
     /** The `Authorization` header value for a bearer [idToken]. */
@@ -48,7 +54,16 @@ private constructor(
               .addHeader("Authorization", authorization)
               .build(PipelineServiceGrpcKt.PipelineServiceCoroutineStub::class.java)
 
-      return FlowApiClient(sessionStub = sessionStub, pipelineStub = pipelineStub)
+      val settingsStub =
+          GrpcClients.builder(apiUrl)
+              .addHeader("Authorization", authorization)
+              .build(SettingsServiceGrpcKt.SettingsServiceCoroutineStub::class.java)
+
+      return FlowApiClient(
+          sessionStub = sessionStub,
+          pipelineStub = pipelineStub,
+          settingsStub = settingsStub,
+      )
     }
   }
 
@@ -79,4 +94,16 @@ private constructor(
    */
   suspend fun clearIssuePipeline(id: String): IssuePipeline =
       pipelineStub.clearIssuePipeline(clearIssuePipelineRequest { this.id = id }).pipeline
+
+  /** Flow's current global Quick Settings (the web app's Quick Settings panel). */
+  suspend fun getSettings(): Settings =
+      settingsStub.getSettings(GetSettingsRequest.getDefaultInstance()).settings
+
+  /** Full replace of Quick Settings (currently just `auto_merge`). Returns the persisted value. */
+  suspend fun updateSettings(autoMerge: Boolean): Settings =
+      settingsStub
+          .updateSettings(
+              updateSettingsRequest { settings = settings { this.autoMerge = autoMerge } }
+          )
+          .settings
 }

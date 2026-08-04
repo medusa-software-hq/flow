@@ -1,0 +1,15 @@
+-- Schema for SQLDelight compile-time query verification (Postgres dialect).
+-- Keep this identical to the net effect of the migrations (V11 created the
+-- singleton row).
+CREATE TABLE settings (
+  id         INT NOT NULL PRIMARY KEY,
+  auto_merge BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- There is always exactly one row (id = 1), seeded by V11. A null result means
+-- an unseeded/pre-migration deployment; callers fall back to defaults.
+getSettings:
+SELECT * FROM settings WHERE id = 1;
+
+updateSettings:
+UPDATE settings SET auto_merge = ? WHERE id = 1;

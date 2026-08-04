@@ -18,6 +18,7 @@ fun main() {
           workerAuthorizer = WorkerAuthorizer.permissive,
           issuePipelineStore = InMemoryIssuePipelineStore(pipelineBackend),
           githubOutboxStore = InMemoryGithubOutboxStore(pipelineBackend),
+          settingsStore = InMemorySettingsStore(),
           gitHubIssueClient = FakeGitHubIssueClient(),
           gitHubPrClient = FakeGitHubPrClient(),
           gitHubCandidateClient = FakeGitHubCandidateClient(),

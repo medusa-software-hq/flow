@@ -6,11 +6,13 @@ import { Link, Navigate, Route, Routes } from 'react-router';
 import { GitHubService } from './gen/medusa/github/v1/github_service_pb.ts';
 import { PipelineService } from './gen/medusa/pipeline/v1/pipeline_service_pb.ts';
 import { SessionService } from './gen/medusa/session/v1/session_service_pb.ts';
+import { SettingsService } from './gen/medusa/settings/v1/settings_service_pb.ts';
 import { NewSessionForm } from './NewSessionForm.tsx';
 import { PipelineDetailPage } from './PipelineDetailPage.tsx';
 import { PipelinesListPage } from './PipelinesListPage.tsx';
 import { SessionDetailPage } from './SessionDetailPage.tsx';
 import { SessionsListPage } from './SessionsListPage.tsx';
+import { SettingsPage } from './SettingsPage.tsx';
 import { SignInWall } from './SignInWall.tsx';
 import { useAuth } from './useAuth.tsx';
 
@@ -27,6 +29,7 @@ const transport = createGrpcWebTransport({
 const gitHubClient = createClient(GitHubService, transport);
 const sessionClient = createClient(SessionService, transport);
 const pipelineClient = createClient(PipelineService, transport);
+const settingsClient = createClient(SettingsService, transport);
 
 function AuthenticatedApp({ token }: { token: string }) {
   const { handleUnauthorized } = useAuth();
@@ -46,6 +49,9 @@ function AuthenticatedApp({ token }: { token: string }) {
         </Anchor>
         <Anchor component={Link} to="/pipelines" fw={600}>
           Pipelines
+        </Anchor>
+        <Anchor component={Link} to="/settings" fw={600}>
+          Settings
         </Anchor>
       </Group>
 
@@ -107,6 +113,18 @@ function AuthenticatedApp({ token }: { token: string }) {
               <PipelineDetailPage
                 pipelineClient={pipelineClient}
                 sessionClient={sessionClient}
+                headers={headers}
+                onUnauthorized={handleUnauthorized}
+              />
+            </Box>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <Box p="md">
+              <SettingsPage
+                client={settingsClient}
                 headers={headers}
                 onUnauthorized={handleUnauthorized}
               />

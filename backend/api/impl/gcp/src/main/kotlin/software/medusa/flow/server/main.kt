@@ -91,6 +91,7 @@ fun main() {
           workerStore = PostgresWorkerStore(database),
           issuePipelineStore = PostgresIssuePipelineStore(database),
           githubOutboxStore = PostgresGithubOutboxStore(database),
+          settingsStore = PostgresSettingsStore(database),
           gitHubIssueClient = GitHubAppIssueClient(gitHubAppClient),
           gitHubPrClient = GitHubAppPrClient(gitHubAppClient),
           gitHubCandidateClient = GitHubAppCandidateClient(gitHubAppClient),
