@@ -4,7 +4,7 @@ on:
   push:
     branches: ["trunk/*"]
     paths:
-      - "apps/web/infra/domain-mapping/**"
+      - "web-app/infra/domain-mapping/**"
       # The shared `infra/common` module this root consumes (host names, project ids). A change
       # there must re-apply. See apply-api-infra.yml for the incident.
       - "infra/common/**"
@@ -66,7 +66,7 @@ jobs:
           terraform_version: ~> ${{ env.TERRAFORM_VERSION }}
 
       - name: Apply Terraform configuration
-        working-directory: apps/web/infra/domain-mapping
+        working-directory: web-app/infra/domain-mapping
         env:
           TF_VAR_gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
           TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}

@@ -14,7 +14,7 @@ on:
   push:
     branches: ["trunk/*"]
     paths:
-      - "apps/web/spa/**"
+      - "web-app/**"
       - "proto/**"
 
   workflow_dispatch:
@@ -30,7 +30,7 @@ env:
   # job-level env: block silently falls back to the *repository-level* (production) value, which
   # would push staging's image into production's Artifact Registry. It is resolved in a step below.
 
-  APP_PATH: apps/web/spa
+  APP_PATH: web-app
 
 jobs:
   deploy-staging:
