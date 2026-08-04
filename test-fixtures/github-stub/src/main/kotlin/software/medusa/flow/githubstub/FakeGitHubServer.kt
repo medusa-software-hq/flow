@@ -85,6 +85,7 @@ class FakeGitHubServer : AutoCloseable {
       labels: Set<String> = emptySet(),
       blockedBy: List<Int> = emptyList(),
       open: Boolean = true,
+      priorityField: String? = null,
   ): Issue {
     val repo = seedRepo(repoFullName)
     val issue =
@@ -97,10 +98,18 @@ class FakeGitHubServer : AutoCloseable {
             labels = labels.toMutableSet(),
             blockedBy = blockedBy.toMutableList(),
             open = open,
+            priorityField = priorityField,
         )
     repo.issues[number] = issue
     return issue
   }
+
+  /**
+   * Whether the stub's GraphQL endpoint understands `issueField(name: "Priority")` — `true` by
+   * default. Set `false` to simulate a repo/org where Issue Fields isn't available or the query
+   * fragment doesn't match the live schema, exercising [GitHubAppCandidateClient]'s fallback.
+   */
+  var issueFieldsSupported: Boolean = true
 
   /**
    * Marks a PR merged with [mergeCommitSha]; the issue stays open (Flow closes it via reconcile).
@@ -426,6 +435,26 @@ class FakeGitHubServer : AutoCloseable {
     val repoFullName = Regex("""repo:(\S+)""").find(queryText)?.groupValues?.get(1)
     val label = Regex("""label:"([^"]+)"""").find(queryText)?.groupValues?.get(1) ?: "flow:ready"
     val repo = repoFullName?.let { repos[it] }
+
+    val wantsPriorityField = "issueField(" in queryText
+    if (wantsPriorityField && !issueFieldsSupported) {
+      return json(
+          HttpStatus.OK,
+          buildJsonObject {
+            put(
+                "errors",
+                buildJsonArray {
+                  add(
+                      buildJsonObject {
+                        put("message", "Unknown field 'issueField' on type 'Issue'")
+                      }
+                  )
+                },
+            )
+          },
+      )
+    }
+
     val nodes = buildJsonArray {
       (repo?.issues?.values ?: emptyList())
           .filter { it.open && label in it.labels }
@@ -468,6 +497,13 @@ class FakeGitHubServer : AutoCloseable {
                         )
                       },
                   )
+                  if (wantsPriorityField) {
+                    put(
+                        "issueField",
+                        issue.priorityField?.let { buildJsonObject { put("name", it) } }
+                            ?: JsonObject(emptyMap()),
+                    )
+                  }
                 },
             )
           }
@@ -629,6 +665,10 @@ class FakeGitHubServer : AutoCloseable {
       val labels: MutableSet<String>,
       val blockedBy: MutableList<Int>,
       var open: Boolean,
+      /**
+       * The `Priority` Issue Field's selected option name (e.g. `"Urgent"`), or `null` if unset.
+       */
+      var priorityField: String? = null,
   ) {
     val comments = mutableListOf<String>()
   }
