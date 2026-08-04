@@ -28,6 +28,9 @@ fun buildServer(
     // outbox stores are atomic).
     issuePipelineStore: IssuePipelineStore = InMemoryIssuePipelineStore(),
     githubOutboxStore: GithubOutboxStore = InMemoryGithubOutboxStore(),
+    // Quick Settings (auto-merge and future global toggles). Defaulted to in-memory so tests/local
+    // that don't exercise it need not supply one; the mains pass the Postgres-backed store.
+    settingsStore: SettingsStore = InMemorySettingsStore(),
     gitHubIssueClient: GitHubIssueClient = FakeGitHubIssueClient(),
     gitHubPrClient: GitHubPrClient = FakeGitHubPrClient(),
     gitHubCandidateClient: GitHubCandidateClient = FakeGitHubCandidateClient(),
@@ -46,7 +49,13 @@ fun buildServer(
           pipelineStore = issuePipelineStore,
           outboxStore = githubOutboxStore,
           dispatcher = OutboxDispatcher(githubOutboxStore, gitHubIssueClient),
-          observer = ReconcileObserver(issuePipelineStore, sessionStore, gitHubPrClient),
+          observer =
+              ReconcileObserver(
+                  issuePipelineStore,
+                  sessionStore,
+                  gitHubPrClient,
+                  settingsStore = settingsStore,
+              ),
           picker = ReconcilePicker(issuePipelineStore, sessionStore, gitHubCandidateClient),
           repoLock = InMemoryRepoLock(),
           // The scheduler discovers repos with `flow:ready` issues via one installation-wide
@@ -95,6 +104,7 @@ fun buildServer(
                 WorkerServiceImpl(sessionStore, workerAuthorizer, issuePipelineStore, workerStore),
             )
             addService(PipelineServiceImpl(issuePipelineStore, githubOutboxStore, sessionStore))
+            addService(SettingsServiceImpl(settingsStore))
             addService(ReconcileServiceImpl(reconciler, reconcileAuthorizer))
             enableUnframedRequests(true)
           }

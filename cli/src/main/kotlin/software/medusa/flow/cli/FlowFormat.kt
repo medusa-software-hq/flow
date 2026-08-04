@@ -11,6 +11,7 @@ import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEvent
 import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.SessionState
+import software.medusa.flow.v1.Settings
 
 private val timestampFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
@@ -66,6 +67,10 @@ fun pipelineStateLabel(state: IssuePipelineState): String =
       IssuePipelineState.ISSUE_PIPELINE_STATE_FAILED -> "Failed"
       else -> "Unknown"
     }
+
+/** Flow's global Quick Settings, one line per setting — what `flow settings` prints. */
+fun formatSettings(settings: Settings): String =
+    "Auto-merge: ${if (settings.autoMerge) "on" else "off"}"
 
 /** A fixed-width table with a header row; columns padded to their widest cell. */
 internal fun renderTable(header: List<String>, rows: List<List<String>>): String {

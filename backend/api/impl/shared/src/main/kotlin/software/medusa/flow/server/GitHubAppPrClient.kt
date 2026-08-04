@@ -91,6 +91,95 @@ class GitHubAppPrClient(
           .map { it.workflowRun?.workflow?.name ?: "unknown workflow" }
           .ifEmpty { listOf("unknown check") }
 
+  /**
+   * `enablePullRequestAutoMerge` takes the PR's opaque GraphQL node id, not its number, so this
+   * first resolves the id then issues the mutation. Never throws: any failure — HTTP-level, a
+   * GraphQL `errors` payload (the common case: auto-merge disabled for the repo, or no branch
+   * protection / required checks configured), or an unexpected response shape — becomes
+   * [AutoMergeResult.Failed] with a human-readable reason.
+   */
+  override suspend fun armAutoMerge(
+      repoFullName: String,
+      prNumber: Int,
+      mergeMethod: MergeMethod,
+  ): AutoMergeResult =
+      try {
+        val (owner, name) = repoFullName.split("/", limit = 2).let { it[0] to it[1] }
+
+        val lookupQuery =
+            """
+            query {
+              repository(owner: "$owner", name: "$name") {
+                pullRequest(number: $prNumber) { id }
+              }
+            }
+            """
+                .trimIndent()
+        val lookupResponse =
+            client.post(
+                "/graphql",
+                gitHubJson.encodeToString(buildJsonObject { put("query", lookupQuery) }),
+            )
+        if (lookupResponse.status() != HttpStatus.OK) {
+          return AutoMergeResult.Failed(
+              "PR lookup failed: ${lookupResponse.status()} ${lookupResponse.contentUtf8()}",
+          )
+        }
+
+        val lookup =
+            gitHubJson.decodeFromString<AutoMergeLookupEnvelope>(lookupResponse.contentUtf8())
+        val prNodeId =
+            lookup.data?.repository?.pullRequest?.id
+                ?: return AutoMergeResult.Failed(
+                    "could not resolve PR node id for $repoFullName#$prNumber" +
+                        lookup.errors
+                            ?.let { errs -> ": ${errs.joinToString("; ") { it.message }}" }
+                            .orEmpty(),
+                )
+
+        val mutation =
+            """
+            mutation {
+              enablePullRequestAutoMerge(input: {
+                pullRequestId: "$prNodeId",
+                mergeMethod: ${mergeMethod.toGraphQl()}
+              }) {
+                pullRequest { id }
+              }
+            }
+            """
+                .trimIndent()
+        val mutationResponse =
+            client.post(
+                "/graphql",
+                gitHubJson.encodeToString(buildJsonObject { put("query", mutation) }),
+            )
+        if (mutationResponse.status() != HttpStatus.OK) {
+          return AutoMergeResult.Failed(
+              "enablePullRequestAutoMerge failed: " +
+                  "${mutationResponse.status()} ${mutationResponse.contentUtf8()}",
+          )
+        }
+
+        val mutationResult =
+            gitHubJson.decodeFromString<AutoMergeMutationEnvelope>(mutationResponse.contentUtf8())
+        val errors = mutationResult.errors
+        if (!errors.isNullOrEmpty()) {
+          return AutoMergeResult.Failed(errors.joinToString("; ") { it.message })
+        }
+
+        AutoMergeResult.Armed
+      } catch (e: Exception) {
+        AutoMergeResult.Failed(e.message ?: e::class.simpleName ?: "unknown error")
+      }
+
+  private fun MergeMethod.toGraphQl(): String =
+      when (this) {
+        MergeMethod.Merge -> "MERGE"
+        MergeMethod.Squash -> "SQUASH"
+        MergeMethod.Rebase -> "REBASE"
+      }
+
   private companion object {
     private val failedConclusions = setOf("FAILURE", "CANCELLED", "TIMED_OUT", "STARTUP_FAILURE")
   }
@@ -128,3 +217,22 @@ private data class MergeGateCheckSuite(
 @Serializable private data class MergeGateWorkflowRun(val workflow: MergeGateWorkflow? = null)
 
 @Serializable private data class MergeGateWorkflow(val name: String? = null)
+
+@Serializable
+private data class AutoMergeLookupEnvelope(
+    val data: AutoMergeLookupData? = null,
+    val errors: List<AutoMergeGraphQlError>? = null,
+)
+
+@Serializable
+private data class AutoMergeLookupData(val repository: AutoMergeLookupRepository? = null)
+
+@Serializable
+private data class AutoMergeLookupRepository(val pullRequest: AutoMergeLookupPullRequest? = null)
+
+@Serializable private data class AutoMergeLookupPullRequest(val id: String)
+
+@Serializable
+private data class AutoMergeMutationEnvelope(val errors: List<AutoMergeGraphQlError>? = null)
+
+@Serializable private data class AutoMergeGraphQlError(val message: String)
