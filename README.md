@@ -56,9 +56,9 @@ fixed attempt budget.
 | [`cli/`](cli) | The `flow` CLI — `scout-fully` (just the scouting phase), `complete-task` (the full pipeline against a local `--workdir`), `work` (see below) |
 | [`worker/`](worker) | `flow work`: polls a control-plane API, claims a queued session, runs the engine against a fresh clone, and publishes a successful run as a GitHub PR. See [worker/README.md](worker/README.md). |
 | [`backend/api/`](backend/api) | The control-plane API (Armeria, gRPC + gRPC-Web) backing the web app and the worker: session queueing (Postgres via SQLDelight/Flyway), GitHub repo listing, auth |
-| [`apps/web/spa/`](apps/web/spa) | The web app (React + Mantine) — submit a task against a GitHub repo, watch progress, get a PR link |
+| [`web-app/`](web-app) | The web app (React + Mantine) — submit a task against a GitHub repo, watch progress, get a PR link |
 | [`proto/`](proto) | Protobuf service/message definitions shared by the backend, web app, and worker |
-| `backend/infra/`, `apps/web/infra/`, `infra/` | Terraform (GCP Cloud Run, Neon Postgres, Cloudflare DNS) |
+| `backend/infra/`, `web-app/infra/`, `infra/` | Terraform (GCP Cloud Run, Neon Postgres, Cloudflare DNS) |
 | `config/`, `gradle/`, `Taskfile.yml` | Formatting (ktfmt), static analysis (detekt), the Gradle version catalog, and the cross-language task runner |
 
 ## End-to-end flow
@@ -109,7 +109,7 @@ Kotlin/JVM throughout (Java 21 toolchain), Gradle with a version catalog at
 `gradle/libs.versions.toml`. `./gradlew build` builds and tests everything;
 `./gradlew :cli:installDist` produces a runnable `flow` binary at
 `cli/build/install/cli/bin/cli`. The web app is a separate Vite/React project
-under `apps/web/spa/frontend`.
+under `web-app/frontend`.
 
 For running the worker specifically — configuration, credentials, and
 target-repo preconditions — see [worker/README.md](worker/README.md).

@@ -7,7 +7,7 @@ build → deploy staging → smoke (staging) → deploy prod
 ```
 
 - **Promote API** (`promote-api.yml`) — path filter `backend/api/**`.
-- **Promote web SPA** (`promote-web-spa.yml`) — path filter `apps/web/spa/**`, `proto/**`.
+- **Promote web SPA** (`promote-web-spa.yml`) — path filter `web-app/**`, `proto/**`.
 
 The gate between staging and prod is the staging smoke suite (`check-staging-smoke.yml`, story 08),
 wired in as a `workflow_call` job. `deploy-prod` declares `needs: smoke`, so **prod cannot deploy
