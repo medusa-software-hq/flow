@@ -4,22 +4,56 @@ import com.linecorp.armeria.common.HttpStatus
 import java.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.slf4j.LoggerFactory
 
 /**
  * [GitHubCandidateClient] backed by GitHub's GraphQL search via [GitHubAppClient]. One query
  * returns every open `flow:ready` issue *and* its blocked-by states (the spike confirmed this is a
  * single call, ~1 rate-limit point); the zero-open-blockers filter is applied client-side.
+ *
+ * @param readPriorityField Also fetches the `Priority` Issue Field (public preview, 2026-03-12 —
+ *   see [IssuePriority]) alongside `priority:*` labels, for the field-then-label grace-window read.
+ *   **Off by default.** The query fragment below (`issueField(name: "Priority")`, `... on
+ *   IssueFieldSingleSelectValue`) is this integration's best-effort read of the preview schema — it
+ *   has not been confirmed against a live repo's GraphQL schema (no network access from this
+ *   change). Before flipping this on: run `gh api graphql` introspection (or the GraphQL Explorer)
+ *   against a repo with the `Priority` field configured, and fix the fragment below to match the
+ *   real type/field names if they differ. Once enabled, a schema mismatch degrades safely rather
+ *   than breaking candidate discovery: [findReadyCandidates] checks the GraphQL response for a
+ *   top-level `errors` array and retries once with the field fragment omitted, logging a warning so
+ *   the mismatch is visible.
  */
 class GitHubAppCandidateClient(
     private val client: GitHubAppClient,
+    private val readPriorityField: Boolean = false,
 ) : GitHubCandidateClient {
+  private val log = LoggerFactory.getLogger(GitHubAppCandidateClient::class.java)
+
   override suspend fun findReadyCandidates(
       repoFullName: String,
+  ): List<CandidateIssue> =
+      findReadyCandidates(repoFullName, includePriorityField = readPriorityField)
+
+  private suspend fun findReadyCandidates(
+      repoFullName: String,
+      includePriorityField: Boolean,
   ): List<CandidateIssue> {
     // The `\"` are literal in this raw string; they quote the label (which contains a colon) inside
     // the GraphQL search-query string. The JSON encoder below escapes them for transport.
+    val priorityFieldFragment =
+        if (includePriorityField) {
+          """
+          issueField(name: "Priority") {
+            ... on IssueFieldSingleSelectValue { name }
+          }
+          """
+              .trimIndent()
+        } else {
+          ""
+        }
     val graphQlQuery =
         """
         query {
@@ -33,6 +67,7 @@ class GitHubAppCandidateClient(
                 createdAt
                 blockedBy(first: 50) { nodes { state } }
                 labels(first: 20) { nodes { name } }
+                $priorityFieldFragment
               }
             }
           }
@@ -46,14 +81,27 @@ class GitHubAppCandidateClient(
       "GitHub candidate search failed for $repoFullName: ${response.status()} ${response.contentUtf8()}"
     }
 
-    val issues =
-        gitHubJson
-            .decodeFromString<CandidateEnvelope>(response.contentUtf8())
-            .data
-            ?.search
-            ?.nodes
-            .orEmpty()
-            .filterNotNull()
+    val envelope = gitHubJson.decodeFromString<CandidateEnvelope>(response.contentUtf8())
+
+    // A GraphQL-level error (e.g. the priority-field fragment doesn't match the live schema) comes
+    // back as HTTP 200 with an `errors` array, not a failed status — so it isn't caught by the
+    // check
+    // above. Retry once without the field fragment rather than letting an unverified preview-API
+    // fragment take down candidate discovery entirely.
+    if (!envelope.errors.isNullOrEmpty()) {
+      if (includePriorityField) {
+        log.warn(
+            "Issue Fields query failed for {} ({}) — retrying without the priority field fragment;" +
+                " see GitHubAppCandidateClient's KDoc to fix the fragment",
+            repoFullName,
+            envelope.errors,
+        )
+        return findReadyCandidates(repoFullName, includePriorityField = false)
+      }
+      error("GitHub candidate search returned GraphQL errors for $repoFullName: ${envelope.errors}")
+    }
+
+    val issues = envelope.data?.search?.nodes.orEmpty().filterNotNull()
 
     return issues
         .filter { issue ->
@@ -68,6 +116,7 @@ class GitHubAppCandidateClient(
               createdAt = Instant.parse(it.createdAt),
               labels =
                   it.labels?.nodes.orEmpty().filterNotNull().mapNotNull { l -> l.name }.toSet(),
+              priorityField = it.issueField?.name,
           )
         }
         .sortedBy { it.createdAt } // oldest first
@@ -122,7 +171,11 @@ class GitHubAppCandidateClient(
 
 @Serializable private data class RepoDiscoveryRepo(val nameWithOwner: String? = null)
 
-@Serializable private data class CandidateEnvelope(val data: CandidateData? = null)
+@Serializable
+private data class CandidateEnvelope(
+    val data: CandidateData? = null,
+    val errors: List<JsonElement>? = null,
+)
 
 @Serializable private data class CandidateData(val search: CandidateSearch? = null)
 
@@ -137,6 +190,13 @@ private data class CandidateNode(
     val createdAt: String,
     val blockedBy: CandidateBlockedBy? = null,
     val labels: CandidateLabels? = null,
+    /**
+     * The `Priority` Issue Field's value, present only when the query included
+     * `readPriorityField`'s fragment and the field resolved to a single-select value. `name` here
+     * is that fragment's inline `... on IssueFieldSingleSelectValue { name }` flattened by the
+     * GraphQL server — absent (null) for any other concrete type or an unset field.
+     */
+    val issueField: CandidateIssueField? = null,
 )
 
 @Serializable private data class CandidateBlockedBy(val nodes: List<CandidateBlocker?>? = null)
@@ -144,5 +204,7 @@ private data class CandidateNode(
 @Serializable private data class CandidateBlocker(val state: String? = null)
 
 @Serializable private data class CandidateLabels(val nodes: List<CandidateLabel?>? = null)
+
+@Serializable private data class CandidateIssueField(val name: String? = null)
 
 @Serializable private data class CandidateLabel(val name: String? = null)
