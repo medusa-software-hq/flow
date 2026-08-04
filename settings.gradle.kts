@@ -6,9 +6,9 @@ plugins {
 rootProject.name = "flow"
 
 include(
-    ":backend:api:impl:gcp",
-    ":backend:api:impl:local",
-    ":backend:api:impl:shared",
+    ":backend:api:gcp",
+    ":backend:api:local",
+    ":backend:api:shared",
     ":cli",
     ":e2e",
     ":github-app-auth",

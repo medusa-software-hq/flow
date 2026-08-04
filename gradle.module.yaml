@@ -13,7 +13,7 @@ analyze:
 test:
   steps:
     - name: backend
-      task: ":backend:api:impl:shared:test"
+      task: ":backend:api:shared:test"
     - name: github-stub
       task: ":test-fixtures:github-stub:test"
     - name: cli
