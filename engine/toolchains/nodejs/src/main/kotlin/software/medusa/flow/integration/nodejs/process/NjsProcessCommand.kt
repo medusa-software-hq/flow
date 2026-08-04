@@ -19,6 +19,7 @@ class NjsProcessCommand(
             executable = executable,
             workingDirectory = workingDirectory,
             arguments = arguments,
+            environment = cleanBuildEnvironment(),
         )
 
     return ExecutionResult(
@@ -26,5 +27,26 @@ class NjsProcessCommand(
         standardOutput = processOutcome.standardOutput,
         errorOutput = processOutcome.errorOutput,
     )
+  }
+
+  /**
+   * Returns a copy of the current environment with worker-internal credential‑brokering variables
+   * removed.
+   */
+  private fun cleanBuildEnvironment(): Map<String, String> {
+    val env = System.getenv().toMutableMap()
+    env.keys.removeAll(CREDENTIAL_BROKER_VARS)
+    return env
+  }
+
+  companion object {
+    /** Environment variable keys that the worker uses for Beacon credential brokering. */
+    private val CREDENTIAL_BROKER_VARS: Set<String> =
+        setOf(
+            "GCE_METADATA_HOST",
+            "GCE_METADATA_IP",
+            "GCE_METADATA_ROOT",
+            "GCE_METADATA_PORT",
+        )
   }
 }

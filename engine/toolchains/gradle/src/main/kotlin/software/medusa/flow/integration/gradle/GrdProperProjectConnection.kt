@@ -28,6 +28,7 @@ internal constructor(
               .forTasks(taskName.name)
               .setStandardOutput(standardOutput)
               .setStandardError(errorOutput)
+              .setEnvironmentVariables(cleanBuildEnvironment())
               .run()
         }
 
@@ -49,5 +50,26 @@ internal constructor(
 
   override fun close() {
     projectConnection.close()
+  }
+
+  /**
+   * Returns a copy of the current environment with worker-internal credential‑brokering variables
+   * removed, so that the repo build/test subprocess sees a clean, CI‑like environment.
+   */
+  private fun cleanBuildEnvironment(): Map<String, String> {
+    val env = System.getenv().toMutableMap()
+    env.keys.removeAll(CREDENTIAL_BROKER_VARS)
+    return env
+  }
+
+  companion object {
+    /** Environment variable keys that the worker uses for Beacon credential brokering. */
+    private val CREDENTIAL_BROKER_VARS: Set<String> =
+        setOf(
+            "GCE_METADATA_HOST",
+            "GCE_METADATA_IP",
+            "GCE_METADATA_ROOT",
+            "GCE_METADATA_PORT",
+        )
   }
 }
