@@ -58,7 +58,7 @@ fixed attempt budget.
 | [`backend/api/`](backend/api) | The control-plane API (Armeria, gRPC + gRPC-Web) backing the web app and the worker: session queueing (Postgres via SQLDelight/Flyway), GitHub repo listing, auth |
 | [`apps/web/spa/`](apps/web/spa) | The web app (React + Mantine) — submit a task against a GitHub repo, watch progress, get a PR link |
 | [`proto/`](proto) | Protobuf service/message definitions shared by the backend, web app, and worker |
-| `backend/api/infra/`, `apps/web/infra/`, `infra/` | Terraform (GCP Cloud Run, Neon Postgres, Cloudflare DNS) |
+| `backend/infra/`, `apps/web/infra/`, `infra/` | Terraform (GCP Cloud Run, Neon Postgres, Cloudflare DNS) |
 | `config/`, `gradle/`, `Taskfile.yml` | Formatting (ktfmt), static analysis (detekt), the Gradle version catalog, and the cross-language task runner |
 
 ## End-to-end flow

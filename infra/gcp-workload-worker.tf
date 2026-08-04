@@ -3,8 +3,8 @@
 # Secret Manager secrets the worker's profile references.
 #
 # Why root infra/: the impersonation opt-in and secret grants are IAM/serviceusage-adjacent and land
-# here per the established permission boundary (the CI/CD SA that applies backend/api/infra lacks the
-# rights). The `flow-worker` SA itself is created in backend/api/infra; it is referenced here by its
+# here per the established permission boundary (the CI/CD SA that applies backend/infra lacks the
+# rights). The `flow-worker` SA itself is created in backend/infra; it is referenced here by its
 # (stable) resource id — it already exists in both projects, so the binding resolves.
 
 locals {
@@ -13,7 +13,7 @@ locals {
 
   # The GitHub App PEM the worker reads to open PRs. One App per environment serves *both* the Cloud
   # Run control-plane service and the worker, so prod reuses the control-plane App's PEM
-  # (`api-github-app-pem`, created in backend/api/infra). Staging is the exception: its worker uses a
+  # (`api-github-app-pem`, created in backend/infra). Staging is the exception: its worker uses a
   # separate, sandbox-owned App (`medusa-flow-nightly`), whose PEM is `flow-worker-github-app-pem`.
   worker_github_app_pem_secret_id = (
     local.is_staging

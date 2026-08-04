@@ -75,7 +75,7 @@ jobs:
         env:
           API_URL: ${{ vars.API_URL }}
           # The worker SA the suite impersonates for the API identity. Its account id ("flow-worker")
-          # is fixed in backend/api/infra; the project comes from this environment's vars.
+          # is fixed in backend/infra; the project comes from this environment's vars.
           WORKER_SA_EMAIL: flow-worker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
         run: ./gradlew :system-tests:systemTest -PsystemTestTags=smoke --stacktrace
 

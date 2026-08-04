@@ -85,7 +85,7 @@ next issue, and flush the GitHub outbox — are driven by:
 
 - **GitHub webhooks** (`POST /webhook/github`): latency. An issue labeled
   `flow:ready`, a merged PR, or a finished check wakes the reconciler within seconds.
-  Purely an accelerant — see [../backend/api/infra/github-webhook.md](../backend/api/infra/github-webhook.md)
+  Purely an accelerant — see [../backend/infra/github-webhook.md](../backend/infra/github-webhook.md)
   for setup. With webhooks off, everything still works, just slower.
 - **Cloud Scheduler** (`api-reconcile`, every ~3 min): the correctness backstop.
   A full reconcile of every repo with live pipelines or pending outbox.
@@ -97,7 +97,7 @@ and merely faster with webhooks.
 
 Reconcile passes log structured start/summary lines; the log-based
 "no successful reconcile in 15 min" alerting query is documented in
-[../backend/api/infra/reconcile-monitoring.md](../backend/api/infra/reconcile-monitoring.md).
+[../backend/infra/reconcile-monitoring.md](../backend/infra/reconcile-monitoring.md).
 
 Every GitHub side effect (label changes, the annotation comment, closing the
 issue) rides a per-issue **outbox** that's drained idempotently and retried with

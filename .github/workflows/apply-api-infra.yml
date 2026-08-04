@@ -4,7 +4,7 @@ on:
   push:
     branches: ["trunk/*"]
     paths:
-      - "backend/api/infra/**"
+      - "backend/infra/**"
       # The shared `infra/common` module this root consumes (per-env GOOGLE_CLIENT_ID, project ids,
       # host names, …). A change there must re-apply this infra too, or the deployed service's env
       # drifts silently from the code — as it did when the OAuth client_ids moved to per-env clients
@@ -70,7 +70,7 @@ jobs:
           terraform_version: ~> ${{ env.TERRAFORM_VERSION }}
 
       - name: Apply Terraform configuration
-        working-directory: backend/api/infra
+        working-directory: backend/infra
         env:
           TF_VAR_gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
           TF_VAR_neon_api_key: ${{ secrets.NEON_API_KEY }}
