@@ -64,6 +64,25 @@
 #
 ##############################################################################
 
+# The build (Kotlin compilation in particular) writes file names derived from source identifiers
+# (e.g. a test method name) to disk. Java derives sun.jnu.encoding — the encoding used to translate
+# such names to OS paths — from the process locale at JVM startup; that can't be overridden via
+# org.gradle.jvmargs/kotlin.daemon.jvmargs; only the locale environment variables (JEP 400 change)
+# in the *spawning* process's environment. On a host with no locale configured (LANG/LC_ALL unset or
+# POSIX/C), that defaults to US-ASCII, and any non-ASCII character in a generated file name (e.g. an
+# em dash in a Kotlin test method name, which becomes part of its class file name) then throws
+# InvalidPathException and crashes the Kotlin compiler. Force a UTF-8 locale here so the build doesn't
+# depend on the host's locale configuration.
+case "$LANG" in
+  *.[Uu][Tt][Ff]8 | *.[Uu][Tt][Ff]-8) ;;
+  *) LANG='C.utf8' ;;
+esac
+case "$LC_ALL" in
+  *.[Uu][Tt][Ff]8 | *.[Uu][Tt][Ff]-8) ;;
+  *) LC_ALL='C.utf8' ;;
+esac
+export LANG LC_ALL
+
 # Attempt to set APP_HOME
 
 # Resolve links: $0 may be a link

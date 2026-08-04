@@ -8,9 +8,11 @@ value class SessionId(
 )
 
 /**
- * Groups the sessions created together as one unit of work — a manual session is its own 1-session
- * job; a reconciled issue's Claude primary + built-in shadow share one [JobId]. A worker claims a
- * whole job ([SessionStore.claimNextJob]) and runs its sessions in parallel.
+ * Groups the sessions created together as one unit of work — every session (manual or reconciled)
+ * is currently its own 1-session job. [SessionStore.createJob] supports multi-session jobs (a
+ * reconciled issue's Claude primary sharing a [JobId] with a built-in shadow) for the M6
+ * dual-engine fan-out, but that shadow fan-out is disabled — see [ReconcilePicker]. A worker claims
+ * a whole job ([SessionStore.claimNextJob]) and runs its sessions in parallel.
  */
 @JvmInline
 value class JobId(
@@ -139,9 +141,11 @@ interface SessionStore {
 
   /**
    * Creates one `PENDING` session per entry in [engines], all sharing a single freshly-minted
-   * [JobId], and returns them in [engines] order. This is the fan-out unit: a reconciled issue
-   * creates `[Claude, Builtin]`, so a worker later claims and runs both together. All sessions
-   * share the same [repoFullName]/[taskMarkdown]/[createdBy]; they differ only by engine.
+   * [JobId], and returns them in [engines] order. This is the fan-out unit a worker later claims
+   * and runs together ([claimNextJob]) — used for a single-engine job today (a reconciled issue's
+   * primary Claude session); the M6 dual-engine `[Claude, Builtin]` fan-out this was built for is
+   * disabled (built-in is too unreliable as an unattended shadow — see [ReconcilePicker]). All
+   * sessions share the same [repoFullName]/[taskMarkdown]/[createdBy]; they differ only by engine.
    */
   suspend fun createJob(
       repoFullName: String,

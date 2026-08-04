@@ -48,17 +48,19 @@ class ReconcilePicker(
                 compareBy({ IssuePriority.of(it.priorityField, it.labels).rank }, { it.createdAt })
             ) ?: return 0
 
-    // Dual-engine fan-out (M6): every picked issue runs two sessions in parallel — a primary Claude
-    // session that drives the pipeline (observed, merge-gated, closes the issue) and a built-in
-    // "shadow" session for comparison that opens its own PR but is never observed. The engine is no
-    // longer read from a `flow:engine=` label; both always run.
-    // One job holds both engine sessions, so a worker claims and runs them together (in parallel).
-    val (primary, shadow) =
+    // Every picked issue runs a primary Claude session that drives the pipeline (observed,
+    // merge-gated, closes the issue). The dual-engine fan-out (M6) also spawned a built-in "shadow"
+    // session for comparison, but the built-in engine proved too unreliable to run unattended — it
+    // ~always failed, wasting worker time/budget and cluttering the session list. The shadow
+    // fan-out
+    // is disabled (not removed: [SessionStore.createJob] and [IssuePipelineStore.shadowSessionId]
+    // stay in place for when a future leader/assistant engine replaces built-in as the shadow).
+    val (primary) =
         sessionStore.createJob(
             repoFullName = repoFullName,
             taskMarkdown = taskMarkdownFor(chosen),
             createdBy = reconcilerAuthor,
-            engines = listOf(Engine.Claude, Engine.Builtin),
+            engines = listOf(Engine.Claude),
         )
 
     return when (
@@ -69,29 +71,27 @@ class ReconcilePicker(
                 issueTitle = chosen.title,
                 issueUrl = chosen.url,
                 sessionId = primary.id,
-                shadowSessionId = shadow.id,
+                shadowSessionId = null,
             )
     ) {
       is PickResult.Picked -> {
         log.info(
-            "picked {}#{} → pipeline {} (primary {}, shadow {})",
+            "picked {}#{} → pipeline {} (primary {})",
             repoFullName,
             chosen.number,
             result.pipeline.id.id,
             primary.id.id,
-            shadow.id.id,
         )
         1
       }
       PickResult.RepoBusy -> {
         // Unreachable under the per-repo lock. If the invariant ever breaks, log loudly so the
-        // orphaned sessions are noticed rather than silently claimed by a worker.
+        // orphaned session is noticed rather than silently claimed by a worker.
         log.error(
-            "pick raced on {}#{}: repo became busy after the free check; sessions {}/{} orphaned",
+            "pick raced on {}#{}: repo became busy after the free check; session {} orphaned",
             repoFullName,
             chosen.number,
             primary.id.id,
-            shadow.id.id,
         )
         0
       }

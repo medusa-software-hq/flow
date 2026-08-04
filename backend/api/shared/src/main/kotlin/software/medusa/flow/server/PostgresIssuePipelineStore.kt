@@ -34,7 +34,7 @@ class PostgresIssuePipelineStore(
       issueTitle: String,
       issueUrl: String,
       sessionId: SessionId,
-      shadowSessionId: SessionId,
+      shadowSessionId: SessionId?,
   ): PickResult =
       withContext(Dispatchers.IO) {
         database.transactionWithResult {
@@ -53,7 +53,7 @@ class PostgresIssuePipelineStore(
               issue_url = issueUrl,
               state = IssuePipelineState.InProgress.toDbValue(),
               session_id = sessionId.id,
-              shadow_session_id = shadowSessionId.id,
+              shadow_session_id = shadowSessionId?.id,
               created_at = now.toOffsetDateTime(),
               updated_at = now.toOffsetDateTime(),
           )

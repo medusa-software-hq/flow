@@ -3,7 +3,7 @@
 > **Not the source of truth for "does it work" anymore.** Every step below is
 > covered by an automated test — see [`testing.md`](testing.md) for the layer map
 > and the demo-step→test mapping. Confidence comes from the green promotion gate
-> (smoke + loop tiers against deployed staging), not from walking this by hand.
+> (the smoke tier against deployed staging), not from walking this by hand.
 > This runbook survives as a **narrated walkthrough** for a human who wants to
 > *watch* the loop happen, not as an acceptance procedure.
 
