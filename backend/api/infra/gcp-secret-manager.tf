@@ -52,7 +52,7 @@ resource "google_secret_manager_secret_iam_member" "primary_service_sa_github_ap
 
 # Secret holding the GitHub App webhook secret, injected into Cloud Run. The API HMAC-verifies every
 # webhook (X-Hub-Signature-256) against this value; the same value is entered in the GitHub App's
-# "Webhook secret" field. See backend/api/impl/.../GitHubWebhookService.kt.
+# "Webhook secret" field. See backend/api/.../GitHubWebhookService.kt.
 resource "google_secret_manager_secret" "github_webhook_secret" {
   project   = var.gcp_project_id
   secret_id = "${module.common.gcp_api_run_service_name}-github-webhook-secret"

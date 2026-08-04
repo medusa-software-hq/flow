@@ -20,7 +20,7 @@ on:
   push:
     branches: ["trunk/*"]
     paths:
-      - "backend/api/impl/**"
+      - "backend/api/**"
 
   workflow_dispatch:
 
@@ -36,7 +36,7 @@ env:
   # job-level env: block silently falls back to the *repository-level* (production) value, which
   # would push staging's image into production's Artifact Registry. It is resolved in a step below.
 
-  SERVICE_PATH: backend/api/impl
+  SERVICE_PATH: backend/api
 
 jobs:
   # 1. Build the image once and deploy it to staging, pinned by digest.
@@ -82,7 +82,7 @@ jobs:
         id: build
         working-directory: ${{ env.SERVICE_PATH }}
         run: |
-          ../../../gradlew :backend:api:impl:gcp:jib \
+          ../../../gradlew :backend:api:gcp:jib \
             -Pjib.imageRef=${{ env.IMAGE_REF }} \
             -Pjib.imageTag=${{ github.sha }} \
             --stacktrace --info
@@ -165,7 +165,7 @@ jobs:
         id: build
         working-directory: ${{ env.SERVICE_PATH }}
         run: |
-          ../../../gradlew :backend:api:impl:gcp:jib \
+          ../../../gradlew :backend:api:gcp:jib \
             -Pjib.imageRef=${{ env.IMAGE_REF }} \
             -Pjib.imageTag=${{ github.sha }} \
             --stacktrace --info

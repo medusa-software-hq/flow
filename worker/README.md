@@ -93,7 +93,7 @@ Restarting the worker just resumes polling — it keeps no state between
 sessions, and a requeued session run by a new worker starts over from
 scratch.
 
-[sessionstore]: ../backend/api/impl/shared/src/main/kotlin/software/medusa/flow/server/SessionStore.kt
+[sessionstore]: ../backend/api/shared/src/main/kotlin/software/medusa/flow/server/SessionStore.kt
 
 ## Target-repo preconditions
 

@@ -6,7 +6,7 @@ How code reaches production. Both deployables promote through a single chained r
 build → deploy staging → smoke (staging) → deploy prod
 ```
 
-- **Promote API** (`promote-api.yml`) — path filter `backend/api/impl/**`.
+- **Promote API** (`promote-api.yml`) — path filter `backend/api/**`.
 - **Promote web SPA** (`promote-web-spa.yml`) — path filter `apps/web/spa/**`, `proto/**`.
 
 The gate between staging and prod is the staging smoke suite (`check-staging-smoke.yml`, story 08),

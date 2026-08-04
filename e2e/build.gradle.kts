@@ -30,7 +30,7 @@ sourceSets {
 
 dependencies {
   // The control plane, booted in-process with the *real* GitHub clients pointed at the stub.
-  testImplementation(project(":backend:api:impl:shared"))
+  testImplementation(project(":backend:api:shared"))
   // GitHubAppConfig, for wiring the in-process control plane's App clients at the stub.
   testImplementation(project(":github-app-auth"))
   // FakeGitHubServer, BareRepoFixture, FakeGitHubAppKey.

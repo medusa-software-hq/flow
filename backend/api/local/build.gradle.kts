@@ -4,6 +4,6 @@ plugins {
   application
 }
 
-dependencies { implementation(project(":backend:api:impl:shared")) }
+dependencies { implementation(project(":backend:api:shared")) }
 
 application { mainClass = "software.medusa.flow.server.MainKt" }

@@ -26,8 +26,8 @@ includes:
     dir: apps/web/infra/domain-mapping
 
   api:impl:
-    taskfile: backend/api/impl/Taskfile.yml
-    dir: backend/api/impl
+    taskfile: backend/api/Taskfile.yml
+    dir: backend/api
 
   api:infra:
     taskfile: backend/api/infra/Taskfile.yml
