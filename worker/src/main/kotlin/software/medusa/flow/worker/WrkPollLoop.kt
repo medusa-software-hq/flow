@@ -48,15 +48,16 @@ class WrkPollLoop(
   fun inFlightSessionIds(): List<String> = currentlyProcessing
 
   /**
-   * Force-fails every currently in-flight session with [reason], best-effort. Meant for the bounded
-   * drain-deadline exception: the caller is about to cancel this loop's job outright (killing the
-   * engine mid-run) and wants the affected session tagged explicitly rather than left for generic
-   * heartbeat expiry to explain later.
+   * Force-fails every currently in-flight session with [reason], best-effort, flagged as a worker
+   * death so the control plane requeues it for a fresh attempt (bounded retry) instead of
+   * abandoning it. Meant for the bounded drain-deadline exception: the caller is about to cancel
+   * this loop's job outright (killing the engine mid-run) and wants the affected session tagged
+   * explicitly rather than left for generic heartbeat expiry to explain later.
    */
   suspend fun forceFailInFlight(reason: String) {
     for (sessionId in currentlyProcessing) {
       try {
-        apiClient.failSession(sessionId = sessionId, failureSummary = reason)
+        apiClient.failSession(sessionId = sessionId, failureSummary = reason, workerDeath = true)
       } catch (e: Exception) {
         log("Session $sessionId: force-fail at drain deadline failed ($e)")
       }

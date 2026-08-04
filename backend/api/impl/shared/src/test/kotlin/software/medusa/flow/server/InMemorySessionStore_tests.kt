@@ -288,22 +288,38 @@ class InMemorySessionStore_tests {
   }
 
   @Test
-  fun `a running session with a stale heartbeat is lazily expired on read`() = runBlocking {
-    val (store, clock) = newStore()
+  fun `a running session with a stale heartbeat is lazily requeued on read, then fails once retries are exhausted`() =
+      runBlocking {
+        val (store, clock) = newStore()
 
-    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
-    val claimed = store.claimNext()!!
+        store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+        var claimed = store.claimNext()!!
 
-    clock.advance(heartbeatTimeout + 1.seconds)
+        // Each stale heartbeat requeues to PENDING (bumping attemptCount) while under the retry
+        // budget — the read itself performs the expiry/requeue.
+        repeat(SessionStore.maxWorkerDeathRetries) { attempt ->
+          clock.advance(heartbeatTimeout + 1.seconds)
 
-    // The read itself performs expiry.
-    val read = store.get(claimed.id, afterSeq = 0)!!.session
-    assertEquals(SessionState.Failed, read.state)
-    assertEquals(SessionStore.workerLostSummary, read.failureSummary)
+          val requeued = store.get(claimed.id, afterSeq = 0)!!.session
+          assertEquals(SessionState.Pending, requeued.state)
+          assertEquals(attempt + 1, requeued.attemptCount)
+          assertNull(requeued.claimedAt)
+          assertNull(requeued.lastHeartbeatAt)
 
-    // And an expired session refuses further worker mutations.
-    assertPreconditionFailed(store.heartbeat(claimed.id))
-  }
+          // Requeued means claimable again — a fresh attempt, not lost work.
+          claimed = store.claimNext()!!
+        }
+
+        // The retry budget is now exhausted: the next stale heartbeat is a terminal failure.
+        clock.advance(heartbeatTimeout + 1.seconds)
+        val read = store.get(claimed.id, afterSeq = 0)!!.session
+        assertEquals(SessionState.Failed, read.state)
+        assertEquals(SessionStore.workerLostSummary, read.failureSummary)
+        assertEquals(SessionStore.maxWorkerDeathRetries, read.attemptCount)
+
+        // And an expired session refuses further worker mutations.
+        assertPreconditionFailed(store.heartbeat(claimed.id))
+      }
 
   @Test
   fun `expireStale only affects sessions past the timeout`() = runBlocking {
@@ -318,8 +334,83 @@ class InMemorySessionStore_tests {
     val freshClaim = store.claimNext()!!
 
     assertEquals(1, store.expireStale())
-    assertEquals(SessionState.Failed, store.get(staleClaim.id, afterSeq = 0)!!.session.state)
+    // Requeued (not failed outright) — worker death is a retry, not an abandonment.
+    assertEquals(SessionState.Pending, store.get(staleClaim.id, afterSeq = 0)!!.session.state)
     assertEquals(SessionState.Running, store.get(freshClaim.id, afterSeq = 0)!!.session.state)
+  }
+
+  @Test
+  fun `expireStale fails a session outright once its worker-death retry budget is exhausted`() =
+      runBlocking {
+        val (store, clock) = newStore()
+
+        store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+        var claimed = store.claimNext()!!
+
+        repeat(SessionStore.maxWorkerDeathRetries) {
+          clock.advance(heartbeatTimeout + 1.seconds)
+          assertEquals(1, store.expireStale())
+          claimed = store.claimNext()!!
+        }
+
+        clock.advance(heartbeatTimeout + 1.seconds)
+        assertEquals(1, store.expireStale())
+
+        val failed = store.get(claimed.id, afterSeq = 0)!!.session
+        assertEquals(SessionState.Failed, failed.state)
+        assertEquals(SessionStore.workerLostSummary, failed.failureSummary)
+      }
+
+  @Test
+  fun `fail with workerDeath requeues a running session under the retry budget`() = runBlocking {
+    val (store, _) = newStore()
+
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext()!!
+
+    val outcome = assertApplied(store.fail(claimed.id, "worker died", workerDeath = true))
+    assertEquals(FailOutcome.Requeued, outcome)
+
+    val requeued = store.get(claimed.id, afterSeq = 0)!!.session
+    assertEquals(SessionState.Pending, requeued.state)
+    assertEquals(1, requeued.attemptCount)
+    // The requeue doesn't record a failure — it isn't one.
+    assertNull(requeued.failureSummary)
+  }
+
+  @Test
+  fun `fail with workerDeath still terminates once the retry budget is exhausted`() = runBlocking {
+    val (store, _) = newStore()
+
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    var claimed = store.claimNext()!!
+
+    repeat(SessionStore.maxWorkerDeathRetries) {
+      assertEquals(
+          FailOutcome.Requeued,
+          assertApplied(store.fail(claimed.id, "worker died", workerDeath = true)),
+      )
+      claimed = store.claimNext()!!
+    }
+
+    val outcome = assertApplied(store.fail(claimed.id, "worker died again", workerDeath = true))
+    assertEquals(FailOutcome.Failed, outcome)
+
+    val failed = store.get(claimed.id, afterSeq = 0)!!.session
+    assertEquals(SessionState.Failed, failed.state)
+    assertEquals("worker died again", failed.failureSummary)
+  }
+
+  @Test
+  fun `fail without workerDeath always terminates, regardless of retry budget`() = runBlocking {
+    val (store, _) = newStore()
+
+    store.create("acme/a", "t", "u@x", engine = Engine.Unspecified)
+    val claimed = store.claimNext()!!
+
+    val outcome = assertApplied(store.fail(claimed.id, "engine bug"))
+    assertEquals(FailOutcome.Failed, outcome)
+    assertEquals(SessionState.Failed, store.get(claimed.id, afterSeq = 0)!!.session.state)
   }
 
   @Test

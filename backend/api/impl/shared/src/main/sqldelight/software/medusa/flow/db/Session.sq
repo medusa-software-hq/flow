@@ -23,7 +23,10 @@ CREATE TABLE sessions (
   -- M4: requested engine (V4). 'UNSPECIFIED' = the claiming worker's default.
   engine            TEXT NOT NULL DEFAULT 'UNSPECIFIED',
   -- M4: terminal run cost in USD (V5). NULL until the RUN_COST event lands.
-  total_cost_usd    DOUBLE PRECISION
+  total_cost_usd    DOUBLE PRECISION,
+  -- Bounded retry (V12): how many times this session has been requeued after a
+  -- worker death. 0 = never requeued.
+  attempt_count     INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE session_events (
@@ -111,11 +114,40 @@ SET state = 'COMPLETED', pr_url = ?, last_heartbeat_at = :now
 WHERE id = ? AND state = 'RUNNING'
 RETURNING id;
 
-failIfRunning:
+-- Normally transitions a RUNNING session straight to FAILED, same as before.
+-- When :workerDeath is true (the worker itself died — a crash, node failure, or
+-- a drain that exceeded its deadline — rather than a genuine engine/task
+-- failure) and the session hasn't exhausted its bounded retry budget
+-- (attempt_count < :maxAttempts), it is requeued to PENDING instead: claim and
+-- heartbeat cleared, attempt_count bumped, failure_summary left untouched, so
+-- the next claim gives it a fresh attempt rather than abandoning the work.
+-- Returns the row (inspect `state` to tell which branch was taken) when the
+-- guard applied.
+requeueOrFailIfRunning:
 UPDATE sessions
-SET state = 'FAILED', failure_summary = ?, last_heartbeat_at = :now
-WHERE id = ? AND state = 'RUNNING'
-RETURNING id;
+SET
+  state = CASE
+    WHEN :workerDeath::BOOLEAN AND attempt_count < :maxAttempts THEN 'PENDING'
+    ELSE 'FAILED'
+  END,
+  failure_summary = CASE
+    WHEN :workerDeath::BOOLEAN AND attempt_count < :maxAttempts THEN failure_summary
+    ELSE :failureSummary
+  END,
+  attempt_count = CASE
+    WHEN :workerDeath::BOOLEAN AND attempt_count < :maxAttempts THEN attempt_count + 1
+    ELSE attempt_count
+  END,
+  claimed_at = CASE
+    WHEN :workerDeath::BOOLEAN AND attempt_count < :maxAttempts THEN NULL::TIMESTAMPTZ
+    ELSE claimed_at
+  END,
+  last_heartbeat_at = CASE
+    WHEN :workerDeath::BOOLEAN AND attempt_count < :maxAttempts THEN NULL::TIMESTAMPTZ
+    ELSE :now
+  END
+WHERE id = :id AND state = 'RUNNING'
+RETURNING *;
 
 -- Human "stop": a RUNNING session -> ABORTED. Returns the id when it applied.
 abortIfRunning:
@@ -128,10 +160,31 @@ RETURNING id;
 selectSessionState:
 SELECT state FROM sessions WHERE id = ?;
 
--- Lazy expiry: RUNNING sessions whose heartbeat is older than the cutoff are
--- transitioned to FAILED ("worker lost"). Returns the ids it expired.
+-- Lazy expiry: a RUNNING session whose heartbeat is older than the cutoff is a
+-- worker death by definition (the worker went silent with no chance to signal
+-- anything). Bounded-retry requeue applies here too: back to PENDING (bumping
+-- attempt_count, clearing claim/heartbeat) while under the retry budget
+-- (attempt_count < :maxAttempts), else FAILED ("worker lost"). Returns the ids
+-- it touched (both branches).
 expireStaleSessions:
 UPDATE sessions
-SET state = 'FAILED', failure_summary = ?
-WHERE state = 'RUNNING' AND last_heartbeat_at < ?
+SET
+  state = CASE WHEN attempt_count < :maxAttempts THEN 'PENDING' ELSE 'FAILED' END,
+  failure_summary = CASE
+    WHEN attempt_count < :maxAttempts THEN failure_summary
+    ELSE :failureSummary
+  END,
+  attempt_count = CASE
+    WHEN attempt_count < :maxAttempts THEN attempt_count + 1
+    ELSE attempt_count
+  END,
+  claimed_at = CASE
+    WHEN attempt_count < :maxAttempts THEN NULL::TIMESTAMPTZ
+    ELSE claimed_at
+  END,
+  last_heartbeat_at = CASE
+    WHEN attempt_count < :maxAttempts THEN NULL::TIMESTAMPTZ
+    ELSE last_heartbeat_at
+  END
+WHERE state = 'RUNNING' AND last_heartbeat_at < :cutoff
 RETURNING id;

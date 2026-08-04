@@ -186,17 +186,26 @@ class WorkerServiceImpl(
     requireAuthorizedWorker()
 
     val sessionId = SessionId(request.sessionId)
-    sessionStore
-        .fail(id = sessionId, failureSummary = request.failureSummary)
-        .orFailedPrecondition(request.sessionId)
+    val outcome =
+        sessionStore
+            .fail(
+                id = sessionId,
+                failureSummary = request.failureSummary,
+                workerDeath = request.workerDeath,
+            )
+            .orFailedPrecondition(request.sessionId)
 
-    advanceLinkedPipeline(sessionId) { pipeline ->
-      issuePipelineStore.markFailed(
-          pipeline.id,
-          failureSummary =
-              "The Flow session for this issue failed:\n\n${request.failureSummary}\n\n" +
-                  "Clear this pipeline to let Flow try the issue again.",
-      )
+    // A requeued session is still (about to be) in progress — a fresh attempt, not an abandonment —
+    // so the pipeline stays put; only a genuine terminal FAILED advances it.
+    if (outcome == FailOutcome.Failed) {
+      advanceLinkedPipeline(sessionId) { pipeline ->
+        issuePipelineStore.markFailed(
+            pipeline.id,
+            failureSummary =
+                "The Flow session for this issue failed:\n\n${request.failureSummary}\n\n" +
+                    "Clear this pipeline to let Flow try the issue again.",
+        )
+      }
     }
 
     return failSessionResponse {}

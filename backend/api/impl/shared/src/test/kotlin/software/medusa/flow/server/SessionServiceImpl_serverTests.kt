@@ -151,21 +151,32 @@ class SessionServiceImpl_serverTests {
   }
 
   @Test
-  fun `a running session with a stale heartbeat reads back as failed`() = runBlocking {
-    val created =
-        client.createSession(
-            createSessionRequest {
-              repoFullName = "acme/app"
-              taskMarkdown = "# Task"
-            },
-        )
+  fun `a running session with a stale heartbeat reads back as requeued, then failed once retries are exhausted`() =
+      runBlocking {
+        val created =
+            client.createSession(
+                createSessionRequest {
+                  repoFullName = "acme/app"
+                  taskMarkdown = "# Task"
+                },
+            )
 
-    // Claim it directly on the store to move PENDING → RUNNING, then let the heartbeat go stale.
-    store.claimNext()
-    clock.advance(heartbeatTimeout + 1.seconds)
+        // Each stale heartbeat requeues (PENDING) while under the retry budget — claim it directly
+        // on the store to move PENDING → RUNNING each time, then let the heartbeat go stale again.
+        repeat(SessionStore.maxWorkerDeathRetries) {
+          store.claimNext()
+          clock.advance(heartbeatTimeout + 1.seconds)
 
-    val got = client.getSession(getSessionRequest { id = created.session.id })
-    assertEquals(ProtoSessionState.SESSION_STATE_FAILED, got.session.state)
-    assertEquals(SessionStore.workerLostSummary, got.session.failureSummary)
-  }
+          val requeued = client.getSession(getSessionRequest { id = created.session.id })
+          assertEquals(ProtoSessionState.SESSION_STATE_PENDING, requeued.session.state)
+        }
+
+        // The retry budget is now exhausted: the next stale heartbeat is a terminal failure.
+        store.claimNext()
+        clock.advance(heartbeatTimeout + 1.seconds)
+
+        val got = client.getSession(getSessionRequest { id = created.session.id })
+        assertEquals(ProtoSessionState.SESSION_STATE_FAILED, got.session.state)
+        assertEquals(SessionStore.workerLostSummary, got.session.failureSummary)
+      }
 }

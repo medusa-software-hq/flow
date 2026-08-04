@@ -65,6 +65,10 @@ message Session {
   // and run together by one worker; a reconciled issue's Claude + built-in
   // sessions share one.
   string job_id = 14;
+  // How many times this session has been requeued after a worker-death (crash,
+  // node failure, or a drain that exceeded its deadline) — 0 means it has never
+  // been requeued. Display-only; the bound is enforced server-side.
+  int32 attempt_count = 15;
 }
 
 enum SessionEventKind {
@@ -155,6 +159,10 @@ service WorkerService {
   // Bare heartbeat for long silent phases.
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc CompleteSession(CompleteSessionRequest) returns (CompleteSessionResponse);
+  // Normally transitions a RUNNING session straight to FAILED. When
+  // `worker_death` is set and the session hasn't exhausted its bounded
+  // worker-death retry budget, it is requeued to PENDING instead — a fresh
+  // attempt rather than lost work.
   rpc FailSession(FailSessionRequest) returns (FailSessionResponse);
 
   // Worker fleet liveness + version surfacing (M5). A worker registers itself
@@ -264,6 +272,11 @@ message FailSessionRequest {
   string session_id = 1;
   // Markdown.
   string failure_summary = 2;
+  // Set when the worker itself is the thing that died (a drain exceeding its
+  // deadline) rather than the engine/task genuinely failing. Distinguishes the
+  // two so only worker-death requeues the session for a fresh attempt (bounded
+  // retry) instead of terminating it FAILED — see FailSession's doc.
+  bool worker_death = 3;
 }
 
 message FailSessionResponse {}
