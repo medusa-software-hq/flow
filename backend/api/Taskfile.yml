@@ -4,5 +4,5 @@ tasks:
   run:
     desc: Run the the API locally
     cmds:
-      - ../../../gradlew :backend:api:local:run
+      - ../../gradlew :backend:api:local:run
     interactive: true
