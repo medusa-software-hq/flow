@@ -5,8 +5,10 @@ import io.grpc.StatusException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.session
@@ -160,5 +162,127 @@ class WrkPollLoop_tests {
                 .filterIsInstance<WrkFakeApiClient.RecordedCall.FailSession>()
                 .none { it.sessionId == "stale-session" },
         )
+      }
+
+  @Test
+  fun `cordon on an idle loop exits promptly instead of waiting out the poll delay`() =
+      runBlocking {
+        val apiClient = WrkFakeApiClient()
+        val pollLoop =
+            WrkPollLoop(
+                apiClient = apiClient,
+                sessionProcessor = WrkSessionProcessor { _, _ -> },
+                // Deliberately much longer than the test timeout below: if cordon() didn't
+                // short-circuit the wait, this test would time out instead of failing fast.
+                emptyPollDelayMillis = 60_000,
+                log = {},
+            )
+
+        val job = launch { pollLoop.run() }
+        yield() // let the loop reach its empty-poll wait before cordoning
+        pollLoop.cordon()
+
+        withTimeout(5_000) { job.join() }
+      }
+
+  @Test
+  fun `cordon lets the in-flight session finish, then stops claiming further work`() = runBlocking {
+    val apiClient = WrkFakeApiClient()
+    apiClient.enqueue(testSession("s1"))
+    apiClient.enqueue(testSession("s2"))
+
+    val s1Started = CompletableDeferred<Unit>()
+    val processedIds = mutableListOf<String>()
+
+    val processor = WrkSessionProcessor { session, _ ->
+      if (session.id == "s1") {
+        s1Started.complete(Unit)
+        // Give the cordon() call below a window to land while s1 is still in flight.
+        yield()
+      }
+      processedIds.add(session.id)
+    }
+
+    val pollLoop =
+        WrkPollLoop(
+            apiClient = apiClient,
+            sessionProcessor = processor,
+            emptyPollDelayMillis = 5,
+            log = {},
+        )
+
+    val job = launch { pollLoop.run() }
+    s1Started.await()
+    pollLoop.cordon()
+
+    withTimeout(5_000) { job.join() }
+
+    // s1 ran to completion despite the cordon; s2 was never claimed.
+    assertEquals(listOf("s1"), processedIds)
+  }
+
+  @Test
+  fun `inFlightSessionIds reports the session currently being processed, then clears`() =
+      runBlocking {
+        val apiClient = WrkFakeApiClient()
+        apiClient.enqueue(testSession("s1"))
+
+        val seenInFlight = CompletableDeferred<List<String>>()
+        lateinit var pollLoop: WrkPollLoop
+        val processor = WrkSessionProcessor { _, _ ->
+          seenInFlight.complete(pollLoop.inFlightSessionIds())
+        }
+        pollLoop =
+            WrkPollLoop(
+                apiClient = apiClient,
+                sessionProcessor = processor,
+                emptyPollDelayMillis = 5,
+                log = {},
+            )
+
+        val job = launch { pollLoop.run() }
+        assertEquals(listOf("s1"), seenInFlight.await())
+
+        job.cancel()
+        job.join()
+        assertEquals(emptyList(), pollLoop.inFlightSessionIds())
+      }
+
+  @Test
+  fun `forceFailInFlight fails every currently in-flight session with the given reason`() =
+      runBlocking {
+        val apiClient = WrkFakeApiClient()
+        apiClient.enqueue(testSession("s1"))
+
+        val processingStarted = CompletableDeferred<Unit>()
+        // Never completes: keeps s1 in flight for the duration of the test.
+        val neverFinishes = CompletableDeferred<Unit>()
+        val processor = WrkSessionProcessor { _, _ ->
+          processingStarted.complete(Unit)
+          neverFinishes.await()
+        }
+
+        val pollLoop =
+            WrkPollLoop(
+                apiClient = apiClient,
+                sessionProcessor = processor,
+                emptyPollDelayMillis = 5,
+                log = {},
+            )
+
+        val job = launch { pollLoop.run() }
+        processingStarted.await()
+
+        pollLoop.forceFailInFlight(reason = "worker_replaced_at_drain_deadline")
+
+        val failCall =
+            apiClient.recordedCalls
+                .filterIsInstance<WrkFakeApiClient.RecordedCall.FailSession>()
+                .single()
+        assertEquals("s1", failCall.sessionId)
+        assertTrue(failCall.failureSummary.contains("worker_replaced_at_drain_deadline"))
+
+        job.cancel()
+        job.join()
       }
 }

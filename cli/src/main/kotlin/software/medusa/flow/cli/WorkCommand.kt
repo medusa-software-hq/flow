@@ -6,6 +6,7 @@ import com.linecorp.armeria.client.WebClient
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import software.medusa.flow.githubapp.GitHubAppConfig
 import software.medusa.flow.githubapp.GitHubAppTokenMinter
 import software.medusa.flow.githubapp.RefreshingGitHubAppToken
@@ -134,17 +135,49 @@ class WorkCommand(
             log = { terminal.println(it) },
         )
 
+    // The supervisor's `docker stop -t <D>` timeout, mirrored here so the worker can act *before*
+    // the external SIGKILL lands: past this point it force-kills the in-flight session itself and
+    // tags it FAILED with an explicit reason, rather than being silently SIGKILLed with the session
+    // left to expire lazily via heartbeat timeout. Unset (the default) means drain has no
+    // self-imposed bound — it waits for the session to finish, however long that takes.
+    val drainDeadlineMillis = System.getenv("FLOW_WORKER_DRAIN_DEADLINE_MILLIS")?.toLong()
+
     runBlocking {
       val registrationJob = launch { registrationLoop.run() }
       val loopJob = launch { pollLoop.run() }
 
+      // SIGTERM means drain, not abort: cordon (stop claiming new sessions) and let whatever is
+      // already in flight run to completion, then exit 0. An idle worker has nothing in flight, so
+      // this returns immediately. The JVM doesn't consider shutdown complete — and won't exit —
+      // until this hook returns, which is exactly what gives the in-flight session room to finish.
       Runtime.getRuntime()
           .addShutdownHook(
               Thread {
-                terminal.println("Shutting down, waiting for the current session to finish...")
+                terminal.println(
+                    "Draining: no new sessions will be claimed; waiting for the in-flight " +
+                        "session (if any) to finish",
+                )
+                pollLoop.cordon()
                 runBlocking {
+                  val drainedInTime =
+                      if (drainDeadlineMillis == null) {
+                        loopJob.join()
+                        true
+                      } else {
+                        withTimeoutOrNull(drainDeadlineMillis) { loopJob.join() } != null
+                      }
+
+                  if (!drainedInTime) {
+                    val inFlight = pollLoop.inFlightSessionIds()
+                    terminal.println(
+                        "Drain deadline (${drainDeadlineMillis}ms) exceeded with " +
+                            "${inFlight.size} session(s) still running; force-failing and exiting",
+                    )
+                    pollLoop.forceFailInFlight(reason = drainDeadlineFailureReason)
+                    loopJob.cancelAndJoin()
+                  }
+
                   registrationJob.cancelAndJoin()
-                  loopJob.cancelAndJoin()
                 }
               },
           )
@@ -152,5 +185,16 @@ class WorkCommand(
       loopJob.join()
       registrationJob.cancelAndJoin()
     }
+  }
+
+  companion object {
+    /**
+     * Marker substring for a session force-failed because the worker hit its drain deadline —
+     * distinct from generic heartbeat-timeout expiry, so the affected issue is trivially
+     * identifiable from the failure summary alone.
+     */
+    const val drainDeadlineFailureReason =
+        "Worker was replaced while this session was still running " +
+            "(worker_replaced_at_drain_deadline)"
   }
 }
