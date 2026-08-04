@@ -195,8 +195,8 @@ resource "github_actions_variable" "google_allowed_domain" {
 # rejects variable/secret names starting with "GITHUB_", and neither is
 # actually consumed by any workflow — the client ID is a hardcoded local
 # (module.common.github_app_client_id, wired straight into the Cloud Run env
-# var in backend/api/infra/main.tf) and the PEM is a manually-uploaded Secret
-# Manager placeholder (backend/api/infra/gcp-secret-manager.tf).
+# var in backend/infra/main.tf) and the PEM is a manually-uploaded Secret
+# Manager placeholder (backend/infra/gcp-secret-manager.tf).
 #
 # GCP_CICD_WI_PROVIDER_NAME is likewise absent here: the Workload Identity pool is
 # shared across environments, so both read the same repo-level value.

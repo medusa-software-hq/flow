@@ -7,7 +7,7 @@ set -euo pipefail
 #
 # Requires membership in the flow-admins@medusa.software Google Group, which
 # grants roles/iam.serviceAccountTokenCreator on flow-worker (see
-# backend/api/infra/gcp-worker-sa.tf). Ask to be added if this fails with a
+# backend/infra/gcp-worker-sa.tf). Ask to be added if this fails with a
 # permission error.
 
 project_id="${FLOW_GCP_PROJECT_ID:-ms-flow-b71f4835}"

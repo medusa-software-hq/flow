@@ -17,7 +17,7 @@ resource "google_cloud_run_domain_mapping" "api" {
   }
 
   spec {
-    # The Cloud Run service itself is managed by the backend/api/infra foundation.
+    # The Cloud Run service itself is managed by the backend/infra foundation.
     route_name = module.common.gcp_api_run_service_name
   }
 }

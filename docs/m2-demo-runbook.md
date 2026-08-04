@@ -17,7 +17,7 @@ run the local worker and to merge PRs.
 - The deployed stack (this repo's `trunk/baseline3`), reachable at
   `https://api.flow-baseline.medusa.software`.
 - The GitHub App installed on the demo repo, **and its webhook secret configured**
-  (see [../backend/api/infra/github-webhook.md](../backend/api/infra/github-webhook.md))
+  (see [../backend/infra/github-webhook.md](../backend/infra/github-webhook.md))
   if you want to exercise the webhook path. Steps work on scheduler cadence
   (~3 min) without it.
 - A local worker: `flow work`, configured per [../worker/README.md](../worker/README.md),

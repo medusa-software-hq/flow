@@ -93,7 +93,7 @@ resource "google_project_iam_member" "cicd_sa_secretmanager_admin" {
 }
 
 # Grant CI/CD SA Cloud Scheduler admin (manage the periodic reconcile job — see
-# backend/api/infra/gcp-scheduler.tf, applied by this same SA).
+# backend/infra/gcp-scheduler.tf, applied by this same SA).
 resource "google_project_iam_member" "cicd_sa_cloudscheduler_admin" {
   project = local.gcp_project_id
   role    = "roles/cloudscheduler.admin"

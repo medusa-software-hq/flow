@@ -30,17 +30,17 @@ jobs:
       - uses: terraform-linters/setup-tflint@v6.2.2
 
       - name: Check formatting
-        working-directory: backend/api/infra/domain-mapping
+        working-directory: backend/infra/domain-mapping
         run: terraform fmt -check -recursive
 
       - name: Lint Terraform configuration
-        working-directory: backend/api/infra/domain-mapping
+        working-directory: backend/infra/domain-mapping
         run: tflint --recursive
 
       # No GCP auth / plan here on purpose: keeps the shared domain-mapper SA
       # off pull-request runs. The real apply happens trunk-only.
       - name: Validate Terraform configuration
-        working-directory: backend/api/infra/domain-mapping
+        working-directory: backend/infra/domain-mapping
         run: |
           terraform init -backend=false
           terraform validate
