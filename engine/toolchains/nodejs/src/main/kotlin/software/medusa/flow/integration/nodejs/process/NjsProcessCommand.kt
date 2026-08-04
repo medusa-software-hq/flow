@@ -5,6 +5,7 @@ import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
 import software.medusa.flow.integration.nodejs.NjsCommand
 import software.medusa.flow.integration.nodejs.NjsCommand.ExecutionResult
+import software.medusa.flow.integration.nodejs.njsHermeticEnvironment
 
 class NjsProcessCommand(
     private val processSpawner: SysProcessSpawner,
@@ -19,6 +20,7 @@ class NjsProcessCommand(
             executable = executable,
             workingDirectory = workingDirectory,
             arguments = arguments,
+            environment = njsHermeticEnvironment(),
         )
 
     return ExecutionResult(

@@ -28,6 +28,7 @@ internal constructor(
               .forTasks(taskName.name)
               .setStandardOutput(standardOutput)
               .setStandardError(errorOutput)
+              .setEnvironmentVariables(grdHermeticEnvironment())
               .run()
         }
 
