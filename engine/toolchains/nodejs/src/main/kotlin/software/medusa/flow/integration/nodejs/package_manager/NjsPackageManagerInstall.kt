@@ -3,6 +3,7 @@ package software.medusa.flow.integration.nodejs.package_manager
 import java.nio.file.Path
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
+import software.medusa.flow.integration.nodejs.njsHermeticEnvironment
 
 /**
  * Runs a package-manager install command and fails loudly when it exits non-zero.
@@ -29,6 +30,7 @@ internal suspend fun SysProcessSpawner.runInstallOrThrow(
           executable = executable,
           workingDirectory = workingDirectory,
           arguments = arguments,
+          environment = njsHermeticEnvironment(),
       )
 
   check(outcome.exitCode == 0) {
