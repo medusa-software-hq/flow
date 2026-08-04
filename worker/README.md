@@ -67,22 +67,33 @@ Set `FLOW_WORKER_DRAIN_DEADLINE_MILLIS` to bound how long the worker will
 drain for — mirror it to the supervisor's `docker stop -t <D>` timeout (in
 milliseconds, and a little under `D` to leave room to act before the external
 `SIGKILL` lands). Past that deadline the worker force-kills the in-flight
-session itself and marks it `FAILED` with an explicit reason
-(`worker_replaced_at_drain_deadline`) before exiting, so the affected issue is
-identifiable at a glance rather than left to expire lazily via heartbeat
-timeout. Unset (the default), draining has no self-imposed bound — it waits
-for the session to finish however long that takes.
+session itself and reports it with an explicit reason
+(`worker_replaced_at_drain_deadline`), flagged as a worker death, before
+exiting, so the affected issue is identifiable at a glance rather than left to
+expire lazily via heartbeat timeout. Unset (the default), draining has no
+self-imposed bound — it waits for the session to finish however long that
+takes.
 
 In some sandboxes a signal handler installed by the Armeria/Netty stack can
 intercept `SIGINT` before the JVM's own shutdown-hook machinery runs — if
 `Ctrl-C` doesn't exit cleanly, `SIGTERM` will.
 
-If the worker process dies mid-session (crash, OOM-kill, `kill -9`), there's
-no special recovery: the session simply sits `RUNNING` until its heartbeat
-goes stale, at which point the control plane lazily marks it `FAILED`
-("Worker lost") the next time anyone reads it (no separate sweep process
-needed). Restarting the worker just resumes polling — it keeps no state
-between sessions.
+If the worker process dies mid-session (crash, OOM-kill, `kill -9`), the
+session simply sits `RUNNING` until its heartbeat goes stale, at which point
+the control plane lazily notices it the next time anyone reads it (no
+separate sweep process needed). Worker death — whether a crash caught this
+way or the drain-deadline force-kill above — is a retry, not an abandonment:
+the session is requeued to `PENDING` for a fresh attempt (re-run from the
+issue; no attempt is made to resume or migrate its in-flight state) up to a
+bounded number of times ([`SessionStore.maxWorkerDeathRetries`][sessionstore]
+retries) before it is finally marked `FAILED` ("Worker lost"). A genuine
+engine/task failure — the worker is alive and reports the failure itself —
+always terminates the session immediately; only worker death requeues.
+Restarting the worker just resumes polling — it keeps no state between
+sessions, and a requeued session run by a new worker starts over from
+scratch.
+
+[sessionstore]: ../backend/api/impl/shared/src/main/kotlin/software/medusa/flow/server/SessionStore.kt
 
 ## Target-repo preconditions
 
@@ -177,7 +188,9 @@ profile-revision bump, built on top of the drain contract that already exists.
 - No PR templates, draft PRs, or review-request automation.
 - No cleanup of a stray branch if the worker crashes mid-publish (after
   pushing but before completing the session).
-- No retry or cancel for a claimed session — it runs to a terminal state or
-  the worker dies and it's lazily expired.
+- No cancel for a claimed session — it runs to a terminal state, or the
+  worker dies and it's lazily expired (which now requeues it for a bounded
+  number of retries — see [Running it](#running-it) — rather than abandoning
+  it, but there's still no way to cancel a session on demand).
 - Polling-only; no push notification when a session is queued.
 - Models are hardcoded, not configurable.

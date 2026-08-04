@@ -25,7 +25,11 @@ class WrkFakeApiClient(
 
     data class CompleteSession(val sessionId: String, val prUrl: String) : RecordedCall
 
-    data class FailSession(val sessionId: String, val failureSummary: String) : RecordedCall
+    data class FailSession(
+        val sessionId: String,
+        val failureSummary: String,
+        val workerDeath: Boolean = false,
+    ) : RecordedCall
   }
 
   val recordedCalls: MutableList<RecordedCall> = mutableListOf()
@@ -81,7 +85,8 @@ class WrkFakeApiClient(
   override suspend fun failSession(
       sessionId: String,
       failureSummary: String,
+      workerDeath: Boolean,
   ) {
-    recordedCalls.add(RecordedCall.FailSession(sessionId, failureSummary))
+    recordedCalls.add(RecordedCall.FailSession(sessionId, failureSummary, workerDeath))
   }
 }

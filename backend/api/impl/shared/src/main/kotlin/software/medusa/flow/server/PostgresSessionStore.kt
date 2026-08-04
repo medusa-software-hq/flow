@@ -209,16 +209,20 @@ class PostgresSessionStore(
   override suspend fun fail(
       id: SessionId,
       failureSummary: String,
-  ): GuardedResult<Unit> =
+      workerDeath: Boolean,
+  ): GuardedResult<FailOutcome> =
       withContext(Dispatchers.IO) {
         queries
-            .failIfRunning(
-                failure_summary = failureSummary,
+            .requeueOrFailIfRunning(
+                workerDeath = workerDeath,
+                maxAttempts = SessionStore.maxWorkerDeathRetries,
+                failureSummary = failureSummary,
                 now = clock.now().toOffsetDateTime(),
                 id = id.id,
             )
             .executeAsOneOrNull()
-            .toGuardedUnit()
+            ?.let { GuardedResult.Applied(it.state.toFailOutcome()) }
+            ?: abortedOrPreconditionFailed(id)
       }
 
   override suspend fun expireStale(): Int = withContext(Dispatchers.IO) { expireStaleBlocking() }
@@ -228,12 +232,16 @@ class PostgresSessionStore(
 
     return queries
         .expireStaleSessions(
-            failure_summary = workerLostSummary,
-            last_heartbeat_at = cutoff.toOffsetDateTime(),
+            maxAttempts = SessionStore.maxWorkerDeathRetries,
+            failureSummary = workerLostSummary,
+            cutoff = cutoff.toOffsetDateTime(),
         )
         .executeAsList()
         .size
   }
+
+  private fun String.toFailOutcome(): FailOutcome =
+      if (this == "PENDING") FailOutcome.Requeued else FailOutcome.Failed
 
   private fun SessionState.toDbValue(): String =
       when (this) {
@@ -303,6 +311,7 @@ class PostgresSessionStore(
           failureSummary = failure_summary,
           engine = parseEngine(engine),
           totalCostUsd = total_cost_usd,
+          attemptCount = attempt_count,
       )
 
   private fun Session_events.toDomain(): SessionEvent =

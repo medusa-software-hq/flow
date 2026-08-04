@@ -281,6 +281,7 @@ class WrkPollLoop_tests {
                 .single()
         assertEquals("s1", failCall.sessionId)
         assertTrue(failCall.failureSummary.contains("worker_replaced_at_drain_deadline"))
+        assertTrue(failCall.workerDeath, "drain-deadline force-fail must flag worker_death")
 
         job.cancel()
         job.join()

@@ -139,11 +139,13 @@ private constructor(
   override suspend fun failSession(
       sessionId: String,
       failureSummary: String,
+      workerDeath: Boolean,
   ) {
     stub.failSession(
         failSessionRequest {
           this.sessionId = sessionId
           this.failureSummary = failureSummary
+          this.workerDeath = workerDeath
         },
     )
   }

@@ -233,7 +233,8 @@ class InMemorySessionStore(
   override suspend fun fail(
       id: SessionId,
       failureSummary: String,
-  ): GuardedResult<Unit> =
+      workerDeath: Boolean,
+  ): GuardedResult<FailOutcome> =
       synchronized(lock) {
         val running =
             when (val guard = writableSessionOrGuard(id)) {
@@ -243,14 +244,24 @@ class InMemorySessionStore(
                   return@synchronized GuardedResult.PreconditionFailed
             }
 
-        sessionsById[id] =
-            running.copy(
-                state = SessionState.Failed,
-                failureSummary = failureSummary,
-                lastHeartbeatAt = clock.now(),
-            )
-
-        GuardedResult.Applied(Unit)
+        if (workerDeath && running.attemptCount < SessionStore.maxWorkerDeathRetries) {
+          sessionsById[id] =
+              running.copy(
+                  state = SessionState.Pending,
+                  attemptCount = running.attemptCount + 1,
+                  claimedAt = null,
+                  lastHeartbeatAt = null,
+              )
+          GuardedResult.Applied(FailOutcome.Requeued)
+        } else {
+          sessionsById[id] =
+              running.copy(
+                  state = SessionState.Failed,
+                  failureSummary = failureSummary,
+                  lastHeartbeatAt = clock.now(),
+              )
+          GuardedResult.Applied(FailOutcome.Failed)
+        }
       }
 
   override suspend fun abort(
@@ -307,7 +318,16 @@ class InMemorySessionStore(
 
     staleSessions.forEach { session ->
       sessionsById[session.id] =
-          session.copy(state = SessionState.Failed, failureSummary = workerLostSummary)
+          if (session.attemptCount < SessionStore.maxWorkerDeathRetries) {
+            session.copy(
+                state = SessionState.Pending,
+                attemptCount = session.attemptCount + 1,
+                claimedAt = null,
+                lastHeartbeatAt = null,
+            )
+          } else {
+            session.copy(state = SessionState.Failed, failureSummary = workerLostSummary)
+          }
     }
 
     return staleSessions.size

@@ -81,7 +81,7 @@ class HermeticSadPaths_integrationTests {
       }
 
   @Test
-  fun `a hung worker's heartbeats hold the session until it is killed, then it expires`() =
+  fun `a hung worker's heartbeats hold the session until it is killed, then it is requeued for a fresh attempt`() =
       runSadPath("hang") { harness, worker ->
         harness.awaitSession("the worker to claim") { it.state == SessionState.Running }
 
@@ -99,20 +99,27 @@ class HermeticSadPaths_integrationTests {
             "the repo mutex is held while the worker hangs",
         )
 
-        // Kill it: no more heartbeats → lazy expiry → the session and pipeline fail cleanly.
+        // Kill it: no more heartbeats → lazy expiry → worker death is a retry, not an abandonment,
+        // so the session is requeued (PENDING) rather than failed outright.
         worker.kill()
 
-        val expired =
-            harness.awaitSession("the lost session to expire", timeoutMillis = 20_000) {
-              it.state == SessionState.Failed
+        val requeued =
+            harness.awaitSession("the lost session to requeue", timeoutMillis = 20_000) {
+              it.state == SessionState.Pending
             }
-        assertEquals("Worker lost", expired.failureSummary)
+        assertEquals(1, requeued.attemptCount)
 
-        harness.awaitPipelineFailed()
+        // Still retriable work, not a failure: the pipeline stays IN_PROGRESS (no replacement
+        // worker is started in this test to reclaim it, so it simply waits).
+        harness.reconcile()
+        assertTrue(
+            harness.pipelines.listLive().any { it.state == IssuePipelineState.InProgress },
+            "a requeued session must not fail its pipeline",
+        )
       }
 
   @Test
-  fun `a crash after the push leaves a stray branch, and the next reconcile converges`() =
+  fun `a crash after the push leaves a stray branch, and the lost session is requeued rather than abandoned`() =
       runSadPath("crash-after-publish") { harness, worker ->
         // The engine patched, the worker pushed and opened a PR, then halted before
         // CompleteSession. The halt is after publish() returns, and publish() pushes *then* opens
@@ -126,14 +133,19 @@ class HermeticSadPaths_integrationTests {
             "an engine's branch really landed before the crash\n${worker.output()}",
         )
 
-        // The control plane never heard the work landed → lazy expiry → the pipeline converges to
-        // FAILED rather than hanging forever on a worker that will never report back.
-        harness.awaitSession("the crashed worker's session to expire", timeoutMillis = 20_000) {
-          it.state == SessionState.Failed
+        // The control plane never heard the work landed → lazy expiry → worker death is a retry,
+        // not an abandonment, so the session is requeued (PENDING) rather than lost.
+        harness.awaitSession("the crashed worker's session to requeue", timeoutMillis = 20_000) {
+          it.state == SessionState.Pending
         }
-        harness.awaitPipelineFailed()
 
-        // The stray branch is tolerated — nothing tried to force-clean it.
+        // Still retriable work: the pipeline stays IN_PROGRESS (a re-run from the issue would
+        // re-publish; nothing tried to force-clean the already-landed branch/PR either way).
+        harness.reconcile()
+        assertTrue(
+            harness.pipelines.listLive().any { it.state == IssuePipelineState.InProgress },
+            "a requeued session must not fail its pipeline",
+        )
         assertTrue(harness.anyEngineBranchLanded(), "the stray branch is left in place")
       }
 

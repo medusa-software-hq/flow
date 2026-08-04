@@ -41,8 +41,14 @@ interface WrkApiClient {
       prUrl: String,
   )
 
+  /**
+   * [workerDeath] marks this as the worker itself dying (a drain exceeding its deadline) rather
+   * than a genuine engine/task failure — the control plane requeues those for a fresh attempt
+   * (bounded retry) instead of terminating the session.
+   */
   suspend fun failSession(
       sessionId: String,
       failureSummary: String,
+      workerDeath: Boolean = false,
   )
 }

@@ -122,6 +122,26 @@ class WorkerServicePipelineLinkage_serverTests {
   }
 
   @Test
+  fun `failing an issue-linked session for worker death requeues it and leaves the pipeline in progress`() =
+      runBlocking {
+        val (sessionId, pipelineId) = linkedRunningSession()
+        val client = startServer()
+
+        client.failSession(
+            failSessionRequest {
+              this.sessionId = sessionId.id
+              failureSummary = "worker_replaced_at_drain_deadline"
+              workerDeath = true
+            },
+        )
+
+        // Requeued, not failed: the pipeline's work isn't abandoned, so it stays IN_PROGRESS.
+        assertEquals(SessionState.Pending, sessions.get(sessionId, afterSeq = 0)!!.session.state)
+        assertEquals(IssuePipelineState.InProgress, pipelines.get(pipelineId)!!.state)
+        assertTrue(pipelines.isRepoBusy(repo))
+      }
+
+  @Test
   fun `completing a manual session (no pipeline) touches no pipelines`() = runBlocking {
     val session =
         sessions.create(repo, "# manual", "person@example.com", engine = Engine.Unspecified)

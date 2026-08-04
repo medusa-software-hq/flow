@@ -70,6 +70,8 @@ data class Session(
     val engine: Engine,
     /** Display-only terminal cost in USD; null until the run's RUN_COST event lands. */
     val totalCostUsd: Double? = null,
+    /** How many times this session has been requeued after a worker death; 0 = never. */
+    val attemptCount: Int = 0,
 )
 
 /** A single append-only display event belonging to a session. */
@@ -107,6 +109,15 @@ sealed interface GuardedResult<out T> {
   data object Aborted : GuardedResult<Nothing>
 
   data object PreconditionFailed : GuardedResult<Nothing>
+}
+
+/** What [SessionStore.fail] actually did — see its doc for the branching rule. */
+enum class FailOutcome {
+  /** Terminated FAILED, as any non-worker-death failure always is. */
+  Failed,
+
+  /** Requeued to PENDING for a fresh attempt instead of terminating. */
+  Requeued,
 }
 
 /**
@@ -192,11 +203,19 @@ interface SessionStore {
       prUrl: String,
   ): GuardedResult<Unit>
 
-  /** Transitions a `RUNNING` session to `FAILED` with a human-readable Markdown summary. */
+  /**
+   * Transitions a `RUNNING` session to `FAILED` with a human-readable Markdown [failureSummary] —
+   * unless [workerDeath] is true (the worker itself died: a crash, node failure, or a drain that
+   * exceeded its deadline, as opposed to a genuine engine/task failure) *and* the session hasn't
+   * exhausted its bounded retry budget ([maxWorkerDeathRetries]), in which case it is requeued to
+   * `PENDING` instead (claim/heartbeat cleared, [Session.attemptCount] bumped) so the next claim
+   * gives it a fresh attempt. [FailOutcome] tells the caller which branch was taken.
+   */
   suspend fun fail(
       id: SessionId,
       failureSummary: String,
-  ): GuardedResult<Unit>
+      workerDeath: Boolean = false,
+  ): GuardedResult<FailOutcome>
 
   /**
    * Transitions a `RUNNING` session to `ABORTED` (the human "stop"). Idempotent-ish: an
@@ -208,9 +227,11 @@ interface SessionStore {
   ): GuardedResult<Unit>
 
   /**
-   * Transitions every `RUNNING` session whose heartbeat is older than the configured timeout to
-   * `FAILED` ("worker lost"); returns how many were expired. Invoked implicitly by the reads, but
-   * exposed for explicit sweeps too.
+   * Resolves every `RUNNING` session whose heartbeat is older than the configured timeout — a
+   * worker death by definition, since a live worker heartbeats. Same bounded-retry rule as [fail]:
+   * requeued to `PENDING` while under [maxWorkerDeathRetries], else transitioned to `FAILED`
+   * ("worker lost"). Returns how many were touched (both branches). Invoked implicitly by the
+   * reads, but exposed for explicit sweeps too.
    */
   suspend fun expireStale(): Int
 
@@ -229,6 +250,14 @@ interface SessionStore {
 
     /** Marker summary written when a session is expired for a lost heartbeat. */
     const val workerLostSummary = "Worker lost"
+
+    /**
+     * How many times a session may be requeued after a worker death before it is allowed to
+     * terminate `FAILED`. A session may run up to `maxWorkerDeathRetries + 1` times in total.
+     * Bounded so a session that reliably kills its worker (rather than one merely unlucky enough to
+     * be running when a worker dies) doesn't retry forever.
+     */
+    const val maxWorkerDeathRetries = 2
 
     fun truncateMessage(
         message: String,

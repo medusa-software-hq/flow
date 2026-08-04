@@ -74,6 +74,7 @@ fun Session.toProto(
     createdAt = domainSession.createdAt.toProtoTimestamp()
     createdBy = domainSession.createdBy
     engine = domainSession.engine.toProto()
+    attemptCount = domainSession.attemptCount
     // Proto3 strings default to empty; nulls collapse to "".
     prUrl = domainSession.prUrl.orEmpty()
     failureSummary = domainSession.failureSummary.orEmpty()
