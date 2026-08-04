@@ -28,6 +28,7 @@ All via environment variables, no config file in M1:
 | `FLOW_WORKER_GITHUB_APP_CLIENT_ID` | The GitHub App's client ID (the App from the prerequisites step). |
 | `FLOW_WORKER_GITHUB_APP_PEM` | The App's PKCS#8 private key. The worker signs an App JWT with it and mints a per-repo installation token, refreshing it as it nears expiry. |
 | `OPENROUTER_API_KEY` | As for every other `flow` subcommand. |
+| `FLOW_WORKER_DRAIN_DEADLINE_MILLIS` | Optional. Bounds how long a `SIGTERM`-triggered drain waits for the in-flight session before force-killing it — see [Running it](#running-it). Unset means no bound. |
 
 Missing or blank required variables fail fast at startup with a message
 naming the specific variable — nothing silently runs half-configured.
@@ -52,12 +53,29 @@ flow work
 
 It runs until stopped (`Ctrl-C`/`SIGTERM`): claim → process one session to a
 terminal state → poll again, sleeping between empty polls. Strictly one
-session at a time. Stop it cleanly with `SIGTERM` (a JVM shutdown hook
-cancels the in-flight session's coroutine and waits for it to unwind);
-`SIGINT` also works in most environments, though in some sandboxes a
-signal handler installed by the Armeria/Netty stack can intercept it before
-the JVM's own shutdown-hook machinery runs — if `Ctrl-C` doesn't exit
-cleanly, `SIGTERM` will.
+session at a time.
+
+`SIGTERM`/`Ctrl-C` mean **drain**, not abort: a JVM shutdown hook cordons the
+worker (no new sessions are claimed) and lets whatever session is already in
+flight run to completion, then the process exits `0`. An idle worker has
+nothing to drain, so it exits immediately. This matches the Docker-native
+`docker stop -t <D>` contract, so the same signal a container supervisor sends
+on a routine roll is safe to send to a worker mid-session — no in-flight work
+is abandoned.
+
+Set `FLOW_WORKER_DRAIN_DEADLINE_MILLIS` to bound how long the worker will
+drain for — mirror it to the supervisor's `docker stop -t <D>` timeout (in
+milliseconds, and a little under `D` to leave room to act before the external
+`SIGKILL` lands). Past that deadline the worker force-kills the in-flight
+session itself and marks it `FAILED` with an explicit reason
+(`worker_replaced_at_drain_deadline`) before exiting, so the affected issue is
+identifiable at a glance rather than left to expire lazily via heartbeat
+timeout. Unset (the default), draining has no self-imposed bound — it waits
+for the session to finish however long that takes.
+
+In some sandboxes a signal handler installed by the Armeria/Netty stack can
+intercept `SIGINT` before the JVM's own shutdown-hook machinery runs — if
+`Ctrl-C` doesn't exit cleanly, `SIGTERM` will.
 
 If the worker process dies mid-session (crash, OOM-kill, `kill -9`), there's
 no special recovery: the session simply sits `RUNNING` until its heartbeat
@@ -134,18 +152,25 @@ immediately attributable.
    prints its digest in the job summary.
 2. Append an ms-workload profile revision pinning that digest (and, ideally, set
    `FLOW_WORKER_IMAGE_DIGEST` to it in the profile env).
-3. Restart the worker onto the new revision:
-   `ms-workload worker run --profile flow-worker-staging` (the B5 restart-always
-   supervisor drains the current session, exits, and restarts into the new digest).
+3. Restart the worker onto the new revision: `SIGTERM` the running worker (it
+   drains — see [Running it](#running-it) — rather than abandoning whatever
+   session is in flight) and re-run
+   `ms-workload worker run --profile flow-worker-staging`, which starts a fresh
+   process onto the new digest. There's no supervisor that does this
+   automatically today; it's a manual step.
 
 Until then the next gate run warns about skew. **Treat a worker-touching merge as
 warranting a bump before trusting the next gate.**
 
-**Auto-reload is out of scope for M5** — draining the current session and restarting
-onto a new profile revision automatically belongs to the Workload project's host
-design (the persistent-VM / supervisor debate). M5 only consumes the outcome and, in
-the meantime, makes the skew loud. This section is Flow's requirement into that
-debate: the fix is auto-reload on profile-revision bump.
+**Auto-reload is out of scope for M5** — detecting a new profile revision and
+restarting onto it automatically belongs to the Workload project's host design
+(the persistent-VM / supervisor debate). The worker's half of the contract — that
+a restart signal drains rather than abandons the in-flight session — is real
+(see [Running it](#running-it)); what's still missing is the automation that
+would drive it on every profile-revision bump without an admin doing it by hand.
+M5 only consumes the outcome and, in the meantime, makes the skew loud. This
+section is Flow's requirement into that debate: the fix is auto-reload on
+profile-revision bump, built on top of the drain contract that already exists.
 
 ## Known M1 limitations
 
