@@ -26,7 +26,7 @@ class UnpYamlProjectManifestLoader_repo_tests {
     val manifest = loader.load(projectDirectory = repoRoot)
 
     assertEquals(
-        setOf(absolutePath("/"), absolutePath("/apps/web/spa/frontend")),
+        setOf(absolutePath("/"), absolutePath("/web-app/frontend")),
         manifest.moduleManifestByPath.keys,
     )
   }

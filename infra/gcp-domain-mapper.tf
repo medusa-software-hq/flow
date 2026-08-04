@@ -78,7 +78,7 @@ resource "google_storage_bucket_iam_member" "domain_mapper_state" {
   condition {
     title       = "web_domain_mapping_prefix_only"
     description = "Read/write only the web domain-mapping Terraform state prefix"
-    expression  = "resource.name.startsWith('projects/_/buckets/${module.common.gcp_terraform_state_bucket_name}/objects/projects/${module.common.project_base_name}/${module.common.project_variant}/apps/web/domain-mapping/')"
+    expression  = "resource.name.startsWith('projects/_/buckets/${module.common.gcp_terraform_state_bucket_name}/objects/projects/${module.common.project_base_name}/${module.common.project_variant}/web-app/domain-mapping/')"
   }
 }
 

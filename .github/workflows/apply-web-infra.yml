@@ -4,7 +4,7 @@ on:
   push:
     branches: ["trunk/*"]
     paths:
-      - "apps/web/infra/foundation/**"
+      - "web-app/infra/foundation/**"
       # The shared `infra/common` module this root consumes — a change there must re-apply, or the
       # deployed config drifts silently from the code. See apply-api-infra.yml for the incident.
       - "infra/common/**"
@@ -60,7 +60,7 @@ jobs:
           terraform_version: ~> ${{ env.TERRAFORM_VERSION }}
 
       - name: Apply Terraform configuration
-        working-directory: apps/web/infra/foundation
+        working-directory: web-app/infra/foundation
         env:
           TF_VAR_gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
         run: |
