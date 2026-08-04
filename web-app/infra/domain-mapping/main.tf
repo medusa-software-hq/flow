@@ -27,7 +27,7 @@ terraform {
 # Module imports
 
 module "common" {
-  source = "../../../../infra/common"
+  source = "../../../infra/common"
 }
 
 # Providers

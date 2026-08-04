@@ -11,8 +11,8 @@ env:
   CADDY_VERSION: 2.11.2
   NO_COLOR: 1
 
-  APP_PATH: apps/web/spa
-  FRONTEND_PATH: apps/web/spa/frontend
+  APP_PATH: web-app
+  FRONTEND_PATH: web-app/frontend
 
 jobs:
   build-frontend:

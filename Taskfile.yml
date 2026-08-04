@@ -14,16 +14,16 @@ includes:
     dir: infra
 
   web:app:
-    taskfile: apps/web/spa/Taskfile.yml
-    dir: apps/web/spa
+    taskfile: web-app/Taskfile.yml
+    dir: web-app
 
   web:infra:
-    taskfile: apps/web/infra/foundation/Taskfile.yml
-    dir: apps/web/infra/foundation
+    taskfile: web-app/infra/foundation/Taskfile.yml
+    dir: web-app/infra/foundation
 
   web:domain-mapping:
-    taskfile: apps/web/infra/domain-mapping/Taskfile.yml
-    dir: apps/web/infra/domain-mapping
+    taskfile: web-app/infra/domain-mapping/Taskfile.yml
+    dir: web-app/infra/domain-mapping
 
   api:impl:
     taskfile: backend/api/Taskfile.yml

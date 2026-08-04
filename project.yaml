@@ -4,4 +4,4 @@ modules:
     path: /
   - kind: nodejs
     name: web-spa
-    path: /apps/web/spa/frontend
+    path: /web-app/frontend

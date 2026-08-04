@@ -18,7 +18,7 @@ tasks:
     desc: Generate code from protobuf definitions
     deps: [install]
     sources:
-      - ../../../../proto/**/*.proto
+      - ../../proto/**/*.proto
     generates:
       - src/gen/**/*.ts
     cmds:
