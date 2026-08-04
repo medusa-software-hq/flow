@@ -276,6 +276,40 @@ class HrsProperTaskCompleter_tests {
     }
   }
 
+  /**
+   * A single module modeling unformatted-but-otherwise-correct Kotlin: `analyze` (standing in for
+   * `ktfmtCheck`) fails until `normalize` (standing in for `ktfmtFormat`) has run at least once,
+   * then passes forever after.
+   */
+  private object FormattingOnlyDefectProjectManifestLoader : UnpProjectManifestLoader {
+    override suspend fun load(
+        projectDirectory: UfsReadonlyDirectory,
+    ): UnpProjectManifest {
+      var normalized = false
+
+      return SingleModuleManifest.asProjectManifest(
+          connection =
+              object : UnpModuleConnection {
+                override suspend fun bootstrap() = UnpModuleConnection.Result.Success
+
+                override suspend fun analyze() =
+                    if (normalized) {
+                      UnpModuleConnection.Result.Success
+                    } else {
+                      UnpModuleConnection.Result.Failure(diagnosticOutput = "unformatted Kotlin")
+                    }
+
+                override suspend fun test() = UnpModuleConnection.Result.Success
+
+                override suspend fun normalize(): UnpModuleConnection.Result {
+                  normalized = true
+                  return UnpModuleConnection.Result.Success
+                }
+              },
+      )
+    }
+  }
+
   private class FakePhwWorkspaceAllocator : PhwWorkspaceAllocator {
     override suspend fun allocateWorkspace(): PhwWorkspace =
         object : PhwWorkspace {
@@ -392,6 +426,37 @@ class HrsProperTaskCompleter_tests {
         observer.events,
     )
   }
+
+  @Test
+  fun `a formatting-only defect is auto-fixed by normalize and never fails the gate`() =
+      runBlocking {
+        val taskCompleter =
+            buildTaskCompleter(projectManifestLoader = FormattingOnlyDefectProjectManifestLoader)
+        val observer = RecordingObserver()
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription =
+                    HrsTaskDescription(
+                        body =
+                            MdChapter.leaf(
+                                title = MdInlineContent.of("Task"),
+                                element = MdElement.Empty,
+                            )
+                    ),
+                observer = observer,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+
+        // No unhealthy status ever observed: normalize ran before both the initial and post-patch
+        // gate.
+        assertEquals(
+            emptyList(),
+            observer.events.filter { it == "healthStatus(unhealthy)" },
+        )
+      }
 
   @Test
   fun `an initial health-gate failure stops before scouting and is reported as JointOperation`() =

@@ -6,6 +6,12 @@ bootstrap:
       command: buf
       args: [generate]
 
+normalize:
+  steps:
+    - name: format
+      command: oxfmt
+      args: ["--write", "**/*.{ts,tsx,css}"]
+
 analyze:
   steps:
     - name: format

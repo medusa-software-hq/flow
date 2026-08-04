@@ -652,6 +652,51 @@ class HrsClaudeTaskCompleter_tests {
     }
   }
 
+  /**
+   * Models unformatted-but-otherwise-correct Kotlin: `analyze` (standing in for `ktfmtCheck`) fails
+   * until `normalize` (standing in for `ktfmtFormat`) has run at least once, then passes forever
+   * after — exactly like a real ktfmt check/format pair.
+   */
+  private fun formattingOnlyDefectLoader() = ScriptedProjectManifestLoader {
+    object : UnpModuleConnection {
+      private var normalized = false
+
+      override suspend fun bootstrap() = UnpModuleConnection.Result.Success
+
+      override suspend fun analyze() =
+          if (normalized) {
+            UnpModuleConnection.Result.Success
+          } else {
+            UnpModuleConnection.Result.Failure(diagnosticOutput = "unformatted Kotlin")
+          }
+
+      override suspend fun test() = UnpModuleConnection.Result.Success
+
+      override suspend fun normalize(): UnpModuleConnection.Result {
+        normalized = true
+        return UnpModuleConnection.Result.Success
+      }
+    }
+  }
+
+  @Test
+  fun `a formatting-only defect is auto-fixed by normalize and never fails the gate`() {
+    val process = FakeHrsClaudeProcess.withRuns(cannedRuns = listOf(successRun("sess-1")))
+    val observer = RecordingObserver()
+
+    val result =
+        completeWith(
+            claudeProcess = process,
+            observer = observer,
+            projectManifestLoader = formattingOnlyDefectLoader(),
+            withManifest = true,
+        )
+
+    assertIs<TaskCompletionResult.Success>(result)
+    // No bounce needed: normalize ran before both the initial gate and the post-run gate.
+    assertEquals(1, process.spawnCount)
+  }
+
   @Test
   fun `gated-green - manifest present and the gate passes before and after the run`() {
     val process = FakeHrsClaudeProcess.withRuns(cannedRuns = listOf(successRun("sess-1")))
