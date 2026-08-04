@@ -23,6 +23,7 @@ class ReconcilePicker_tests {
       title: String = "Issue $number",
       body: String = "Body $number",
       labels: Set<String> = emptySet(),
+      priorityField: String? = null,
   ) =
       CandidateIssue(
           number = number,
@@ -31,6 +32,7 @@ class ReconcilePicker_tests {
           url = "https://x/$number",
           createdAt = Instant.parse(createdAt),
           labels = labels,
+          priorityField = priorityField,
       )
 
   @Test
@@ -215,6 +217,59 @@ class ReconcilePicker_tests {
                 "2026-05-02T00:00:00Z",
                 labels = setOf("priority:low", "priority:urgent"),
             ),
+        )
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    assertEquals(2, pipeline.issueNumber)
+  }
+
+  @Test
+  fun `the priority field beats age and takes precedence over a stale label`() = runBlocking {
+    val fx = Fixture()
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(
+            candidate(1, "2026-05-01T00:00:00Z"), // older, unlabeled (medium)
+            candidate(2, "2026-05-02T00:00:00Z", priorityField = "Urgent"), // newer, field-set
+        )
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    val pipeline = fx.pipelines.list(repo).single()
+    assertEquals(2, pipeline.issueNumber)
+  }
+
+  @Test
+  fun `the priority field wins over a conflicting label - the field is authoritative`() =
+      runBlocking {
+        val fx = Fixture()
+        fx.candidates.candidatesByRepo[repo] =
+            listOf(
+                candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:urgent")),
+                // Migrated: the field says low even though the (stale, not-yet-retired) label
+                // still says urgent. The field wins.
+                candidate(
+                    2,
+                    "2026-05-02T00:00:00Z",
+                    labels = setOf("priority:urgent"),
+                    priorityField = "Low",
+                ),
+            )
+
+        assertEquals(1, fx.picker.pick(repo))
+
+        val pipeline = fx.pipelines.list(repo).single()
+        assertEquals(1, pipeline.issueNumber) // the label-only issue (still urgent) wins
+      }
+
+  @Test
+  fun `the priority field is matched case-insensitively`() = runBlocking {
+    val fx = Fixture()
+    fx.candidates.candidatesByRepo[repo] =
+        listOf(
+            candidate(1, "2026-05-01T00:00:00Z"), // unlabeled, medium
+            candidate(2, "2026-05-02T00:00:00Z", priorityField = "urgent"), // lowercase
         )
 
     assertEquals(1, fx.picker.pick(repo))

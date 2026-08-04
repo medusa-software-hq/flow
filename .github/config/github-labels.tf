@@ -1,37 +1,44 @@
-# `priority:*` labels — operator-settable ordering for the `flow:ready` backlog (see
-# ReconcilePicker/IssuePriority). Named like Linear's, so the order is unambiguous from the name
-# alone. `priority:medium` is the implicit default for an unlabeled ready issue; only label to
-# raise (`urgent`/`high`) or defer (`low`).
+# `priority:*` labels — RETIRED. Priority now lives in the native GitHub `Priority` Issue Field
+# (see IssuePriority/ReconcilePicker/GitHubAppCandidateClient in backend/api/shared, and the
+# migration runbook at docs/priority-issue-field-migration.md), not a label. These `removed` blocks
+# are the safe handoff: applying them unregisters the four resources below from Terraform state
+# without touching the live labels (`lifecycle.destroy = false` — the declarative equivalent of
+# `terraform state rm`, committed instead of run by hand so it's reviewable and repeatable). That
+# keeps `apply` from planning a destroy that would strip the label off every issue that still
+# carries it mid-migration.
 #
-# If any of these labels already exist on the repo (created ad hoc before this file), import-adopt
-# them instead of letting `apply` fail on a name collision:
-#   terraform import github_issue_label.priority_urgent flow:priority:urgent
-# (repeat per label, substituting the GitHub repo name for "flow" if it differs).
+# Deleting the live labels from the repo is a separate, explicit, one-time step — run only after the
+# runbook's backfill confirms every open issue's priority survived the move to the field — never a
+# side effect of `apply` or of Flow's reconciler (same rule GitHubIssueClient follows for its own
+# `flow:*` labels: irreversible, so never automatic). See the runbook for the exact command.
+#
+# Once every environment has applied these `removed` blocks (so the resources are out of every
+# workspace's state) and the live labels are deleted, this whole file can be deleted too.
 
-resource "github_issue_label" "priority_urgent" {
-  repository  = github_repository.this.name
-  name        = "priority:urgent"
-  color       = "b60205"
-  description = "Jump the ready queue — picked before every other priority tier."
+removed {
+  from = github_issue_label.priority_urgent
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "github_issue_label" "priority_high" {
-  repository  = github_repository.this.name
-  name        = "priority:high"
-  color       = "d93f0b"
-  description = "Elevated — picked before medium/low, after urgent."
+removed {
+  from = github_issue_label.priority_high
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "github_issue_label" "priority_medium" {
-  repository  = github_repository.this.name
-  name        = "priority:medium"
-  color       = "fbca04"
-  description = "Normal priority — the implicit default for an unlabeled ready issue."
+removed {
+  from = github_issue_label.priority_medium
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "github_issue_label" "priority_low" {
-  repository  = github_repository.this.name
-  name        = "priority:low"
-  color       = "c5c5c5"
-  description = "Deferred — picked only after every other priority tier is exhausted."
+removed {
+  from = github_issue_label.priority_low
+  lifecycle {
+    destroy = false
+  }
 }

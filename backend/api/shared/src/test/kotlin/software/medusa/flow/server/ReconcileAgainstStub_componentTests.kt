@@ -170,6 +170,40 @@ class ReconcileAgainstStub_componentTests {
         assertEquals(2, pipelines.listLive().single().issueNumber)
       }
 
+  @Test
+  fun `readPriorityField reads the Priority Issue Field over real GraphQL`() = runBlocking {
+    stub.seedIssue(repo, 1, "A", labels = setOf("flow:ready"), priorityField = "Urgent")
+    stub.seedIssue(repo, 2, "B", labels = setOf("flow:ready")) // unset
+
+    val client = GitHubAppCandidateClient(candidateAppClient(), readPriorityField = true)
+    val candidates = client.findReadyCandidates(repo).associateBy { it.number }
+
+    assertEquals("Urgent", candidates.getValue(1).priorityField)
+    assertEquals(null, candidates.getValue(2).priorityField)
+  }
+
+  @Test
+  fun `readPriorityField degrades to label-only candidates when the stub schema doesn't support it`() =
+      runBlocking {
+        stub.issueFieldsSupported = false
+        stub.seedIssue(repo, 1, "A", labels = setOf("flow:ready", "priority:high"))
+
+        val client = GitHubAppCandidateClient(candidateAppClient(), readPriorityField = true)
+        val candidates = client.findReadyCandidates(repo)
+
+        // The GraphQL `errors` response is caught and retried without the field fragment — the
+        // candidate is still returned (with its label intact), not lost.
+        assertEquals(1, candidates.single().number)
+        assertEquals(null, candidates.single().priorityField)
+        assertTrue("priority:high" in candidates.single().labels)
+      }
+
+  private fun candidateAppClient(): GitHubAppClient =
+      GitHubAppClient(
+          GitHubAppConfig("id", FakeGitHubAppKey.pkcs8Pem, "acme", "app"),
+          webClient = WebClient.of(stub.baseUrl),
+      )
+
   private val stubUrl: String
     get() = stub.baseUrl
 
