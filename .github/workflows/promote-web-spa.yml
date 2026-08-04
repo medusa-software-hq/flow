@@ -105,10 +105,6 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/check-staging-smoke.yml
-    # Pass the sandbox App key through for the loop tier's PR assertion/cleanup (story 03). The gate
-    # declares it optional, so this is harmless when the loop tier is disabled.
-    secrets:
-      NIGHTLY_APP_PEM_CONTENT: ${{ secrets.NIGHTLY_APP_PEM_CONTENT }}
 
   deploy-prod:
     name: Deploy prod (promote)

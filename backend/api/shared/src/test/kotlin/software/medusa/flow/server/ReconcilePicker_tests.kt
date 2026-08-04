@@ -58,9 +58,9 @@ class ReconcilePicker_tests {
   }
 
   @Test
-  fun `pick fans out to a primary Claude session and a built-in shadow session`() = runBlocking {
+  fun `pick creates only a primary Claude session - no built-in shadow`() = runBlocking {
     val fx = Fixture()
-    // No flow:engine label matters any more — both engines always run.
+    // No flow:engine label matters — the picked session is always Claude.
     fx.candidates.candidatesByRepo[repo] =
         listOf(candidate(1, "2026-05-01T00:00:00Z", labels = setOf("flow:ready")))
 
@@ -68,17 +68,13 @@ class ReconcilePicker_tests {
 
     val pipeline = fx.pipelines.list(repo).single()
     val primary = fx.sessions.get(pipeline.sessionId!!, afterSeq = 0)!!.session
-    val shadow = fx.sessions.get(pipeline.shadowSessionId!!, afterSeq = 0)!!.session
 
-    // The primary drives the pipeline (Claude); the shadow runs unobserved (built-in).
+    // The primary drives the pipeline (Claude); no shadow session is created (built-in is too
+    // unreliable to run unattended).
     assertEquals(Engine.Claude, primary.engine)
-    assertEquals(Engine.Builtin, shadow.engine)
-    assertTrue(primary.id != shadow.id)
-    // Both are PENDING/claimable and share the same task.
-    assertEquals(SessionState.Pending, shadow.state)
-    assertEquals("# Issue 1\n\nBody 1", shadow.taskMarkdown)
-    // Exactly the two fan-out sessions were created.
-    assertEquals(2, fx.sessions.list(limit = 100).size)
+    assertEquals(null, pipeline.shadowSessionId)
+    // Exactly the one session was created.
+    assertEquals(1, fx.sessions.list(limit = 100).size)
   }
 
   @Test

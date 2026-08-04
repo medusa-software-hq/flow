@@ -24,7 +24,7 @@ class InMemoryIssuePipelineStore(
       issueTitle: String,
       issueUrl: String,
       sessionId: SessionId,
-      shadowSessionId: SessionId,
+      shadowSessionId: SessionId?,
   ): PickResult =
       synchronized(backend.lock) {
         if (isRepoBusyLocked(repoFullName)) return@synchronized PickResult.RepoBusy

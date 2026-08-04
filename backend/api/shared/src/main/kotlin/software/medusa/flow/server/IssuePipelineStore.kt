@@ -96,9 +96,11 @@ sealed interface PipelineTransition {
 interface IssuePipelineStore {
   /**
    * Atomically starts a pipeline for `(repoFullName, issueNumber)` if the repo is free: inserts an
-   * `IN_PROGRESS` row linked to [sessionId] and enqueues the `flow:in-progress` label. Returns
-   * [PickResult.RepoBusy] without changing anything if the repo already has a live pipeline. The
-   * SQL uniqueness indexes make a double-pick impossible even under a race.
+   * `IN_PROGRESS` row linked to [sessionId] (and [shadowSessionId], when the caller fans out a
+   * built-in shadow session — currently disabled, see [shadowSessionId]) and enqueues the
+   * `flow:in-progress` label. Returns [PickResult.RepoBusy] without changing anything if the repo
+   * already has a live pipeline. The SQL uniqueness indexes make a double-pick impossible even
+   * under a race.
    */
   suspend fun pick(
       repoFullName: String,
@@ -106,7 +108,7 @@ interface IssuePipelineStore {
       issueTitle: String,
       issueUrl: String,
       sessionId: SessionId,
-      shadowSessionId: SessionId,
+      shadowSessionId: SessionId?,
   ): PickResult
 
   /** `IN_PROGRESS → PR_OPEN`. Enqueues the label swap `flow:in-progress` → `flow:pr-open`. */

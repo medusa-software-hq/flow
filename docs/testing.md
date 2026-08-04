@@ -78,27 +78,20 @@ application-default login` (as a `flow-admins@` member, who can impersonate the
 worker SA); in CI the WIF step provides it. See
 [`../system-tests/README.md`](../system-tests/README.md).
 
-## The promotion gate, and the loop-tier flip criteria
+## The promotion gate
 
 `check-staging-smoke.yml` is the gate between the staging and prod deploys. It
-always runs the **smoke tier** (no worker needed — a worker outage never blocks
-an API-only fix). It runs the **loop tier** only when the **`FLOW_LOOP_GATE`**
-repo/environment variable is `enabled`.
+runs only the **smoke tier** (no worker needed — a worker outage never blocks
+an API-only fix).
 
-**Flip `FLOW_LOOP_GATE=enabled`** once both hold:
-
-1. **A persistent, supervised staging worker** is guaranteed — an admin runs
-   `ms-workload worker run --profile flow-worker-staging` under a supervisor that
-   survives reboots (not an ad-hoc process). See [`../worker/README.md`](../worker/README.md).
-2. **Transient model flakes are absorbed** — the loop drives a real LLM, which
-   can fail transiently (`finish_reason=error`, cut-short responses). Until the
-   loop tier retries such failures, a flake would redden the gate; the interim
-   policy is **re-run the failed `loop` job** (`gh run rerun <id> --failed`),
-   exactly as the retired nightly's transient-flake guidance.
-
-While `FLOW_LOOP_GATE` is unset, promotions ride the smoke tier and the loop
-tier is skipped (never parks prod). The daily scheduled run follows the same
-flag.
+The **loop tier** (`LoopTierTest`) is currently **disabled**, not deleted — it
+no longer runs as part of this workflow (removed the `loop` job, the
+`FLOW_LOOP_GATE`-gated job that ran it against the staging worker's default
+engine). That default is `builtin`, which is too unreliable to gate prod
+promotion on: its flakes (`JsonDecodingException`, patch-application failures)
+blocked promotion more than once. See `LoopTierTest` — it still builds and
+runs ad hoc; re-enable once it can target a reliable engine (the planned
+leader/assistant engine superseding `builtin`).
 
 ## Flake-budget policy
 
@@ -112,13 +105,9 @@ flag.
   (model cut-short / `finish_reason=error` / rate limit — see
   `LoopFailureClassifier`) is re-run with a fresh session; a *deterministic*
   failure (real session failure, no PR, PR not open) fails immediately, and a
-  transient flake that doesn't clear on the retry is treated as real. So a
-  single provider hiccup no longer reddens the gate. If the gate still goes red
-  on a *transient* failure that slipped the classifier, the fallback is **one**
-  manual `gh run rerun <id> --failed`; a second failure is a real regression —
-  do not re-run past it. Escalation: if the loop tier flakes more than ~1 run in
-  5 even with the retry, it is not fit to gate — disable `FLOW_LOOP_GATE`,
-  widen the classifier or investigate, then re-enable.
+  transient flake that doesn't clear on the retry is treated as real. It no
+  longer gates promotion (see above) — this policy applies when running it
+  ad hoc.
 
 ## Sandbox reset
 
