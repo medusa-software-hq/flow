@@ -134,6 +134,7 @@ class FlowFormatTest {
         formatPipelineTable(
             listOf(
                 issuePipeline {
+                  id = "p-1"
                   repoFullName = "acme/app"
                   issueNumber = 5
                   issueTitle = "Fix the thing"
@@ -147,7 +148,10 @@ class FlowFormatTest {
             ),
         )
     val lines = table.lines()
-    assertTrue(lines[0].startsWith("REPO"))
+    assertTrue(lines[0].startsWith("ID"))
+    // The pipeline id — distinct from the session id — is what `flow pipelines clear` wants, so it
+    // must be present and copyable straight from `list`.
+    assertTrue(lines[1].contains("p-1"))
     assertTrue(lines[1].contains("#5 Fix the thing"))
     assertTrue(lines[1].contains("Failed"))
     assertTrue(lines[1].contains("cleared"))
