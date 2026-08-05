@@ -393,6 +393,37 @@ class HrsProperToolbox_tests {
   }
 
   @Test
+  fun `checkGate reports healthy when analyze and test both pass`() = runBlocking {
+    val gitWorktree = loadGitWorktree()
+    val toolbox =
+        buildToolbox(gitWorktree = gitWorktree, moduleConnection = AlwaysSuccessfulModuleConnection)
+
+    assertEquals(HrsToolbox.GateOutcome.Healthy, toolbox.checkGate())
+  }
+
+  @Test
+  fun `checkGate surfaces diagnostics on failure, independent of any run_checks call`() =
+      runBlocking {
+        val gitWorktree = loadGitWorktree()
+        val toolbox =
+            buildToolbox(
+                gitWorktree = gitWorktree,
+                moduleConnection =
+                    FixedResultModuleConnection(
+                        testResult =
+                            UnpModuleConnection.Result.Failure(
+                                diagnosticOutput = "assertion failed on line 9",
+                            ),
+                    ),
+            )
+
+        // No `run_checks` tool call was ever made — checkGate still runs the gate itself.
+        val gate = assertIs<HrsToolbox.GateOutcome.Unhealthy>(toolbox.checkGate())
+        assertTrue(gate.diagnosticsText.contains("Testing failed"))
+        assertTrue(gate.diagnosticsText.contains("assertion failed on line 9"))
+      }
+
+  @Test
   fun `done unwraps its argument into the finished report`() = runBlocking {
     val gitWorktree = loadGitWorktree()
     val toolbox = buildToolbox(gitWorktree = gitWorktree)

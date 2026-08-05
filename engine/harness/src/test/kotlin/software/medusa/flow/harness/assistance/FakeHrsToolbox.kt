@@ -21,6 +21,7 @@ class FakeHrsToolbox(
     private val behaviorByToolName:
         Map<String, (JsonElement, VedWorktree) -> HrsToolbox.ToolOutcome> =
         emptyMap(),
+    private val gateBehavior: () -> HrsToolbox.GateOutcome = { HrsToolbox.GateOutcome.Healthy },
 ) : HrsToolbox {
   data class Call(
       val toolName: String,
@@ -29,6 +30,9 @@ class FakeHrsToolbox(
   )
 
   val calls: MutableList<Call> = mutableListOf()
+
+  /** Every [checkGate] outcome returned so far, in order — lets a test assert on bounce counts. */
+  val gateChecks: MutableList<HrsToolbox.GateOutcome> = mutableListOf()
 
   override suspend fun execute(
       toolName: String,
@@ -42,4 +46,7 @@ class FakeHrsToolbox(
     return behavior?.invoke(rawArguments, worktree)
         ?: defaultBehavior(toolName, rawArguments, worktree)
   }
+
+  override suspend fun checkGate(): HrsToolbox.GateOutcome =
+      gateBehavior().also { gateChecks += it }
 }

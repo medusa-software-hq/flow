@@ -42,6 +42,22 @@ interface HrsToolbox {
     ) : ToolOutcome()
   }
 
+  /**
+   * The result of running the project's analyze+test gate directly, independent of whatever the
+   * assistant's own `run_checks` tool calls showed. [HrsProperAssistant] runs this itself at `done`
+   * — never trusting the assistant's last self-reported `run_checks` result — to decide whether a
+   * report is honest before accepting it.
+   */
+  sealed class GateOutcome {
+    /** Both analyze and test passed. */
+    data object Healthy : GateOutcome()
+
+    /** At least one stage failed; [diagnosticsText] is the same rendering `run_checks` shows. */
+    data class Unhealthy(
+        val diagnosticsText: String,
+    ) : GateOutcome()
+  }
+
   /** The tool definitions to configure the model's client with — fixed, independent of state. */
   val toolDefinitions: List<OaiToolDefinition>
 
@@ -54,4 +70,11 @@ interface HrsToolbox {
       rawArguments: JsonElement,
       worktree: VedWorktree,
   ): ToolOutcome
+
+  /**
+   * Runs the authoritative analyze+test gate against the current physical workspace. Takes no
+   * worktree — like `run_checks`, it drives the project connection directly and neither reads nor
+   * changes the virtual worktree.
+   */
+  suspend fun checkGate(): GateOutcome
 }
