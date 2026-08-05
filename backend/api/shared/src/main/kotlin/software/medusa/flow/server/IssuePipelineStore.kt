@@ -16,6 +16,11 @@ value class IssuePipelineId(
  * ```
  *
  * `DONE` is terminal; `FAILED` is terminal-until-cleared.
+ *
+ * The repo mutex for *picking* releases at the `PR_OPEN → AWAITING_MERGE_CHECKS` transition (i.e.
+ * at merge), not at `DONE`: `AWAITING_MERGE_CHECKS` is still watched ([IssuePipeline.isLive]) but
+ * no longer blocks picking the next issue ([IssuePipeline.blocksPick]). See that property's doc for
+ * the trade-off.
  */
 enum class IssuePipelineState {
   InProgress,
@@ -49,8 +54,11 @@ data class IssuePipeline(
     val clearedAt: Instant?,
 ) {
   /**
-   * A live pipeline holds its repo's mutex: an active state, or a `FAILED` row that hasn't been
-   * cleared (FAILED holds the mutex — the deliberate maximum-caution starting point).
+   * A live pipeline is still being watched by reconcile's observe phase: an active state, or a
+   * `FAILED` row that hasn't been cleared. This is *not* the repo mutex — see [blocksPick] for that
+   * — it's the set [ReconcileObserver] polls and [Reconciler.relevantRepos] treats as relevant.
+   * `AWAITING_MERGE_CHECKS` is live (its post-merge checks are still being watched) but does not
+   * block picking.
    */
   val isLive: Boolean
     get() =
@@ -58,6 +66,24 @@ data class IssuePipeline(
           IssuePipelineState.InProgress,
           IssuePipelineState.PrOpen,
           IssuePipelineState.AwaitingMergeChecks -> true
+          IssuePipelineState.Failed -> clearedAt == null
+          IssuePipelineState.Done -> false
+        }
+
+  /**
+   * Holds the repo mutex for *picking*: only the pre-merge work phase, where an unmerged branch is
+   * off trunk (`IN_PROGRESS`, `PR_OPEN`), plus an uncleared `FAILED` row (maximum-caution: a
+   * post-merge failure halts further picks until a human clears it — see the pipeline mutex
+   * design). `AWAITING_MERGE_CHECKS` deliberately does *not* block picking: once a PR merges, the
+   * next issue can branch off the now-updated trunk while this pipeline's post-merge checks are
+   * still watched in parallel (still [isLive], just no longer blocking).
+   */
+  val blocksPick: Boolean
+    get() =
+        when (state) {
+          IssuePipelineState.InProgress,
+          IssuePipelineState.PrOpen -> true
+          IssuePipelineState.AwaitingMergeChecks -> false
           IssuePipelineState.Failed -> clearedAt == null
           IssuePipelineState.Done -> false
         }
@@ -69,7 +95,7 @@ sealed interface PickResult {
       val pipeline: IssuePipeline,
   ) : PickResult
 
-  /** The repo already has a live pipeline; the pick was a no-op. */
+  /** The repo already has a pipeline that [IssuePipeline.blocksPick]; the pick was a no-op. */
   data object RepoBusy : PickResult
 }
 
@@ -99,8 +125,8 @@ interface IssuePipelineStore {
    * `IN_PROGRESS` row linked to [sessionId] (and [shadowSessionId], when the caller fans out a
    * built-in shadow session — currently disabled, see [shadowSessionId]) and enqueues the
    * `flow:in-progress` label. Returns [PickResult.RepoBusy] without changing anything if the repo
-   * already has a live pipeline. The SQL uniqueness indexes make a double-pick impossible even
-   * under a race.
+   * already has a pipeline that [IssuePipeline.blocksPick] (pre-merge work, or an uncleared
+   * `FAILED`). The SQL uniqueness indexes make a double-pick impossible even under a race.
    */
   suspend fun pick(
       repoFullName: String,
@@ -167,7 +193,7 @@ interface IssuePipelineStore {
       sessionId: SessionId,
   ): IssuePipeline?
 
-  /** Every live pipeline (the ones holding a repo mutex), across all repos. */
+  /** Every live pipeline ([IssuePipeline.isLive] — the ones reconcile's observer watches). */
   suspend fun listLive(): List<IssuePipeline>
 
   /** Pipelines newest-first, optionally filtered to one repo. */
@@ -175,7 +201,11 @@ interface IssuePipelineStore {
       repoFullName: String?,
   ): List<IssuePipeline>
 
-  /** Whether [repoFullName] currently has a live pipeline. */
+  /**
+   * Whether [repoFullName] currently has a pipeline that [IssuePipeline.blocksPick] — the repo
+   * mutex for picking. `AWAITING_MERGE_CHECKS` does not count: it's released from the mutex the
+   * moment its PR merges, even though it's still [IssuePipeline.isLive] and being watched.
+   */
   suspend fun isRepoBusy(
       repoFullName: String,
   ): Boolean

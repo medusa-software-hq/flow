@@ -226,7 +226,7 @@ class InMemoryIssuePipelineStore(
 
   private fun isRepoBusyLocked(
       repoFullName: String,
-  ): Boolean = backend.pipelinesById.values.any { it.repoFullName == repoFullName && it.isLive }
+  ): Boolean = backend.pipelinesById.values.any { it.repoFullName == repoFullName && it.blocksPick }
 
   /**
    * Applies [update] to the pipeline [id] iff it's currently in state [from], enqueuing whatever

@@ -38,7 +38,7 @@ class PostgresIssuePipelineStore(
   ): PickResult =
       withContext(Dispatchers.IO) {
         database.transactionWithResult {
-          if (pipelines.countLiveForRepo(repoFullName).executeAsOne() > 0) {
+          if (pipelines.countBlockingPickForRepo(repoFullName).executeAsOne() > 0) {
             return@transactionWithResult PickResult.RepoBusy
           }
 
@@ -249,7 +249,9 @@ class PostgresIssuePipelineStore(
   override suspend fun isRepoBusy(
       repoFullName: String,
   ): Boolean =
-      withContext(Dispatchers.IO) { pipelines.countLiveForRepo(repoFullName).executeAsOne() > 0 }
+      withContext(Dispatchers.IO) {
+        pipelines.countBlockingPickForRepo(repoFullName).executeAsOne() > 0
+      }
 
   private fun rejected(
       id: IssuePipelineId,

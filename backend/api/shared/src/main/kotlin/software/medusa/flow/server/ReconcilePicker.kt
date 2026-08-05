@@ -6,11 +6,13 @@ import org.slf4j.LoggerFactory
  * The reconcile pick phase (story 07): if the repo is free, start work on the highest-priority
  * unblocked `ready` issue (oldest first within a priority tier — see [IssuePriority]).
  *
- * The repo mutex ([IssuePipelineStore.isRepoBusy], which counts a non-cleared `FAILED` row as busy
- * — maximum caution) gates picking: one failure stops the repo until a human clears it. Candidates
- * come from [GitHubCandidateClient] (already filtered to open, `ready`, zero-open-blockers); we
- * drop any that already have a non-cleared pipeline row, take the highest-priority/oldest, create
- * an issue's session, and start the pipeline.
+ * The repo mutex ([IssuePipelineStore.isRepoBusy], true for the pre-merge work phase —
+ * `IN_PROGRESS` / `PR_OPEN` — plus a non-cleared `FAILED` row; maximum caution) gates picking: it
+ * releases as soon as the current pipeline's PR merges (`AWAITING_MERGE_CHECKS` doesn't count), so
+ * the next issue starts while post-merge checks are still watched, but one post-merge failure stops
+ * the repo until a human clears it. Candidates come from [GitHubCandidateClient] (already filtered
+ * to open, `ready`, zero-open-blockers); we drop any that already have a non-cleared pipeline row,
+ * take the highest-priority/oldest, create an issue's session, and start the pipeline.
  *
  * Atomicity: the session and the `pick` are two store calls, made safe by the reconciler's per-repo
  * lock ([RepoLock]) — no other pick for this repo can interleave in M2's single-instance control

@@ -47,16 +47,20 @@ SELECT * FROM issue_pipelines ORDER BY created_at DESC;
 listByRepo:
 SELECT * FROM issue_pipelines WHERE repo_full_name = ? ORDER BY created_at DESC;
 
--- Live = holds the repo mutex: an active state, or an uncleared FAILED row.
+-- Live = still watched by reconcile's observer: an active state, or an uncleared FAILED row. This
+-- is broader than the picking mutex below — AWAITING_MERGE_CHECKS is live (still watched) but no
+-- longer blocks a pick.
 listLive:
 SELECT * FROM issue_pipelines
 WHERE state IN ('IN_PROGRESS', 'PR_OPEN', 'AWAITING_MERGE_CHECKS')
    OR (state = 'FAILED' AND cleared_at IS NULL);
 
-countLiveForRepo:
+-- The repo mutex for picking: only the pre-merge work phase (an unmerged branch off trunk), plus
+-- an uncleared FAILED row. Mirrors issue_pipelines_one_busy_per_repo_idx (V13); must move with it.
+countBlockingPickForRepo:
 SELECT COUNT(*) FROM issue_pipelines
 WHERE repo_full_name = ?
-  AND (state IN ('IN_PROGRESS', 'PR_OPEN', 'AWAITING_MERGE_CHECKS')
+  AND (state IN ('IN_PROGRESS', 'PR_OPEN')
        OR (state = 'FAILED' AND cleared_at IS NULL));
 
 -- Guarded transitions: each only applies against the expected source state and

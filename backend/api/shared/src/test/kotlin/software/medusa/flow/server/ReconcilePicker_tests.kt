@@ -97,6 +97,24 @@ class ReconcilePicker_tests {
   }
 
   @Test
+  fun `AWAITING_MERGE_CHECKS does not hold the mutex - the next issue pipelines`() = runBlocking {
+    val fx = Fixture()
+    val existing =
+        (fx.pipelines.pick(repo, 99, "existing", "u", SessionId("e")) as PickResult.Picked).pipeline
+    fx.pipelines.markPrOpen(existing.id, 1, "pr")
+    fx.pipelines.markAwaitingMergeChecks(existing.id, "sha")
+    fx.candidates.candidatesByRepo[repo] = listOf(candidate(1, "2026-05-01T00:00:00Z"))
+
+    assertEquals(1, fx.picker.pick(repo))
+
+    assertEquals(setOf(99, 1), fx.pipelines.list(repo).map { it.issueNumber }.toSet())
+    assertEquals(
+        IssuePipelineState.AwaitingMergeChecks,
+        fx.pipelines.get(existing.id)!!.state,
+    ) // still watched, untouched by the new pick
+  }
+
+  @Test
   fun `a non-cleared FAILED pipeline holds the mutex - no pick`() = runBlocking {
     val fx = Fixture()
     val existing =
