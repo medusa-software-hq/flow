@@ -20,6 +20,7 @@ import software.medusa.commons.openai_client.OaiResult
 import software.medusa.commons.openai_client.OaiTokenUsage
 import software.medusa.commons.openai_client.messages.OaiAssistantMessage
 import software.medusa.commons.openai_client.messages.OaiToolOutputMessage
+import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.commons.openai_client.tools.OaiToolCall
 import software.medusa.commons.openai_client.tools.OaiToolCallId
 import software.medusa.commons.openai_client.tools.OaiToolName
@@ -130,6 +131,7 @@ class HrsProperAssistant_tests {
    * [HrsProperToolbox]'s real behavior); every other tool goes through [nonDoneBehavior].
    */
   private fun toolboxHandlingDone(
+      gateBehavior: () -> HrsToolbox.GateOutcome = { HrsToolbox.GateOutcome.Healthy },
       nonDoneBehavior: (String, JsonElement, VedWorktree) -> HrsToolbox.ToolOutcome,
   ): FakeHrsToolbox =
       FakeHrsToolbox(
@@ -143,13 +145,16 @@ class HrsProperAssistant_tests {
               nonDoneBehavior(toolName, rawArguments, worktree)
             }
           },
+          gateBehavior = gateBehavior,
       )
 
   private fun applyingToolbox(
       resultText: String = "ok",
-  ): FakeHrsToolbox = toolboxHandlingDone { _, _, worktree ->
-    HrsToolbox.ToolOutcome.Applied(newWorktree = worktree, resultText = resultText)
-  }
+      gateBehavior: () -> HrsToolbox.GateOutcome = { HrsToolbox.GateOutcome.Healthy },
+  ): FakeHrsToolbox =
+      toolboxHandlingDone(gateBehavior = gateBehavior) { _, _, worktree ->
+        HrsToolbox.ToolOutcome.Applied(newWorktree = worktree, resultText = resultText)
+      }
 
   @Test
   fun `a single done call ends the thread with its report`() = runBlocking {
@@ -405,4 +410,114 @@ class HrsProperAssistant_tests {
         assertEquals(HrsDelegationOutcome.Failed, result.report.outcome)
         assertEquals(4, client.callCount)
       }
+
+  @Test
+  fun `a done report is accepted immediately when the authoritative gate is green`() = runBlocking {
+    val client =
+        ScriptedOaiClient(
+            responses =
+                listOf(toolCallResponse(listOf(toolCall("done", "c1", doneReportArgs(anyReport)))))
+        )
+    val toolbox = applyingToolbox()
+    val assistant = HrsProperAssistant(openaiClient = client)
+
+    val result =
+        assistant.runDelegation(
+            context = anyContext,
+            taskDefinition = anyTaskDefinition,
+            toolbox = toolbox,
+        )
+
+    assertEquals(anyReport, result.report)
+    assertEquals(1, client.callCount)
+    assertEquals(listOf<HrsToolbox.GateOutcome>(HrsToolbox.GateOutcome.Healthy), toolbox.gateChecks)
+  }
+
+  @Test
+  fun `a red gate at done bounces diagnostics into the thread and accepts a later green done`() =
+      runBlocking {
+        var gateCallCount = 0
+        val toolbox =
+            toolboxHandlingDone(
+                gateBehavior = {
+                  gateCallCount += 1
+                  if (gateCallCount == 1) {
+                    HrsToolbox.GateOutcome.Unhealthy(diagnosticsText = "boom: test failed")
+                  } else {
+                    HrsToolbox.GateOutcome.Healthy
+                  }
+                },
+            ) { _, _, worktree ->
+              HrsToolbox.ToolOutcome.Applied(newWorktree = worktree, resultText = "ok")
+            }
+
+        val client =
+            ScriptedOaiClient(
+                responses =
+                    listOf(
+                        toolCallResponse(listOf(toolCall("done", "c1", doneReportArgs(anyReport)))),
+                        toolCallResponse(listOf(toolCall("done", "c2", doneReportArgs(anyReport)))),
+                    ),
+            )
+
+        val assistant = HrsProperAssistant(openaiClient = client)
+
+        val result =
+            assistant.runDelegation(
+                context = anyContext,
+                taskDefinition = anyTaskDefinition,
+                toolbox = toolbox,
+            )
+
+        // The leader-facing result is the accepted report, unmodified — no raw diagnostics leak
+        // into it.
+        assertEquals(anyReport, result.report)
+        assertEquals(2, client.callCount)
+        assertEquals(2, toolbox.gateChecks.size)
+
+        // The diagnostics were bounced into the live thread as this delegation's next turn, not
+        // discarded and not thrown.
+        val secondHistoryMessages = client.chatHistories[1].messages
+        assertTrue(
+            secondHistoryMessages.any {
+              it is OaiUserMessage && it.content.contains("boom: test failed")
+            }
+        )
+      }
+
+  @Test
+  fun `exhausting the bounce budget rewrites the report into an honest failure`() = runBlocking {
+    val toolbox =
+        toolboxHandlingDone(
+            gateBehavior = { HrsToolbox.GateOutcome.Unhealthy(diagnosticsText = "still red") },
+        ) { _, _, worktree ->
+          HrsToolbox.ToolOutcome.Applied(newWorktree = worktree, resultText = "ok")
+        }
+
+    val client =
+        ScriptedOaiClient(
+            responses =
+                listOf(toolCallResponse(listOf(toolCall("done", "c1", doneReportArgs(anyReport)))))
+        )
+
+    val assistant = HrsProperAssistant(openaiClient = client)
+
+    val result =
+        assistant.runDelegation(
+            context = anyContext,
+            taskDefinition = anyTaskDefinition,
+            toolbox = toolbox,
+        )
+
+    // 1 initial `done` + defaultBounceBudget (2) bounces = 3 rounds before giving up.
+    assertEquals(3, client.callCount)
+    assertEquals(3, toolbox.gateChecks.size)
+
+    assertEquals(HrsDelegationOutcome.Failed, result.report.outcome)
+    assertTrue(result.report.checksSummary.contains("still red"))
+    // Everything besides the outcome/checksSummary the gate itself governs survives the rewrite
+    // untouched.
+    assertEquals(anyReport.narrative, result.report.narrative)
+    assertEquals(anyReport.filesTouched, result.report.filesTouched)
+  }
 }

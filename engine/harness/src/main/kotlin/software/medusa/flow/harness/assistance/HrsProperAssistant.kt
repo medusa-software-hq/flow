@@ -1,5 +1,6 @@
 package software.medusa.flow.harness.assistance
 
+import java.util.logging.Logger
 import software.medusa.commons.openai_client.OaiChatHistory
 import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.openai_client.OaiInferenceParams
@@ -39,15 +40,38 @@ import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.r
  * `Failed` [HrsDelegationReport] instead — mirroring the bounded-retry, honest-failure shape
  * [software.medusa.flow.harness.HrsProperTaskCompleter] uses for the classic engine's own
  * patch-robustness retries.
+ *
+ * **The delegation gate.** A `done` call is never taken at face value: [HrsToolbox.checkGate] is
+ * run authoritatively right then, ignoring whatever the assistant's own `run_checks` calls showed
+ * earlier in the thread. Green accepts the report as-is. Red bounces the diagnostics into this same
+ * live thread as the next turn (a plain user message, not a thrown exception or a fresh process —
+ * the M1 iterate-until-green shape, nested one layer inside a single delegation) and the loop
+ * continues, up to [bounceBudget] bounces. Exhausting the budget does not throw either: the
+ * already-produced report is rewritten — `outcome` forced to
+ * [software.medusa.flow.harness.history.HrsDelegationOutcome.Failed], `checksSummary` replaced with
+ * the final diagnostics — and returned normally. Either way the leader only ever sees the report:
+ * raw diagnostics never escape this thread.
  */
 class HrsProperAssistant(
     private val openaiClient: OaiConfiguredClient,
     private val maxRounds: Int = defaultMaxRounds,
     private val maxConsecutiveUnproductiveRounds: Int = defaultMaxConsecutiveUnproductiveRounds,
+    private val bounceBudget: Int = defaultBounceBudget,
 ) : HrsAssistant {
   companion object {
     const val defaultMaxRounds = 40
     const val defaultMaxConsecutiveUnproductiveRounds = 3
+
+    /**
+     * How many times a red gate at `done` may be bounced back into the live thread before the
+     * delegation gives up and reports an honest failure. Deliberately small: each bounce is a full
+     * analyze+test gate run plus another model round, so the cost of one wrong `done` compounds
+     * fast — mirrors [software.medusa.flow.harness.claude.HrsClaudeTaskCompleter]'s bounceBudget
+     * for the Claude Agent engine's own top-level gate.
+     */
+    const val defaultBounceBudget = 2
+
+    private val logger = Logger.getLogger(HrsProperAssistant::class.java.name)
 
     private const val simpleAiName = "ai"
 
@@ -80,6 +104,7 @@ class HrsProperAssistant(
     var tailMessages: List<OaiMessage> = emptyList()
     var consecutiveUnproductiveRounds = 0
     var roundNumber = 1
+    var bounceCount = 0
 
     while (roundNumber <= maxRounds) {
       val assistantMessage =
@@ -108,12 +133,45 @@ class HrsProperAssistant(
             )
 
         tailMessages = tailMessages + assistantMessage + round.outputMessages
+        worktree = round.worktree
 
         if (round.report != null) {
-          return HrsAssistant.Result(report = round.report, finalWorktree = round.worktree)
+          when (val gate = toolbox.checkGate()) {
+            HrsToolbox.GateOutcome.Healthy ->
+                return HrsAssistant.Result(report = round.report, finalWorktree = worktree)
+
+            is HrsToolbox.GateOutcome.Unhealthy -> {
+              if (bounceCount >= bounceBudget) {
+                logger.info(
+                    "Delegation gate still red after $bounceCount bounce(s) (budget " +
+                        "$bounceBudget) — returning an honest failure report instead of the " +
+                        "assistant's own `done` report.",
+                )
+                return HrsAssistant.Result(
+                    report =
+                        exhaustedGateReport(
+                            original = round.report,
+                            gate = gate,
+                            bounceCount = bounceCount,
+                        ),
+                    finalWorktree = worktree,
+                )
+              }
+
+              bounceCount += 1
+              logger.info(
+                  "Delegation gate red at `done` (bounce $bounceCount/$bounceBudget) — bouncing " +
+                      "diagnostics back into the live thread.",
+              )
+              tailMessages =
+                  tailMessages + gateBounceMessage(gate = gate, bounceCount = bounceCount)
+              consecutiveUnproductiveRounds = 0
+              roundNumber += 1
+              continue
+            }
+          }
         }
 
-        worktree = round.worktree
         consecutiveUnproductiveRounds =
             if (round.anySucceeded) 0 else consecutiveUnproductiveRounds + 1
       }
@@ -176,7 +234,7 @@ class HrsProperAssistant(
 
     for (call in toolCalls) {
       if (report != null) {
-        outputs += toolOutput(call, "Ignored — `done` already ended the thread earlier this turn.")
+        outputs += toolOutput(call, "Ignored — `done` was already called earlier this turn.")
         continue
       }
 
@@ -201,7 +259,8 @@ class HrsProperAssistant(
         is HrsToolbox.ToolOutcome.Finished -> {
           anySucceeded = true
           report = outcome.report
-          outputs += toolOutput(call, "Report received. Ending the thread.")
+          outputs +=
+              toolOutput(call, "Report received; checking the gate before ending the thread.")
         }
       }
     }
@@ -228,5 +287,42 @@ class HrsProperAssistant(
           filesTouched = "(unknown — the thread ended before it could report)",
           bufferChanges = "",
           checksSummary = "",
+      )
+
+  /**
+   * The message fed back into the live thread when a `done` report's gate comes back red: the raw
+   * diagnostics plus the fix-and-retry instruction. Never returned to the caller — only ever a turn
+   * in this thread, so the leader (which only ever sees the eventual [HrsDelegationReport]) never
+   * sees it.
+   */
+  private fun gateBounceMessage(
+      gate: HrsToolbox.GateOutcome.Unhealthy,
+      bounceCount: Int,
+  ): OaiUserMessage =
+      OaiUserMessage(
+          content =
+              "That report was not accepted: the authoritative gate is still red (bounce " +
+                  "$bounceCount/$bounceBudget). Diagnostics:\n\n${gate.diagnosticsText}\n\n" +
+                  "Fix these and call `done` again only once the checks actually pass.",
+          name = OaiUserName(simpleAiName),
+      )
+
+  /**
+   * Rewrites an assistant-produced report into an honest failure once the bounce budget is
+   * exhausted: `outcome` is forced to [HrsDelegationOutcome.Failed] and `checksSummary` replaced
+   * with the final diagnostics, since neither can be trusted from an assistant that just claimed
+   * `done` against a gate that was still red — every other field (narrative, files touched, buffer
+   * changes, surprises, leader notices) is preserved as-is.
+   */
+  private fun exhaustedGateReport(
+      original: HrsDelegationReport,
+      gate: HrsToolbox.GateOutcome.Unhealthy,
+      bounceCount: Int,
+  ): HrsDelegationReport =
+      original.copy(
+          outcome = HrsDelegationOutcome.Failed,
+          checksSummary =
+              "The gate never went green after $bounceCount bounce(s) back into this thread. " +
+                  "Final diagnostics:\n\n${gate.diagnosticsText}",
       )
 }

@@ -49,7 +49,10 @@ import software.medusa.flow.virtual_editor.worktree_patch.VedWorktreePatch
  * through [VedWorktreePatch] and mirrors the resulting mutation into [physicalRootDirectory] — the
  * same virtual/physical bridge [software.medusa.flow.harness.HrsProperTaskCompleter] uses for the
  * classic engine. `peek_file` reads [gitWorktree] directly and touches neither the virtual worktree
- * nor the physical one. `run_checks` drives [projectConnection]. `done` just unwraps its argument.
+ * nor the physical one. `run_checks` and [checkGate] both drive [projectConnection] — the latter is
+ * the same analyze+test gate, run directly rather than through a tool call, so callers can check it
+ * authoritatively without depending on the assistant having called `run_checks` itself. `done` just
+ * unwraps its argument.
  *
  * Every worktree mutation this delegation makes is stamped at the single, constant
  * [delegationTimestamp] — the equal-timestamp collapse in
@@ -471,29 +474,38 @@ class HrsProperToolbox(
 
   private suspend fun runChecks(
       worktree: VedWorktree,
-  ): HrsToolbox.ToolOutcome.Applied {
+  ): HrsToolbox.ToolOutcome.Applied =
+      when (val gate = checkGate()) {
+        is HrsToolbox.GateOutcome.Unhealthy ->
+            HrsToolbox.ToolOutcome.Applied(
+                newWorktree = worktree,
+                resultText = gate.diagnosticsText,
+            )
+        HrsToolbox.GateOutcome.Healthy ->
+            HrsToolbox.ToolOutcome.Applied(
+                newWorktree = worktree,
+                resultText = "All checks passed (analyze + test).",
+            )
+      }
+
+  override suspend fun checkGate(): HrsToolbox.GateOutcome {
     val analyzeResult = projectConnection.analyzeAll()
 
     if (analyzeResult is JointResult.Failure) {
-      return HrsToolbox.ToolOutcome.Applied(
-          newWorktree = worktree,
-          resultText = renderCheckFailure(stage = "Analysis", failure = analyzeResult),
+      return HrsToolbox.GateOutcome.Unhealthy(
+          diagnosticsText = renderCheckFailure(stage = "Analysis", failure = analyzeResult),
       )
     }
 
     val testResult = projectConnection.testAll()
 
     if (testResult is JointResult.Failure) {
-      return HrsToolbox.ToolOutcome.Applied(
-          newWorktree = worktree,
-          resultText = renderCheckFailure(stage = "Testing", failure = testResult),
+      return HrsToolbox.GateOutcome.Unhealthy(
+          diagnosticsText = renderCheckFailure(stage = "Testing", failure = testResult),
       )
     }
 
-    return HrsToolbox.ToolOutcome.Applied(
-        newWorktree = worktree,
-        resultText = "All checks passed (analyze + test).",
-    )
+    return HrsToolbox.GateOutcome.Healthy
   }
 
   private fun renderCheckFailure(
