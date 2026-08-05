@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import software.medusa.commons.openai_client.OaiGeneratedContent
 import software.medusa.commons.openai_client.OaiResponse
 import software.medusa.commons.openai_client.OaiResult
+import software.medusa.commons.openai_client.messages.OaiAssistantMessage
 
 /**
  * Bridges the coarse [OaiResult]/[OaiResponse] tree the 0.2.0 `openai-client` returns back to the
@@ -32,6 +33,34 @@ internal fun OaiResult<OaiResponse>.extractAssistantText(): String =
                 }
             OaiResponse.Corrupted -> ""
             is OaiResponse.Error -> ""
+          }
+    }
+
+/**
+ * Extracts the raw assistant message — content *and* tool calls — the leader/assistant engine's
+ * tool-calling loop ([software.medusa.flow.harness.assistance.HrsProperAssistant]) needs
+ * [OaiAssistantMessage.toolCalls] for, unlike [extractAssistantText]'s callers. `null` covers the
+ * same "nothing usable came back" cases [extractAssistantText] maps to `""` — a network error, a
+ * corrupted response, or an error response — so the loop can nudge the model rather than dispatch
+ * against an absent turn. An interrupted ([OaiGeneratedContent.Partial]) response surfaces its
+ * best-available partial text with no tool calls, same rationale as [extractAssistantText].
+ */
+internal fun OaiResult<OaiResponse>.extractAssistantMessage(): OaiAssistantMessage? =
+    when (this) {
+      OaiResult.NetworkError -> null
+      is OaiResult.ResponseReceived ->
+          when (val received = response) {
+            is OaiResponse.Complete ->
+                when (val content = received.generatedContent) {
+                  is OaiGeneratedContent.Full -> content.generatedMessage
+                  is OaiGeneratedContent.Partial ->
+                      OaiAssistantMessage(
+                          content = content.partialGeneratedText.orEmpty(),
+                          toolCalls = emptyList(),
+                      )
+                }
+            OaiResponse.Corrupted -> null
+            is OaiResponse.Error -> null
           }
     }
 
