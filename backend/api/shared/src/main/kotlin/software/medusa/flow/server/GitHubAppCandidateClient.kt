@@ -14,28 +14,22 @@ import org.slf4j.LoggerFactory
  * returns every open `flow:ready` issue *and* its blocked-by states (the spike confirmed this is a
  * single call, ~1 rate-limit point); the zero-open-blockers filter is applied client-side.
  *
- * @param readPriorityField Also fetches the `Priority` Issue Field (public preview, 2026-03-12 —
- *   see [IssuePriority]) alongside `priority:*` labels, for the field-then-label grace-window read.
- *   **Off by default.** The query fragment below (`issueField(name: "Priority")`, `... on
- *   IssueFieldSingleSelectValue`) is this integration's best-effort read of the preview schema — it
- *   has not been confirmed against a live repo's GraphQL schema (no network access from this
- *   change). Before flipping this on: run `gh api graphql` introspection (or the GraphQL Explorer)
- *   against a repo with the `Priority` field configured, and fix the fragment below to match the
- *   real type/field names if they differ. Once enabled, a schema mismatch degrades safely rather
- *   than breaking candidate discovery: [findReadyCandidates] checks the GraphQL response for a
- *   top-level `errors` array and retries once with the field fragment omitted, logging a warning so
- *   the mismatch is visible.
+ * Every query also fetches the `Priority` Issue Field (public preview, 2026-03-12 — see
+ * [IssuePriority]) unconditionally: the query fragment (`issueField(name: "Priority")`, `... on
+ * IssueFieldSingleSelectValue`) is this integration's best-effort read of the preview schema. A
+ * schema mismatch degrades safely rather than breaking candidate discovery: [findReadyCandidates]
+ * checks the GraphQL response for a top-level `errors` array and retries once with the field
+ * fragment omitted, logging a warning so the mismatch is visible — candidates still come back, just
+ * with [CandidateIssue.priorityField] unset (never derived from a label).
  */
 class GitHubAppCandidateClient(
     private val client: GitHubAppClient,
-    private val readPriorityField: Boolean = false,
 ) : GitHubCandidateClient {
   private val log = LoggerFactory.getLogger(GitHubAppCandidateClient::class.java)
 
   override suspend fun findReadyCandidates(
       repoFullName: String,
-  ): List<CandidateIssue> =
-      findReadyCandidates(repoFullName, includePriorityField = readPriorityField)
+  ): List<CandidateIssue> = findReadyCandidates(repoFullName, includePriorityField = true)
 
   private suspend fun findReadyCandidates(
       repoFullName: String,
@@ -191,10 +185,10 @@ private data class CandidateNode(
     val blockedBy: CandidateBlockedBy? = null,
     val labels: CandidateLabels? = null,
     /**
-     * The `Priority` Issue Field's value, present only when the query included
-     * `readPriorityField`'s fragment and the field resolved to a single-select value. `name` here
-     * is that fragment's inline `... on IssueFieldSingleSelectValue { name }` flattened by the
-     * GraphQL server — absent (null) for any other concrete type or an unset field.
+     * The `Priority` Issue Field's value, present only when the query included the priority-field
+     * fragment and the field resolved to a single-select value. `name` here is that fragment's
+     * inline `... on IssueFieldSingleSelectValue { name }` flattened by the GraphQL server — absent
+     * (null) for any other concrete type or an unset field.
      */
     val issueField: CandidateIssueField? = null,
 )

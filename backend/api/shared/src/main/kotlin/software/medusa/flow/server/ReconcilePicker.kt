@@ -44,9 +44,8 @@ class ReconcilePicker(
     val chosen =
         candidates
             .filter { it.number !in takenIssueNumbers }
-            .minWithOrNull(
-                compareBy({ IssuePriority.of(it.priorityField, it.labels).rank }, { it.createdAt })
-            ) ?: return 0
+            .minWithOrNull(compareBy({ IssuePriority.of(it.priorityField).rank }, { it.createdAt }))
+            ?: return 0
 
     // Every picked issue runs a primary Claude session that drives the pipeline (observed,
     // merge-gated, closes the issue). The dual-engine fan-out (M6) also spawned a built-in "shadow"

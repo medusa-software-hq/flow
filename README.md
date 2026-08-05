@@ -79,7 +79,9 @@ Beyond the manual flow above, Flow can watch a repository's **issues** and work
 them on its own: label an issue `flow:ready`, and Flow picks it, runs a session,
 opens a PR, and — once you merge it — closes the issue and moves to whatever it
 unblocked. One issue per repo at a time; native GitHub "blocked by" orders the
-work; failures stop the repo until a human clears them in the web app.
+work; the native **Priority** Issue Field breaks ties among ready issues
+(unset defaults to Medium); failures stop the repo until a human clears them in
+the web app.
 
 - Issue authors and operators: [docs/auto-mode.md](docs/auto-mode.md)
 - Acceptance-demo runbook: [docs/m2-demo-runbook.md](docs/m2-demo-runbook.md)

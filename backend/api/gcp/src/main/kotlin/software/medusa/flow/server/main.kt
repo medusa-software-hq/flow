@@ -16,7 +16,6 @@ private const val workerSaEmailsEnvVarName = "WORKER_SA_EMAILS"
 private const val schedulerSaEmailsEnvVarName = "SCHEDULER_SA_EMAILS"
 private const val workerTokenAudienceEnvVarName = "WORKER_TOKEN_AUDIENCE"
 private const val gitHubWebhookSecretEnvVarName = "GITHUB_WEBHOOK_SECRET"
-private const val gitHubIssueFieldsEnabledEnvVarName = "GITHUB_ISSUE_FIELDS_ENABLED"
 
 fun main() {
   val port =
@@ -70,13 +69,6 @@ fun main() {
   // cadence.
   val gitHubWebhookSecret = System.getenv(gitHubWebhookSecretEnvVarName).orEmpty()
 
-  // Reads the `Priority` Issue Field alongside `priority:*` labels (see IssuePriority /
-  // GitHubAppCandidateClient's `readPriorityField` KDoc for the preview-API caveat). Off by
-  // default — flip on per-environment only after confirming the GraphQL fragment against a live
-  // repo's schema.
-  val gitHubIssueFieldsEnabled =
-      System.getenv(gitHubIssueFieldsEnabledEnvVarName).orEmpty().toBoolean()
-
   // One database (pool + migrations) shared by every Postgres-backed store.
   val database = buildFlowDatabase(databaseUrl)
 
@@ -102,11 +94,7 @@ fun main() {
           settingsStore = PostgresSettingsStore(database),
           gitHubIssueClient = GitHubAppIssueClient(gitHubAppClient),
           gitHubPrClient = GitHubAppPrClient(gitHubAppClient),
-          gitHubCandidateClient =
-              GitHubAppCandidateClient(
-                  gitHubAppClient,
-                  readPriorityField = gitHubIssueFieldsEnabled,
-              ),
+          gitHubCandidateClient = GitHubAppCandidateClient(gitHubAppClient),
           reconcileAuthorizer = buildWorkerAuthorizer("$workerSaEmails,$schedulerSaEmails"),
           gitHubWebhookSecret = gitHubWebhookSecret,
           // Fence the reconciler to our org — it must never act on a repo outside it.

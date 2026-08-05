@@ -171,11 +171,11 @@ class ReconcileAgainstStub_componentTests {
       }
 
   @Test
-  fun `readPriorityField reads the Priority Issue Field over real GraphQL`() = runBlocking {
+  fun `reconcile reads the Priority Issue Field over real GraphQL`() = runBlocking {
     stub.seedIssue(repo, 1, "A", labels = setOf("flow:ready"), priorityField = "Urgent")
     stub.seedIssue(repo, 2, "B", labels = setOf("flow:ready")) // unset
 
-    val client = GitHubAppCandidateClient(candidateAppClient(), readPriorityField = true)
+    val client = GitHubAppCandidateClient(candidateAppClient())
     val candidates = client.findReadyCandidates(repo).associateBy { it.number }
 
     assertEquals("Urgent", candidates.getValue(1).priorityField)
@@ -183,19 +183,18 @@ class ReconcileAgainstStub_componentTests {
   }
 
   @Test
-  fun `readPriorityField degrades to label-only candidates when the stub schema doesn't support it`() =
+  fun `a priority-field schema mismatch degrades to no-priority candidates, never labels`() =
       runBlocking {
         stub.issueFieldsSupported = false
-        stub.seedIssue(repo, 1, "A", labels = setOf("flow:ready", "priority:high"))
+        stub.seedIssue(repo, 1, "A", labels = setOf("flow:ready"))
 
-        val client = GitHubAppCandidateClient(candidateAppClient(), readPriorityField = true)
+        val client = GitHubAppCandidateClient(candidateAppClient())
         val candidates = client.findReadyCandidates(repo)
 
         // The GraphQL `errors` response is caught and retried without the field fragment — the
-        // candidate is still returned (with its label intact), not lost.
+        // candidate is still returned, just with no priority (never derived from a label).
         assertEquals(1, candidates.single().number)
         assertEquals(null, candidates.single().priorityField)
-        assertTrue("priority:high" in candidates.single().labels)
       }
 
   private fun candidateAppClient(): GitHubAppClient =
