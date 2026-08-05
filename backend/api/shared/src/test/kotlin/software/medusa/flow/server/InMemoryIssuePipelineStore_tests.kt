@@ -128,16 +128,64 @@ class InMemoryIssuePipelineStore_tests {
       }
 
   @Test
+  fun `AWAITING_MERGE_CHECKS does not hold the mutex - a second issue can be picked in parallel`() =
+      runBlocking {
+        val (pipelines, _, _) = newStores()
+
+        val a = pipelines.pickA(issue = 1)
+        pipelines.markPrOpen(a.id, 1, "pr")
+        pipelines.markAwaitingMergeChecks(a.id, "sha")
+
+        assertFalse(pipelines.isRepoBusy("acme/app"))
+        val second = pipelines.pick("acme/app", 2, "Issue 2", "https://x/2", SessionId("s2"))
+        val b = assertIs<PickResult.Picked>(second).pipeline
+
+        // Both rows exist; A is still watched (isLive) though it no longer blocks picking, and B
+        // works in parallel.
+        assertEquals(IssuePipelineState.AwaitingMergeChecks, pipelines.get(a.id)!!.state)
+        assertEquals(IssuePipelineState.InProgress, pipelines.get(b.id)!!.state)
+        assertEquals(setOf(a.id, b.id), pipelines.listLive().map { it.id }.toSet())
+
+        // A reaching DONE (or FAILED) doesn't disturb B.
+        assertIs<PipelineTransition.Applied>(pipelines.markDone(a.id, "done"))
+        assertEquals(IssuePipelineState.InProgress, pipelines.get(b.id)!!.state)
+        assertTrue(pipelines.isRepoBusy("acme/app")) // B (IN_PROGRESS) still holds the mutex
+      }
+
+  @Test
+  fun `a post-merge FAILED still blocks further picks for the repo`() = runBlocking {
+    val (pipelines, _, _) = newStores()
+
+    val a = pipelines.pickA(issue = 1)
+    pipelines.markPrOpen(a.id, 1, "pr")
+    pipelines.markAwaitingMergeChecks(a.id, "sha")
+    assertIs<PipelineTransition.Applied>(pipelines.markFailed(a.id, "merge checks red"))
+
+    assertTrue(pipelines.isRepoBusy("acme/app"))
+    assertIs<PickResult.RepoBusy>(
+        pipelines.pick("acme/app", 2, "Issue 2", "https://x/2", SessionId("s2")),
+    )
+
+    // Clearing it releases the mutex again.
+    assertIs<PipelineTransition.Applied>(pipelines.clear(a.id))
+    assertFalse(pipelines.isRepoBusy("acme/app"))
+  }
+
+  @Test
   fun `the happy-path transitions each enqueue the expected outbox entries`() = runBlocking {
     val (pipelines, outbox, _) = newStores()
 
     val p = pipelines.pickA()
     assertIs<PipelineTransition.Applied>(pipelines.markPrOpen(p.id, prNumber = 7, prUrl = "pr7"))
     assertIs<PipelineTransition.Applied>(pipelines.markAwaitingMergeChecks(p.id, "sha"))
+    // The mutex releases here — at merge — not at DONE. Still isLive (watched), just not busy.
+    assertFalse(pipelines.isRepoBusy("acme/app"))
+    assertTrue(pipelines.listLive().single().isLive)
+
     assertIs<PipelineTransition.Applied>(pipelines.markDone(p.id, "All green — closing"))
 
     assertEquals(IssuePipelineState.Done, pipelines.get(p.id)!!.state)
-    assertFalse(pipelines.isRepoBusy("acme/app")) // DONE is terminal, mutex released
+    assertFalse(pipelines.isRepoBusy("acme/app")) // still released
 
     assertEquals(
         listOf(
