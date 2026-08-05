@@ -182,13 +182,19 @@ private fun IssuePipeline.stateCell(): String {
   return if (flags.isEmpty()) base else "$base (${flags.joinToString(", ")})"
 }
 
-/** Live + recent issue pipelines, newest-first, formatted like the web app's pipelines list. */
+/**
+ * Live + recent issue pipelines, newest-first, formatted like the web app's pipelines list — plus
+ * an ID column (the web app doesn't need one; it has a Clear button). It's the identifier `flow
+ * pipelines clear` wants, so this is what makes clearing a FAILED pipeline possible from the CLI
+ * alone, with no web UI and no guessing.
+ */
 fun formatPipelineTable(pipelines: List<IssuePipeline>): String {
   if (pipelines.isEmpty()) return "No issue pipelines yet."
   return renderTable(
-      listOf("REPO", "ISSUE", "STATE", "SESSION", "PR", "UPDATED"),
+      listOf("ID", "REPO", "ISSUE", "STATE", "SESSION", "PR", "UPDATED"),
       pipelines.map {
         listOf(
+            it.id,
             it.repoFullName,
             if (it.issueNumber > 0) "#${it.issueNumber} ${it.issueTitle}".trim() else emDash,
             it.stateCell(),
