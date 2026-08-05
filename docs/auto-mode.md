@@ -33,6 +33,14 @@ leave them.
 "Unblocked" means *every* blocker is closed. A blocker that's still open (even
 if merged elsewhere) keeps its dependents waiting.
 
+### Prioritize with the native `Priority` Issue Field
+
+When more than one ready, unblocked issue is available, Flow picks the
+highest-priority one first (oldest first within a tier). Priority is read from
+GitHub's native **Priority Issue Field** — set it on the issue (`Urgent`,
+`High`, `Medium`, or `Low`); an issue with the field unset is treated as
+`Medium`. There is no label-based way to set priority.
+
 ### One issue per repo at a time
 
 A repository runs **one pipeline at a time**. While Flow is working an issue

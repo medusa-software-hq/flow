@@ -156,13 +156,13 @@ class ReconcilePicker_tests {
   }
 
   @Test
-  fun `priority beats age - a newer urgent issue is picked over an older unlabeled one`() =
+  fun `the priority field beats age - a newer urgent issue is picked over an older unset one`() =
       runBlocking {
         val fx = Fixture()
         fx.candidates.candidatesByRepo[repo] =
             listOf(
-                candidate(1, "2026-05-01T00:00:00Z"), // older, unlabeled (medium)
-                candidate(2, "2026-05-02T00:00:00Z", labels = setOf("priority:urgent")), // newer
+                candidate(1, "2026-05-01T00:00:00Z"), // older, unset (medium)
+                candidate(2, "2026-05-02T00:00:00Z", priorityField = "Urgent"), // newer
             )
 
         assertEquals(1, fx.picker.pick(repo))
@@ -176,8 +176,8 @@ class ReconcilePicker_tests {
     val fx = Fixture()
     fx.candidates.candidatesByRepo[repo] =
         listOf(
-            candidate(2, "2026-05-02T00:00:00Z", labels = setOf("priority:high")),
-            candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:high")), // oldest
+            candidate(2, "2026-05-02T00:00:00Z", priorityField = "High"),
+            candidate(1, "2026-05-01T00:00:00Z", priorityField = "High"), // oldest
         )
 
     assertEquals(1, fx.picker.pick(repo))
@@ -187,12 +187,12 @@ class ReconcilePicker_tests {
   }
 
   @Test
-  fun `an unlabeled issue is treated as medium priority`() = runBlocking {
+  fun `an issue with no priority field is treated as medium priority`() = runBlocking {
     val fx = Fixture()
     fx.candidates.candidatesByRepo[repo] =
         listOf(
-            candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:low")), // oldest, low
-            candidate(2, "2026-05-02T00:00:00Z"), // newer, unlabeled → medium, beats low
+            candidate(1, "2026-05-01T00:00:00Z", priorityField = "Low"), // oldest, low
+            candidate(2, "2026-05-02T00:00:00Z"), // newer, unset → medium, beats low
         )
 
     assertEquals(1, fx.picker.pick(repo))
@@ -200,71 +200,13 @@ class ReconcilePicker_tests {
     val pipeline = fx.pipelines.list(repo).single()
     assertEquals(2, pipeline.issueNumber)
   }
-
-  @Test
-  fun `multiple priority labels on one issue resolve to the highest`() = runBlocking {
-    val fx = Fixture()
-    fx.candidates.candidatesByRepo[repo] =
-        listOf(
-            candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:high")),
-            // Misconfigured: carries both low and urgent — should resolve to urgent and win.
-            candidate(
-                2,
-                "2026-05-02T00:00:00Z",
-                labels = setOf("priority:low", "priority:urgent"),
-            ),
-        )
-
-    assertEquals(1, fx.picker.pick(repo))
-
-    val pipeline = fx.pipelines.list(repo).single()
-    assertEquals(2, pipeline.issueNumber)
-  }
-
-  @Test
-  fun `the priority field beats age and takes precedence over a stale label`() = runBlocking {
-    val fx = Fixture()
-    fx.candidates.candidatesByRepo[repo] =
-        listOf(
-            candidate(1, "2026-05-01T00:00:00Z"), // older, unlabeled (medium)
-            candidate(2, "2026-05-02T00:00:00Z", priorityField = "Urgent"), // newer, field-set
-        )
-
-    assertEquals(1, fx.picker.pick(repo))
-
-    val pipeline = fx.pipelines.list(repo).single()
-    assertEquals(2, pipeline.issueNumber)
-  }
-
-  @Test
-  fun `the priority field wins over a conflicting label - the field is authoritative`() =
-      runBlocking {
-        val fx = Fixture()
-        fx.candidates.candidatesByRepo[repo] =
-            listOf(
-                candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:urgent")),
-                // Migrated: the field says low even though the (stale, not-yet-retired) label
-                // still says urgent. The field wins.
-                candidate(
-                    2,
-                    "2026-05-02T00:00:00Z",
-                    labels = setOf("priority:urgent"),
-                    priorityField = "Low",
-                ),
-            )
-
-        assertEquals(1, fx.picker.pick(repo))
-
-        val pipeline = fx.pipelines.list(repo).single()
-        assertEquals(1, pipeline.issueNumber) // the label-only issue (still urgent) wins
-      }
 
   @Test
   fun `the priority field is matched case-insensitively`() = runBlocking {
     val fx = Fixture()
     fx.candidates.candidatesByRepo[repo] =
         listOf(
-            candidate(1, "2026-05-01T00:00:00Z"), // unlabeled, medium
+            candidate(1, "2026-05-01T00:00:00Z"), // unset, medium
             candidate(2, "2026-05-02T00:00:00Z", priorityField = "urgent"), // lowercase
         )
 
@@ -281,7 +223,7 @@ class ReconcilePicker_tests {
     // a still-blocked urgent issue never appears here, so the picker falls through to what's
     // actually eligible regardless of its (unseen) priority.
     fx.candidates.candidatesByRepo[repo] =
-        listOf(candidate(1, "2026-05-01T00:00:00Z", labels = setOf("priority:low")))
+        listOf(candidate(1, "2026-05-01T00:00:00Z", priorityField = "Low"))
 
     assertEquals(1, fx.picker.pick(repo))
 

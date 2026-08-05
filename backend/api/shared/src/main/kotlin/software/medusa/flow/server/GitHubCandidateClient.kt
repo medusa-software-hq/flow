@@ -10,15 +10,12 @@ data class CandidateIssue(
     val url: String,
     val createdAt: Instant,
     /**
-     * The issue's label names. No longer used to pick an engine (dual-engine fan-out runs both);
-     * read for [IssuePriority]'s label-fallback queue ordering during the Issue Fields grace
-     * window.
+     * The issue's label names. No longer used to pick an engine (dual-engine fan-out runs both).
      */
     val labels: Set<String> = emptySet(),
     /**
-     * The `Priority` Issue Field's selected option name (e.g. `"Urgent"`), or `null` if unset or
-     * unread (see [GitHubAppCandidateClient]'s `readPriorityField`). Authoritative for
-     * [IssuePriority] over [labels] when present.
+     * The `Priority` Issue Field's selected option name (e.g. `"Urgent"`), or `null` if unset or if
+     * the field read degraded (see [GitHubAppCandidateClient]). Read by [IssuePriority].
      */
     val priorityField: String? = null,
 )

@@ -65,7 +65,6 @@ interface GitHubIssueClient {
      * Adding an entry provisions it everywhere on next [ensureLabelsExist]. Removing one only stops
      * provisioning it going forward — it is never deleted from a repo (see the module doc for the
      * ticket rationale: deleting a label strips it off every issue that carries it, irreversibly).
-     * `priority:*` is deliberately absent: it stays Terraform-owned on the Flow repo itself.
      */
     val flowLabels: List<FlowLabel> =
         listOf(
