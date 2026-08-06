@@ -85,8 +85,14 @@ suspend fun main(
                     SessionsListCommand(),
                     SessionsShowCommand(),
                     SessionsAbortCommand(),
+                    SessionsWatchCommand(),
                 ),
-            PipelinesCommand().subcommands(PipelinesListCommand(), PipelinesClearCommand()),
+            PipelinesCommand()
+                .subcommands(
+                    PipelinesListCommand(),
+                    PipelinesClearCommand(),
+                    PipelinesWatchCommand(),
+                ),
             SettingsCommand()
                 .subcommands(SettingsSetCommand().subcommands(SettingsSetAutoMergeCommand())),
             LoginCommand(),
