@@ -6,8 +6,12 @@ import com.github.ajalt.clikt.core.NoOpCliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.terminal.YesNoPrompt
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.onEach
+import software.medusa.flow.v1.IssuePipelineState
 
 /** `flow pipelines` — inspect issue pipelines on the deployed API. A group; see the subcommands. */
 class PipelinesCommand : NoOpCliktCommand(name = "pipelines") {
@@ -52,5 +56,59 @@ class PipelinesClearCommand : CliktCommand(name = "clear") {
     val issue =
         if (pipeline.issueNumber > 0) " (${pipeline.repoFullName} #${pipeline.issueNumber})" else ""
     echo("Cleared pipeline $id$issue. Flow re-picks the issue if it's still labeled flow:ready.")
+  }
+}
+
+/** `--until` token → the proto state it names. Matches the enum's `flow:*`-ish short names. */
+private val untilStates =
+    mapOf(
+        "in_progress" to IssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS,
+        "pr_open" to IssuePipelineState.ISSUE_PIPELINE_STATE_PR_OPEN,
+        "awaiting_merge_checks" to IssuePipelineState.ISSUE_PIPELINE_STATE_AWAITING_MERGE_CHECKS,
+        "done" to IssuePipelineState.ISSUE_PIPELINE_STATE_DONE,
+        "failed" to IssuePipelineState.ISSUE_PIPELINE_STATE_FAILED,
+    )
+
+/**
+ * `flow pipelines watch` — the push counterpart to `list`: streams one line per pipeline state
+ * transition (issue, old → new state, session id, PR once opened) as they happen, instead of a
+ * supervisor polling `list` in a loop and diffing the table itself. Runs until Ctrl-C, or until
+ * `--until` is satisfied.
+ */
+class PipelinesWatchCommand : CliktCommand(name = "watch") {
+  private val repo by
+      option("--repo", "-r", help = "Only pipelines for this owner/name repo (default: all repos).")
+
+  private val json by
+      option("--json", help = "Emit one JSON object per transition instead of a text line.")
+          .flag(default = false)
+
+  private val until by
+      option(
+              "--until",
+              help =
+                  "Exit 0 as soon as a (matching) pipeline reaches this state; otherwise runs until Ctrl-C.",
+          )
+          .choice(*untilStates.keys.toTypedArray())
+
+  override fun help(context: Context) =
+      "Stream issue-pipeline state transitions as they happen (Ctrl-C to stop)."
+
+  override fun run() {
+    val untilState = until?.let { untilStates.getValue(it) }
+
+    withFlowApiClient { client ->
+      client
+          .watchIssuePipelines(repoFullName = repo)
+          .onEach { transition ->
+            echo(
+                if (json) pipelineTransitionJson(transition)
+                else formatPipelineTransitionLine(transition),
+            )
+          }
+          .firstOrNull { transition ->
+            untilState != null && transition.pipeline.state == untilState
+          }
+    }
   }
 }

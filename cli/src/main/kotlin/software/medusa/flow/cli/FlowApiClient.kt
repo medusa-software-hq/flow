@@ -1,9 +1,11 @@
 package software.medusa.flow.cli
 
 import com.linecorp.armeria.client.grpc.GrpcClients
+import kotlinx.coroutines.flow.Flow
 import software.medusa.flow.v1.GetSessionResponse
 import software.medusa.flow.v1.GetSettingsRequest
 import software.medusa.flow.v1.IssuePipeline
+import software.medusa.flow.v1.IssuePipelineTransition
 import software.medusa.flow.v1.PipelineServiceGrpcKt
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionServiceGrpcKt
@@ -16,6 +18,7 @@ import software.medusa.flow.v1.listIssuePipelinesRequest
 import software.medusa.flow.v1.listSessionsRequest
 import software.medusa.flow.v1.settings
 import software.medusa.flow.v1.updateSettingsRequest
+import software.medusa.flow.v1.watchIssuePipelinesRequest
 
 /**
  * gRPC client for the deployed Flow API — the human-facing surface the web app also uses
@@ -71,9 +74,18 @@ private constructor(
   suspend fun listSessions(): List<Session> =
       sessionStub.listSessions(listSessionsRequest {}).sessionsList
 
-  /** One session with its full event log (the detail view). */
-  suspend fun getSession(id: String): GetSessionResponse =
-      sessionStub.getSession(getSessionRequest { this.id = id })
+  /**
+   * One session with its event log. [afterSeq] restricts the returned events to `seq > afterSeq`,
+   * letting a caller (the detail view, `sessions watch`'s poll loop) fetch only what's new since
+   * its last read.
+   */
+  suspend fun getSession(id: String, afterSeq: Int = 0): GetSessionResponse =
+      sessionStub.getSession(
+          getSessionRequest {
+            this.id = id
+            this.afterSeq = afterSeq
+          }
+      )
 
   /** Aborts a RUNNING session (the "stop"); returns the now-ABORTED session. */
   suspend fun abortSession(id: String): Session =
@@ -94,6 +106,15 @@ private constructor(
    */
   suspend fun clearIssuePipeline(id: String): IssuePipeline =
       pipelineStub.clearIssuePipeline(clearIssuePipelineRequest { this.id = id }).pipeline
+
+  /**
+   * Streams a transition every time some pipeline's state changes (`pipelines watch`), optionally
+   * filtered to one `owner/name` repo. Never completes; the caller cancels (Ctrl-C) to stop.
+   */
+  fun watchIssuePipelines(repoFullName: String? = null): Flow<IssuePipelineTransition> =
+      pipelineStub.watchIssuePipelines(
+          watchIssuePipelinesRequest { repoFullName?.let { this.repoFullName = it } },
+      )
 
   /** Flow's current global Quick Settings (the web app's Quick Settings panel). */
   suspend fun getSettings(): Settings =

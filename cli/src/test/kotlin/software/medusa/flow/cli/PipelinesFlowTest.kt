@@ -10,16 +10,23 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import software.medusa.flow.v1.ClearIssuePipelineRequest
 import software.medusa.flow.v1.ClearIssuePipelineResponse
 import software.medusa.flow.v1.IssuePipeline
 import software.medusa.flow.v1.IssuePipelineState
+import software.medusa.flow.v1.IssuePipelineTransition
 import software.medusa.flow.v1.ListIssuePipelinesRequest
 import software.medusa.flow.v1.ListIssuePipelinesResponse
 import software.medusa.flow.v1.PipelineServiceGrpcKt
+import software.medusa.flow.v1.WatchIssuePipelinesRequest
 import software.medusa.flow.v1.clearIssuePipelineResponse
 import software.medusa.flow.v1.issuePipeline
+import software.medusa.flow.v1.issuePipelineTransition
 import software.medusa.flow.v1.listIssuePipelinesResponse
 
 /**
@@ -68,6 +75,18 @@ class PipelinesFlowTest {
       pipeline.set(cleared)
       return clearIssuePipelineResponse { this.pipeline = cleared }
     }
+
+    override fun watchIssuePipelines(
+        request: WatchIssuePipelinesRequest,
+    ): Flow<IssuePipelineTransition> {
+      val current = pipeline.get()
+      return flowOf(
+          issuePipelineTransition {
+            this.pipeline = current
+            oldState = IssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS
+          },
+      )
+    }
   }
 
   private val fakeService = FakePipelineService()
@@ -111,5 +130,14 @@ class PipelinesFlowTest {
     // The session id alone (what the table used to lead with) is not an id `clear` accepts.
     val failure = assertFailsWith<StatusException> { client.clearIssuePipeline("sess-abc") }
     assertEquals(Status.Code.NOT_FOUND, failure.status.code)
+  }
+
+  @Test
+  fun `watch streams a transition for the pipeline`() = runBlocking {
+    val transition = withTimeout(5000) { client.watchIssuePipelines().first() }
+
+    assertEquals("pipe-123", transition.pipeline.id)
+    assertEquals(IssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS, transition.oldState)
+    assertEquals(IssuePipelineState.ISSUE_PIPELINE_STATE_FAILED, transition.pipeline.state)
   }
 }
