@@ -87,6 +87,9 @@ class SessionProtoMapping_tests {
             SessionEventKind.AgentAction to ProtoSessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION,
             SessionEventKind.EngineBanner to ProtoSessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER,
             SessionEventKind.RunCost to ProtoSessionEventKind.SESSION_EVENT_KIND_RUN_COST,
+            SessionEventKind.Delegation to ProtoSessionEventKind.SESSION_EVENT_KIND_DELEGATION,
+            SessionEventKind.DelegationReport to
+                ProtoSessionEventKind.SESSION_EVENT_KIND_DELEGATION_REPORT,
         )
 
     expected.forEach { (domain, proto) ->

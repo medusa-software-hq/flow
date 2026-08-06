@@ -330,42 +330,53 @@ private fun buildWorkerEngineResolver(
           toolboxFactory = toolboxFactory,
       )
 
-  // Manual local-testing knob (M3-09): there is no session-creation UI/label support for
-  // ENGINE_LEADER yet (that's a later story), so this is how an operator exercises the leader
-  // engine end-to-end against a local fixture repo — every unspecified-engine session this worker
-  // claims runs on leader instead of builtin. Unset (the default) leaves ENGINE_UNSPECIFIED routed
-  // to builtin, unchanged; ENGINE_CLAUDE and an explicit ENGINE_BUILTIN are unaffected either way.
-  val defaultTaskCompleter =
-      if (System.getenv("FLOW_WORKER_ENGINE") == "leader") leaderTaskCompleter
-      else builtinTaskCompleter
-
   // Workers are uniform, so the builtin, claude, and leader completers are always constructed. The
   // claude engine drives the real `claude` binary with its auth-rung env built from
   // `FLOW_CLAUDE_AUTH` — except in the hermetic loop test, which routes the Claude primary to the
   // builtin completer (routeClaudeToBuiltin) so it stays cheap and needs no real claude.
+  val claudeTaskCompleter: HrsTaskCompleter =
+      if (routeClaudeToBuiltin) builtinTaskCompleter
+      else
+          HrsClaudeTaskCompleter(
+              physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+              claudeProcess = HrsProcessClaudeProcess(claudeExecutable = claudeExecutableHandle!!),
+              config =
+                  HrsClaudeEngineConfig(
+                      authEnvironment = WrkClaudeAuthEnvironment.build(),
+                      model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
+                      // Per-env cap tuning without a rebuild (set in the ms-workload profile);
+                      // falls back to the baked default when unset/blank/unparseable.
+                      maxBudgetUsd =
+                          System.getenv("FLOW_CLAUDE_MAX_BUDGET_USD")
+                              ?.takeIf { it.isNotBlank() }
+                              ?.toDoubleOrNull() ?: HrsClaudeEngineConfig.defaultMaxBudgetUsd,
+                  ),
+              projectManifestLoader = projectManifestLoader,
+          )
+
+  // Cloud opt-in knob (M3-09/M3-11): there is no session-creation UI/label support for
+  // ENGINE_LEADER yet (that's a later story), so this is how an operator opts a worker onto a
+  // non-builtin default engine wholesale — every unspecified-engine session this worker claims
+  // runs on the requested engine instead of builtin. Unset (the default) leaves ENGINE_UNSPECIFIED
+  // routed to builtin, unchanged; an explicit ENGINE_CLAUDE/ENGINE_BUILTIN/ENGINE_LEADER on the
+  // session itself is unaffected either way -- this only changes what UNSPECIFIED resolves to.
+  val defaultTaskCompleter =
+      when (val requested = System.getenv("FLOW_WORKER_ENGINE")) {
+        null,
+        "" -> builtinTaskCompleter
+        "builtin" -> builtinTaskCompleter
+        "claude" -> claudeTaskCompleter
+        "leader" -> leaderTaskCompleter
+        else ->
+            error(
+                "Unknown FLOW_WORKER_ENGINE: '$requested' (expected builtin, claude, or leader)",
+            )
+      }
+
   return WrkEngineResolver(
       builtin = builtinTaskCompleter,
       leader = leaderTaskCompleter,
+      claude = claudeTaskCompleter,
       default = defaultTaskCompleter,
-      claude =
-          if (routeClaudeToBuiltin) builtinTaskCompleter
-          else
-              HrsClaudeTaskCompleter(
-                  physicalWorkspaceAllocator = physicalWorkspaceAllocator,
-                  claudeProcess =
-                      HrsProcessClaudeProcess(claudeExecutable = claudeExecutableHandle!!),
-                  config =
-                      HrsClaudeEngineConfig(
-                          authEnvironment = WrkClaudeAuthEnvironment.build(),
-                          model = System.getenv("FLOW_CLAUDE_MODEL")?.takeIf { it.isNotBlank() },
-                          // Per-env cap tuning without a rebuild (set in the ms-workload profile);
-                          // falls back to the baked default when unset/blank/unparseable.
-                          maxBudgetUsd =
-                              System.getenv("FLOW_CLAUDE_MAX_BUDGET_USD")
-                                  ?.takeIf { it.isNotBlank() }
-                                  ?.toDoubleOrNull() ?: HrsClaudeEngineConfig.defaultMaxBudgetUsd,
-                      ),
-                  projectManifestLoader = projectManifestLoader,
-              ),
   )
 }

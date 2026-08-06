@@ -122,6 +122,8 @@ fun eventKindLabel(kind: SessionEventKind): String =
       SessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION -> "Agent"
       SessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER -> "Engine"
       SessionEventKind.SESSION_EVENT_KIND_RUN_COST -> "Cost"
+      SessionEventKind.SESSION_EVENT_KIND_DELEGATION -> "Delegation"
+      SessionEventKind.SESSION_EVENT_KIND_DELEGATION_REPORT -> "Delegation report"
       else -> "?"
     }
 

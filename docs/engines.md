@@ -26,6 +26,21 @@ auto mode) is identical either way.
   session with no engine chosen runs on the worker's default. So a Claude-Agent
   session simply waits for a Claude-capable worker.
 
+### The leader/assistant engine — cloud opt-in (M3-11)
+
+`ENGINE_LEADER` (see the sibling engines above) has no session-creation UI/label
+support yet — that's a later story. Until then, a worker opts *itself* onto it by
+setting **`FLOW_WORKER_ENGINE=leader`**: every session that worker claims with no
+engine chosen (`ENGINE_UNSPECIFIED` — the vast majority, since there's no UI to pick
+otherwise) runs on the leader/assistant engine instead of Builtin. Sessions that
+*do* pin an engine explicitly (`ENGINE_CLAUDE`, or an explicit `ENGINE_BUILTIN`) are
+unaffected either way.
+
+`FLOW_WORKER_ENGINE` also accepts `builtin` (the default, equivalent to leaving it
+unset) and `claude`, for the same reason M3-09 needed a `leader` value: a way to
+point a whole worker at one engine for a manual end-to-end run without a session
+UI/label to drive the choice per-session.
+
 ## Manifest-optional (the Claude Agent headline)
 
 The Claude Agent engine runs one of two ways depending on the repo:

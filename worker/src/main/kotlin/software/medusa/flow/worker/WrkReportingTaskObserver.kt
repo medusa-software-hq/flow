@@ -10,6 +10,11 @@ import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.PatchMessage
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ScoutMessage
+import software.medusa.flow.harness.history.HrsChunkSummary
+import software.medusa.flow.harness.history.HrsChunkSummaryKind
+import software.medusa.flow.harness.history.HrsDelegationOutcome
+import software.medusa.flow.harness.history.HrsDelegationReport
+import software.medusa.flow.harness.leadership.HrsTaskDefinition
 import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 
@@ -67,11 +72,57 @@ private fun formatRunCost(
   cost.durationMs?.let { append(" · ${"%.1f".format(it / 1000.0)}s") }
 }
 
+/** The first non-blank line of a Markdown block -- mirrors the CLI observer's same convention. */
+private fun headline(
+    markdown: String,
+): String = markdown.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: ""
+
+/** A delegation's report (M3-11) as a self-contained Markdown block for the progress feed. */
+private fun formatDelegationReport(
+    report: HrsDelegationReport,
+): String = buildString {
+  val outcomeLine =
+      when (report.outcome) {
+        HrsDelegationOutcome.Done -> "**✓ Done**"
+        HrsDelegationOutcome.PartiallyDone -> "**◐ Partially done**"
+        HrsDelegationOutcome.Failed -> "**✗ Failed**"
+      }
+  append(outcomeLine)
+  append("\n\n")
+  append(report.narrative)
+  if (report.filesTouched.isNotBlank()) {
+    append("\n\n**Files touched**\n\n")
+    append(report.filesTouched)
+  }
+  if (report.checksSummary.isNotBlank()) {
+    append("\n\n**Checks:** ")
+    append(report.checksSummary)
+  }
+  if (report.surprises.isNotBlank()) {
+    append("\n\n**Surprises:** ")
+    append(report.surprises)
+  }
+}
+
+/**
+ * The leader/assistant engine's gate verdict (M3-11) -- shared by the per-attempt and final gate.
+ */
+private fun formatHealthStatus(
+    healthStatus: ProjectHealthStatus,
+): String =
+    when (healthStatus) {
+      ProjectHealthStatus.Healthy -> "Health checks passed."
+      is ProjectHealthStatus.Unhealthy -> healthStatus.failureReport.toMarkdown()
+    }
+
 /**
  * Maps [HrsTaskCompleter.Observer] callbacks to `AppendSessionEvent` calls, per
  * design/04-observability-and-github-layering.md: only short Markdown summaries cross the wire. Raw
  * model responses ([HrsTaskCompleter.*Observer.observeRawResponse]) never do -- there's nothing to
- * forward them to in M1, so they're simply dropped here.
+ * forward them to in M1, so they're simply dropped here. The leader/assistant engine's
+ * delegation-shaped hooks (`observeDelegationStarted`/`observeDelegationReport`/
+ * `observeGateResult`/`observeCompaction`, M3-11) are handled the same way: the classic and Claude
+ * Agent engines never drive them, so they're simply never called for those engines.
  *
  * Observer callbacks are synchronous (the engine invokes them mid-pipeline, not as suspend
  * functions), so event delivery is a blocking RPC on the calling thread. A control-plane hiccup is
@@ -185,17 +236,55 @@ class WrkReportingTaskObserver(
     override fun observeHealthStatus(
         healthStatus: ProjectHealthStatus,
     ) {
-      val message =
-          when (healthStatus) {
-            ProjectHealthStatus.Healthy -> "Health checks passed."
-            is ProjectHealthStatus.Unhealthy -> healthStatus.failureReport.toMarkdown()
-          }
-
-      sendEvent(SessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK, message)
+      sendEvent(SessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK, formatHealthStatus(healthStatus))
     }
 
     override fun observeRawResponse(
         responseText: String,
     ) = Unit
+  }
+
+  /**
+   * A leader/assistant-engine delegation starting (M3-11): reported as its task definition's
+   * headline, same convention as the CLI observer -- the full definition reappears inline in the
+   * delegation's own report once it closes, so the wire event stays short.
+   */
+  override fun observeDelegationStarted(
+      taskDefinition: HrsTaskDefinition,
+  ) {
+    sendEvent(SessionEventKind.SESSION_EVENT_KIND_DELEGATION, headline(taskDefinition.markdown))
+  }
+
+  /**
+   * A leader/assistant-engine delegation closing (M3-11): the assistant's structured report
+   * rendered as one self-contained Markdown block -- the progress feed's primary unit for this
+   * engine.
+   */
+  override fun observeDelegationReport(
+      report: HrsDelegationReport,
+  ) {
+    sendEvent(SessionEventKind.SESSION_EVENT_KIND_DELEGATION_REPORT, formatDelegationReport(report))
+  }
+
+  /**
+   * The leader/assistant engine's own final gate result (M3-11): reuses HEALTH_CHECK, the same kind
+   * the classic engine reports per attempt -- there is no dedicated wire kind for it.
+   */
+  override fun observeGateResult(
+      healthStatus: ProjectHealthStatus,
+  ) {
+    sendEvent(SessionEventKind.SESSION_EVENT_KIND_HEALTH_CHECK, formatHealthStatus(healthStatus))
+  }
+
+  /**
+   * Compaction (M3-07's leader-history chunk summaries) is an internal history-management detail,
+   * not user-facing session progress -- debug-log only (M3-11), never a wire event.
+   */
+  override fun observeCompaction(
+      kind: HrsChunkSummaryKind,
+      delegationRange: IntRange,
+      summary: HrsChunkSummary,
+  ) {
+    log("Session $sessionId: compacted $kind delegations $delegationRange")
   }
 }

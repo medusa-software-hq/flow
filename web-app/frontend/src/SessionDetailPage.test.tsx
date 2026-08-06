@@ -124,6 +124,34 @@ test('a builtin session renders no banner and no cost line', async () => {
   expect(screen.queryByText(/^\$/)).toBeNull();
 });
 
+test('a leader-engine session renders delegation start/report entries in the feed', async () => {
+  const getSession = vi.fn().mockResolvedValue({
+    session: baseSession({ engine: Engine.LEADER, state: SessionState.COMPLETED }),
+    events: [
+      event(1, SessionEventKind.DELEGATION, 'Add the missing test'),
+      event(2, SessionEventKind.DELEGATION_REPORT, '**✓ Done**\n\nAdded the test.'),
+    ],
+  });
+
+  renderDetail(getSession);
+
+  expect(await screen.findByText('Delegation')).toBeInTheDocument();
+  expect(screen.getByText('Delegation report')).toBeInTheDocument();
+  expect(screen.getByText('Add the missing test')).toBeInTheDocument();
+  expect(screen.getByText('Added the test.')).toBeInTheDocument();
+});
+
+test('an unrecognized event kind still renders its message generically (forward-compat)', async () => {
+  const getSession = vi.fn().mockResolvedValue({
+    session: baseSession({ state: SessionState.COMPLETED }),
+    events: [event(1, 999 as SessionEventKind, 'a future event kind')],
+  });
+
+  renderDetail(getSession);
+
+  expect(await screen.findByText('a future event kind')).toBeInTheDocument();
+});
+
 test('does not render raw HTML embedded in task or event markdown', async () => {
   const getSession = vi.fn().mockResolvedValue({
     session: baseSession({ taskMarkdown: '<img src=x onerror="window.pwned = true">' }),
