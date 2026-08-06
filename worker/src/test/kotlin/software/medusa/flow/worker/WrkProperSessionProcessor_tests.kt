@@ -332,11 +332,11 @@ class WrkProperSessionProcessor_tests {
         run(Engine.ENGINE_LEADER)
         assertEquals(1, leader.runs)
 
-        // UNSPECIFIED → the configured default (leader, M3-12).
+        // UNSPECIFIED → the configured default (claude, reverting the M3-12 flip).
         run(Engine.ENGINE_UNSPECIFIED)
         assertEquals(1, builtin.runs)
-        assertEquals(1, claude.runs)
-        assertEquals(2, leader.runs)
+        assertEquals(2, claude.runs)
+        assertEquals(1, leader.runs)
       }
 }
 

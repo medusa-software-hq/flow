@@ -18,7 +18,7 @@ class WrkEngineResolver(
     private val builtin: HrsTaskCompleter,
     private val claude: HrsTaskCompleter,
     private val leader: HrsTaskCompleter,
-    private val default: HrsTaskCompleter = leader,
+    private val default: HrsTaskCompleter = claude,
 ) {
   fun resolve(
       engine: Engine,
