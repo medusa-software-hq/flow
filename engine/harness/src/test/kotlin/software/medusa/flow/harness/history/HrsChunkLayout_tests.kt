@@ -2,6 +2,7 @@ package software.medusa.flow.harness.history
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class HrsChunkLayout_tests {
@@ -74,5 +75,43 @@ class HrsChunkLayout_tests {
       val layout = HrsChunkLayout.of(delegationCount = n, config = config)
       assertTrue(layout.fullWindowChunks.size in 1..2, "n=$n window=${layout.fullWindowChunks}")
     }
+  }
+
+  @Test
+  fun `no close event fires between a small chunk's reports`() {
+    for (n in listOf(0, 1, 2, 4, 5, 7, 8, 10, 11)) {
+      assertNull(HrsChunkLayout.closeEventAt(delegationCount = n, config = config), "n=$n")
+    }
+  }
+
+  @Test
+  fun `a small chunk close fires on its s-th accepted report, with no big-chunk close yet`() {
+    val event = HrsChunkLayout.closeEventAt(delegationCount = 3, config = config)
+
+    assertEquals(HrsChunkCloseEvent(closedSmallChunkIndex = 0, closedBigChunkIndex = null), event)
+  }
+
+  @Test
+  fun `later small chunk closes also carry no big-chunk close, short of the B-th`() {
+    // 21 delegations = 7 small chunks; the 7th closes, but B=8, so no big chunk yet.
+    val event = HrsChunkLayout.closeEventAt(delegationCount = 21, config = config)
+
+    assertEquals(HrsChunkCloseEvent(closedSmallChunkIndex = 6, closedBigChunkIndex = null), event)
+  }
+
+  @Test
+  fun `a big chunk closes exactly when its B-th small chunk closes, cascading from the same event`() {
+    // 24 delegations = 8 small chunks (B=8): the 8th small chunk's close is also the 1st big
+    // chunk's.
+    val event = HrsChunkLayout.closeEventAt(delegationCount = 24, config = config)
+
+    assertEquals(HrsChunkCloseEvent(closedSmallChunkIndex = 7, closedBigChunkIndex = 0), event)
+  }
+
+  @Test
+  fun `a second big chunk closes on the 16th small chunk, independent of the first`() {
+    val event = HrsChunkLayout.closeEventAt(delegationCount = 48, config = config)
+
+    assertEquals(HrsChunkCloseEvent(closedSmallChunkIndex = 15, closedBigChunkIndex = 1), event)
   }
 }

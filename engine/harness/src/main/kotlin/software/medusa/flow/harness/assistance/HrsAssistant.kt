@@ -11,10 +11,16 @@ import software.medusa.flow.virtual_editor.worktree.VedWorktree
  * exception; the caller closes the delegation log segment with `(taskDefinition, report)`.
  */
 interface HrsAssistant {
-  /** A finished thread: the report to append to the delegation log, and the worktree it left. */
+  /**
+   * A finished thread: the report to append to the delegation log, the worktree it left, and
+   * [chunkSummarizer] — the same thread's continuation, for the executor to call into at chunk
+   * close (story 07). Defaults to [HrsChunkSummarizer.unavailable] so callers that don't care about
+   * compaction (most tests) can omit it.
+   */
   data class Result(
       val report: HrsDelegationReport,
       val finalWorktree: VedWorktree,
+      val chunkSummarizer: HrsChunkSummarizer = HrsChunkSummarizer.unavailable,
   )
 
   /**
