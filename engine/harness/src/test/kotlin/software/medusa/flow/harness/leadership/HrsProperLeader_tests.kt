@@ -26,6 +26,7 @@ import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.commons.text.TxtBlock
 import software.medusa.commons.text.TxtFileContent
 import software.medusa.commons.unix.path.UfsName
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.harness.history.HrsChunkConfig
 import software.medusa.flow.harness.history.HrsChunkSummary
@@ -196,6 +197,19 @@ class HrsProperLeader_tests {
     }
   }
 
+  /**
+   * Delegates everything to [Observer.Noop] except [observeRawLeaderResponse], which it records.
+   */
+  private class RecordingRawResponseObserver : Observer by Observer.Noop {
+    val rawLeaderResponses: MutableList<String> = mutableListOf()
+
+    override fun observeRawLeaderResponse(
+        responseText: String,
+    ) {
+      rawLeaderResponses += responseText
+    }
+  }
+
   @Test
   fun `the prompt carries the main task, exposed content, hidden stubs, and the meter`() =
       runBlocking {
@@ -354,6 +368,23 @@ class HrsProperLeader_tests {
     val retryPrompt = renderedPrompt(client.chatHistories[1])
     assertTrue(retryPrompt.contains("did not parse"), "the retry carries the parse-error feedback")
   }
+
+  @Test
+  fun `observeRawLeaderResponse fires with each raw response text, including a retried one`() =
+      runBlocking {
+        val client =
+            ScriptedOaiClient(responses = listOf(textResponse("not valid json"), stopResponse))
+        val leader = HrsProperLeader(openaiClient = client)
+        val observer = RecordingRawResponseObserver()
+
+        val result =
+            leader.decide(context = context(worktree = worktree("e", "h")), observer = observer)
+
+        assertEquals(HrsLeader.Result.Decided(HrsLeaderCommand.Stop), result)
+        assertEquals(2, observer.rawLeaderResponses.size)
+        assertEquals("not valid json", observer.rawLeaderResponses[0])
+        assertTrue(observer.rawLeaderResponses[1].contains("\"stop\""))
+      }
 
   @Test
   fun `a persistently malformed reply ends in a structured failure, not a throw`() = runBlocking {

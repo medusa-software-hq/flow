@@ -6,6 +6,8 @@ import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
 import software.medusa.flow.harness.history.HrsChunkSummary
 import software.medusa.flow.harness.history.HrsChunkSummaryKind
+import software.medusa.flow.harness.history.HrsDelegationReport
+import software.medusa.flow.harness.leadership.HrsTaskDefinition
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 
@@ -184,6 +186,52 @@ interface HrsTaskCompleter {
         kind: HrsChunkSummaryKind,
         delegationRange: IntRange,
         summary: HrsChunkSummary,
+    ) {}
+
+    /**
+     * A leader/assistant-engine delegation is about to start; [taskDefinition] is the leader's
+     * instruction for it. Fired once per delegation, right before the assistant thread runs. No-op
+     * by default -- the classic and Claude Agent engines never delegate.
+     */
+    fun observeDelegationStarted(
+        taskDefinition: HrsTaskDefinition,
+    ) {}
+
+    /**
+     * A leader/assistant-engine delegation just closed with [report] -- the same report appended to
+     * the outer [software.medusa.flow.harness.history.HrsDelegationLog]. Fired once per delegation,
+     * right after the assistant thread ends. No-op by default.
+     */
+    fun observeDelegationReport(
+        report: HrsDelegationReport,
+    ) {}
+
+    /**
+     * The leader/assistant engine's own analyze+test gate result -- the same [ProjectHealthStatus]
+     * shape [SolutionImplementationObserver.observeHealthStatus] reports per attempt for the
+     * classic engine; the leader/assistant engine only ever gates once, at the very end of the run
+     * (see [software.medusa.flow.harness.HrsLeaderTaskCompleter]). No-op by default.
+     */
+    fun observeGateResult(
+        healthStatus: ProjectHealthStatus,
+    ) {}
+
+    /**
+     * Debug-level: the leader's raw structured-output response text for one turn, before it is
+     * parsed into a [software.medusa.flow.harness.leadership.HrsLeaderCommand] -- fired once per
+     * leader call, including retried/malformed attempts. No-op by default.
+     */
+    fun observeRawLeaderResponse(
+        responseText: String,
+    ) {}
+
+    /**
+     * Debug-level: one raw assistant-turn response (narrative plus any tool calls, rendered for
+     * inspection) from a delegation's tool-calling loop, before its tool calls are dispatched.
+     * No-op by default.
+     */
+    fun observeRawAssistantResponse(
+        responseText: String,
     ) {}
   }
 

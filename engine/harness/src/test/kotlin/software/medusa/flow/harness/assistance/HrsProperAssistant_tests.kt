@@ -26,6 +26,7 @@ import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.commons.openai_client.tools.OaiToolCall
 import software.medusa.commons.openai_client.tools.OaiToolCallId
 import software.medusa.commons.openai_client.tools.OaiToolName
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskDescription
 import software.medusa.flow.harness.history.HrsChunkSummary
 import software.medusa.flow.harness.history.HrsChunkSummaryKind
@@ -168,6 +169,54 @@ class HrsProperAssistant_tests {
   ): FakeHrsToolbox =
       toolboxHandlingDone(gateBehavior = gateBehavior) { _, _, worktree ->
         HrsToolbox.ToolOutcome.Applied(newWorktree = worktree, resultText = resultText)
+      }
+
+  /**
+   * Delegates everything to [Observer.Noop] except [observeRawAssistantResponse], which it records.
+   */
+  private class RecordingRawResponseObserver : Observer by Observer.Noop {
+    val rawAssistantResponses: MutableList<String> = mutableListOf()
+
+    override fun observeRawAssistantResponse(
+        responseText: String,
+    ) {
+      rawAssistantResponses += responseText
+    }
+  }
+
+  @Test
+  fun `observeRawAssistantResponse fires once per model turn, including the round before done`() =
+      runBlocking {
+        val client =
+            ScriptedOaiClient(
+                responses =
+                    listOf(
+                        toolCallResponse(
+                            listOf(
+                                toolCall(
+                                    "expand_directory",
+                                    "c1",
+                                    buildJsonObject { put("path", JsonPrimitive("/src")) },
+                                )
+                            )
+                        ),
+                        toolCallResponse(listOf(toolCall("done", "c2", doneReportArgs(anyReport)))),
+                    ),
+            )
+        val toolbox = applyingToolbox()
+        val assistant = HrsProperAssistant(openaiClient = client)
+        val observer = RecordingRawResponseObserver()
+
+        assistant.runDelegation(
+            context = anyContext,
+            taskDefinition = anyTaskDefinition,
+            toolbox = toolbox,
+            observer = observer,
+        )
+
+        assertEquals(2, observer.rawAssistantResponses.size)
+        assertTrue(observer.rawAssistantResponses[0].contains("expand_directory"))
+        assertTrue(observer.rawAssistantResponses[1].contains("done"))
       }
 
   @Test

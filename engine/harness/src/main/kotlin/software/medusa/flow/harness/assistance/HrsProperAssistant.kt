@@ -13,6 +13,7 @@ import software.medusa.commons.openai_client.messages.OaiToolOutputMessage
 import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.commons.openai_client.messages.OaiUserName
 import software.medusa.commons.openai_client.tools.OaiToolCall
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.ai_system.decodeStructured
 import software.medusa.flow.harness.ai_system.extractAssistantMessage
 import software.medusa.flow.harness.history.HrsBranchJournalRendering.renderAssistantJournal
@@ -127,6 +128,7 @@ class HrsProperAssistant(
       context: HrsAssistanceContext,
       taskDefinition: HrsTaskDefinition,
       toolbox: HrsToolbox,
+      observer: Observer,
   ): HrsAssistant.Result {
     val prefixMessages = buildPrefixMessages(context = context, taskDefinition = taskDefinition)
 
@@ -144,6 +146,8 @@ class HrsProperAssistant(
                   inferenceParams = inferenceParams,
               )
               .extractAssistantMessage()
+
+      assistantMessage?.let { observer.observeRawAssistantResponse(responseText = it.toString()) }
 
       if (assistantMessage == null || assistantMessage.toolCalls.isEmpty()) {
         tailMessages =
