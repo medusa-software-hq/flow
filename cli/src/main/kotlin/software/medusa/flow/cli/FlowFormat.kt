@@ -4,9 +4,16 @@ import com.google.protobuf.Timestamp
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import software.medusa.flow.v1.Engine
 import software.medusa.flow.v1.IssuePipeline
 import software.medusa.flow.v1.IssuePipelineState
+import software.medusa.flow.v1.IssuePipelineTransition
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEvent
 import software.medusa.flow.v1.SessionEventKind
@@ -207,4 +214,77 @@ fun formatPipelineTable(pipelines: List<IssuePipeline>): String {
         )
       },
   )
+}
+
+/**
+ * A proto [Timestamp] → full ISO-8601 (`2026-07-17T14:08:03Z`); unset/zero → null. For `--json`.
+ */
+private fun isoTimestampOrNull(timestamp: Timestamp?): String? {
+  if (timestamp == null || (timestamp.seconds == 0L && timestamp.nanos == 0)) return null
+  return runCatching {
+        Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong()).toString()
+      }
+      .getOrNull()
+}
+
+private fun JsonObjectBuilder.putOrNull(key: String, value: String?) {
+  put(key, if (value == null) JsonNull else JsonPrimitive(value))
+}
+
+/**
+ * `flow pipelines watch`'s one-line-per-transition human output: when, repo/issue, the state
+ * change, and the identifiers a follow-up action (a manual apply, `flow pipelines clear`) would
+ * need.
+ */
+fun formatPipelineTransitionLine(transition: IssuePipelineTransition): String {
+  val pipeline = transition.pipeline
+  val issue =
+      if (pipeline.issueNumber > 0) "#${pipeline.issueNumber} ${pipeline.issueTitle}".trim()
+      else emDash
+  val oldLabel =
+      if (transition.oldState == IssuePipelineState.ISSUE_PIPELINE_STATE_UNSPECIFIED) "(new)"
+      else pipelineStateLabel(transition.oldState)
+  val session = if (pipeline.sessionId.isNotBlank()) "  session=${pipeline.sessionId}" else ""
+  val pr = if (pipeline.prUrl.isNotBlank()) "  pr=${pipeline.prUrl}" else ""
+  return "[${formatTimestamp(transition.observedAt)}] ${pipeline.repoFullName} $issue" +
+      "  $oldLabel → ${pipelineStateLabel(pipeline.state)}  id=${pipeline.id}$session$pr"
+}
+
+/** `flow pipelines watch --json`: one well-formed JSON object per transition. */
+fun pipelineTransitionJson(transition: IssuePipelineTransition): String {
+  val pipeline = transition.pipeline
+  val json: JsonObject = buildJsonObject {
+    put("id", pipeline.id)
+    put("repo_full_name", pipeline.repoFullName)
+    put("issue_number", pipeline.issueNumber)
+    putOrNull("issue_title", pipeline.issueTitle.ifBlank { null })
+    putOrNull("issue_url", pipeline.issueUrl.ifBlank { null })
+    put("old_state", transition.oldState.name)
+    put("new_state", pipeline.state.name)
+    putOrNull("session_id", pipeline.sessionId.ifBlank { null })
+    putOrNull("pr_url", pipeline.prUrl.ifBlank { null })
+    put("cleared", pipeline.cleared)
+    put("outbox_stuck", pipeline.outboxStuck)
+    putOrNull("observed_at", isoTimestampOrNull(transition.observedAt))
+  }
+  return json.toString()
+}
+
+/** `flow sessions watch`'s one-line-per-event human output. */
+fun formatSessionEventLine(event: SessionEvent): String {
+  val header = "[${formatTimestamp(event.createdAt)}] ${eventKindLabel(event.kind)}"
+  val message = event.message.trim().lines().filter { it.isNotBlank() }.joinToString(" ")
+  return if (message.isBlank()) header else "$header — $message"
+}
+
+/** `flow sessions watch --json`: one well-formed JSON object per event. */
+fun sessionEventJson(sessionId: String, event: SessionEvent): String {
+  val json: JsonObject = buildJsonObject {
+    put("session_id", sessionId)
+    put("seq", event.seq)
+    put("kind", event.kind.name)
+    putOrNull("message", event.message.ifBlank { null })
+    putOrNull("created_at", isoTimestampOrNull(event.createdAt))
+  }
+  return json.toString()
 }

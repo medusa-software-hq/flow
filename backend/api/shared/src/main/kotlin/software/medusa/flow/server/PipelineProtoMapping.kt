@@ -5,7 +5,7 @@ import software.medusa.flow.v1.IssuePipelineState as ProtoIssuePipelineState
 import software.medusa.flow.v1.issuePipeline
 
 /** Conversions between the storage [IssuePipeline] domain type and its generated proto type. */
-private fun IssuePipelineState.toProto(): ProtoIssuePipelineState =
+internal fun IssuePipelineState.toProto(): ProtoIssuePipelineState =
     when (this) {
       IssuePipelineState.InProgress -> ProtoIssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS
       IssuePipelineState.PrOpen -> ProtoIssuePipelineState.ISSUE_PIPELINE_STATE_PR_OPEN

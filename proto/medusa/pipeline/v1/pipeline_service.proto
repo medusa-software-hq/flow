@@ -56,6 +56,11 @@ service PipelineService {
   // FAILED pipelines only: marks the pipeline cleared, releasing the repo
   // mutex. FAILED_PRECONDITION for any other state.
   rpc ClearIssuePipeline(ClearIssuePipelineRequest) returns (ClearIssuePipelineResponse);
+  // Streams one transition every time some pipeline's state changes, starting from the moment the
+  // call is made — no replay of history, and the stream never completes on its own (the caller
+  // cancels, e.g. Ctrl-C, to stop watching). Read-only, like the rest of this service: purely a
+  // push counterpart to the ListIssuePipelines snapshot.
+  rpc WatchIssuePipelines(WatchIssuePipelinesRequest) returns (stream IssuePipelineTransition);
 }
 
 message ListIssuePipelinesRequest {
@@ -73,6 +78,22 @@ message ClearIssuePipelineRequest {
 
 message ClearIssuePipelineResponse {
   IssuePipeline pipeline = 1;
+}
+
+message WatchIssuePipelinesRequest {
+  // Optional `owner/name` filter; empty watches pipelines across all repos.
+  string repo_full_name = 1;
+}
+
+// One pipeline's state change, as observed by the watch. `pipeline` carries the full row post-change
+// (state, session_id, pr_url, etc.), so a `PR (once opened)` shows up simply by reading
+// `pipeline.pr_url` off the transition into PR_OPEN.
+message IssuePipelineTransition {
+  IssuePipeline pipeline = 1;
+  // The state before this transition. UNSPECIFIED means the pipeline was first observed in this
+  // state after the watch call started (e.g. a fresh pick) — there is no prior state to report.
+  IssuePipelineState old_state = 2;
+  google.protobuf.Timestamp observed_at = 3;
 }
 
 // Internal service, authenticated with a service-account ID token against an

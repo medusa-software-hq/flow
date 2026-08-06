@@ -10,6 +10,7 @@ import software.medusa.flow.v1.IssuePipelineState
 import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.SessionState
 import software.medusa.flow.v1.issuePipeline
+import software.medusa.flow.v1.issuePipelineTransition
 import software.medusa.flow.v1.session
 import software.medusa.flow.v1.sessionEvent
 import software.medusa.flow.v1.settings
@@ -163,5 +164,85 @@ class FlowFormatTest {
   fun `formatSettings renders auto-merge on and off`() {
     assertEquals("Auto-merge: off", formatSettings(settings { autoMerge = false }))
     assertEquals("Auto-merge: on", formatSettings(settings { autoMerge = true }))
+  }
+
+  @Test
+  fun `pipeline transition line shows old to new state, session, and PR`() {
+    val transition = issuePipelineTransition {
+      pipeline = issuePipeline {
+        id = "p-1"
+        repoFullName = "acme/app"
+        issueNumber = 5
+        issueTitle = "Fix the thing"
+        state = IssuePipelineState.ISSUE_PIPELINE_STATE_PR_OPEN
+        sessionId = "s-9"
+        prUrl = "https://github.com/acme/app/pull/9"
+      }
+      oldState = IssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS
+      observedAt = ts(1784297280)
+    }
+
+    val line = formatPipelineTransitionLine(transition)
+    assertTrue(line.contains("acme/app"))
+    assertTrue(line.contains("#5 Fix the thing"))
+    assertTrue(line.contains("In progress → PR open"))
+    assertTrue(line.contains("id=p-1"))
+    assertTrue(line.contains("session=s-9"))
+    assertTrue(line.contains("pr=https://github.com/acme/app/pull/9"))
+  }
+
+  @Test
+  fun `a brand-new pipeline's transition reads as (new), not Unknown to X`() {
+    val transition = issuePipelineTransition {
+      pipeline = issuePipeline {
+        id = "p-2"
+        repoFullName = "acme/app"
+        state = IssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS
+      }
+      // oldState left unset (UNSPECIFIED): a pipeline observed for the first time.
+    }
+
+    assertTrue(formatPipelineTransitionLine(transition).contains("(new) → In progress"))
+  }
+
+  @Test
+  fun `pipeline transition JSON is one well-formed object with old and new state`() {
+    val transition = issuePipelineTransition {
+      pipeline = issuePipeline {
+        id = "p-1"
+        repoFullName = "acme/app"
+        issueNumber = 5
+        state = IssuePipelineState.ISSUE_PIPELINE_STATE_PR_OPEN
+        sessionId = "s-9"
+        prUrl = "https://github.com/acme/app/pull/9"
+      }
+      oldState = IssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS
+      observedAt = ts(1784297280)
+    }
+
+    val json = pipelineTransitionJson(transition)
+    assertTrue(json.contains("\"id\":\"p-1\""))
+    assertTrue(json.contains("\"old_state\":\"ISSUE_PIPELINE_STATE_IN_PROGRESS\""))
+    assertTrue(json.contains("\"new_state\":\"ISSUE_PIPELINE_STATE_PR_OPEN\""))
+    assertTrue(json.contains("\"pr_url\":\"https://github.com/acme/app/pull/9\""))
+  }
+
+  @Test
+  fun `session event line and JSON carry the message and kind`() {
+    val event = sessionEvent {
+      seq = 3
+      kind = SessionEventKind.SESSION_EVENT_KIND_PUBLISHING
+      message = "Publishing the result as a pull request"
+      createdAt = ts(1784297280)
+    }
+
+    val line = formatSessionEventLine(event)
+    assertTrue(line.contains("Publishing"))
+    assertTrue(line.contains("Publishing the result as a pull request"))
+
+    val json = sessionEventJson("s-1", event)
+    assertTrue(json.contains("\"session_id\":\"s-1\""))
+    assertTrue(json.contains("\"seq\":3"))
+    assertTrue(json.contains("\"kind\":\"SESSION_EVENT_KIND_PUBLISHING\""))
   }
 }

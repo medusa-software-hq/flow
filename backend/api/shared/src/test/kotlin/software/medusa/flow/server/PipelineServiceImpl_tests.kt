@@ -7,20 +7,35 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import software.medusa.flow.v1.IssuePipelineState
 import software.medusa.flow.v1.ListIssuePipelinesRequest
 import software.medusa.flow.v1.clearIssuePipelineRequest
 import software.medusa.flow.v1.listIssuePipelinesRequest
+import software.medusa.flow.v1.watchIssuePipelinesRequest
 
 class PipelineServiceImpl_tests {
-  private fun newFixture(): Fixture {
+  private fun newFixture(watchPollInterval: Duration = 20.milliseconds): Fixture {
     val backend = InMemoryPipelineBackend()
     val pipelines = InMemoryIssuePipelineStore(backend)
     val outbox = InMemoryGithubOutboxStore(backend)
     val sessions = InMemorySessionStore()
-    return Fixture(pipelines, outbox, sessions, PipelineServiceImpl(pipelines, outbox, sessions))
+    return Fixture(
+        pipelines,
+        outbox,
+        sessions,
+        PipelineServiceImpl(pipelines, outbox, sessions, watchPollInterval = watchPollInterval),
+    )
   }
 
   private data class Fixture(
@@ -155,4 +170,44 @@ class PipelineServiceImpl_tests {
 
     assertTrue(row.outboxStuck)
   }
+
+  @Test
+  fun `watchIssuePipelines emits a transition when a pipeline's state changes`() = runBlocking {
+    val f = newFixture()
+    val pipeline = f.pipelines.pickA()
+
+    withTimeout(5000) {
+      coroutineScope {
+        val transitionDeferred = async {
+          f.service.watchIssuePipelines(watchIssuePipelinesRequest {}).first {
+            it.pipeline.id == pipeline.id.id
+          }
+        }
+        // Give the watch's first poll a chance to seed its baseline before the pipeline changes,
+        // so the assertion below exercises a genuine *transition* rather than a first-poll replay.
+        delay(50)
+        f.pipelines.markPrOpen(pipeline.id, prNumber = 7, prUrl = "https://x/pr/7")
+
+        val transition = transitionDeferred.await()
+        assertEquals(IssuePipelineState.ISSUE_PIPELINE_STATE_IN_PROGRESS, transition.oldState)
+        assertEquals(IssuePipelineState.ISSUE_PIPELINE_STATE_PR_OPEN, transition.pipeline.state)
+        assertEquals("https://x/pr/7", transition.pipeline.prUrl)
+      }
+    }
+  }
+
+  @Test
+  fun `watchIssuePipelines does not replay pipelines that already existed when the watch started`() =
+      runBlocking {
+        val f = newFixture()
+        f.pipelines.pickA()
+
+        val sawAnything =
+            withTimeoutOrNull(200) {
+              f.service.watchIssuePipelines(watchIssuePipelinesRequest {}).first()
+              true
+            }
+
+        assertNull(sawAnything)
+      }
 }
