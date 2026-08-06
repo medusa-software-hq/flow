@@ -54,6 +54,9 @@ export const sessionEventKindLabel: Record<SessionEventKind, string> = {
   [SessionEventKind.AGENT_ACTION]: 'Agent action',
   [SessionEventKind.ENGINE_BANNER]: 'Engine',
   [SessionEventKind.RUN_COST]: 'Run cost',
+  // M3-11 (leader/assistant engine) event kinds.
+  [SessionEventKind.DELEGATION]: 'Delegation',
+  [SessionEventKind.DELEGATION_REPORT]: 'Delegation report',
 };
 
 export const sessionEventKindColor: Record<SessionEventKind, string> = {
@@ -69,6 +72,8 @@ export const sessionEventKindColor: Record<SessionEventKind, string> = {
   [SessionEventKind.AGENT_ACTION]: 'violet',
   [SessionEventKind.ENGINE_BANNER]: 'violet',
   [SessionEventKind.RUN_COST]: 'teal',
+  [SessionEventKind.DELEGATION]: 'grape',
+  [SessionEventKind.DELEGATION_REPORT]: 'grape',
 };
 
 /** Formats a USD cost for display, e.g. 0.0123 → "$0.0123". Returns "—" for undefined. */

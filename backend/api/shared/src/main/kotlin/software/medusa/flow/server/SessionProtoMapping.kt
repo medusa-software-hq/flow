@@ -55,6 +55,9 @@ private fun SessionEventKind.toProto(): ProtoSessionEventKind =
       SessionEventKind.AgentAction -> ProtoSessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION
       SessionEventKind.EngineBanner -> ProtoSessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER
       SessionEventKind.RunCost -> ProtoSessionEventKind.SESSION_EVENT_KIND_RUN_COST
+      SessionEventKind.Delegation -> ProtoSessionEventKind.SESSION_EVENT_KIND_DELEGATION
+      SessionEventKind.DelegationReport ->
+          ProtoSessionEventKind.SESSION_EVENT_KIND_DELEGATION_REPORT
     }
 
 /**
@@ -122,6 +125,9 @@ fun ProtoSessionEventKind.toDomainOrNull(): SessionEventKind? =
       ProtoSessionEventKind.SESSION_EVENT_KIND_AGENT_ACTION -> SessionEventKind.AgentAction
       ProtoSessionEventKind.SESSION_EVENT_KIND_ENGINE_BANNER -> SessionEventKind.EngineBanner
       ProtoSessionEventKind.SESSION_EVENT_KIND_RUN_COST -> SessionEventKind.RunCost
+      ProtoSessionEventKind.SESSION_EVENT_KIND_DELEGATION -> SessionEventKind.Delegation
+      ProtoSessionEventKind.SESSION_EVENT_KIND_DELEGATION_REPORT ->
+          SessionEventKind.DelegationReport
       ProtoSessionEventKind.SESSION_EVENT_KIND_UNSPECIFIED,
       ProtoSessionEventKind.UNRECOGNIZED -> null
     }

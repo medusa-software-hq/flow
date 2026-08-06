@@ -9,8 +9,8 @@ import software.medusa.flow.v1.Engine
  * Workers are uniform — every worker can run every engine — so the resolver holds a completer for
  * each engine statically; there is no capability set and no "missing entry" failure mode. A
  * session's `engine` is `UNSPECIFIED` when the creator didn't pin one; those run on [default],
- * which is [builtin] unless the caller overrides it (see `FLOW_WORKER_ENGINE=leader` in `main.kt`,
- * the manual local-testing knob for the leader/assistant engine — M3-09).
+ * which is [builtin] unless the caller overrides it (see `FLOW_WORKER_ENGINE=builtin|claude|leader`
+ * in `main.kt` — the opt-in knob for defaulting a worker onto a non-builtin engine, M3-09/M3-11).
  */
 class WrkEngineResolver(
     private val builtin: HrsTaskCompleter,

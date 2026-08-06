@@ -91,6 +91,12 @@ enum SessionEventKind {
   SESSION_EVENT_KIND_AGENT_ACTION = 9;
   SESSION_EVENT_KIND_ENGINE_BANNER = 10;
   SESSION_EVENT_KIND_RUN_COST = 11;
+  // M3-11 (leader/assistant engine): a delegation starting (the leader's task
+  // definition) and a delegation closing (the assistant's structured report).
+  // The leader/assistant engine's own analyze/test gate result reuses
+  // SESSION_EVENT_KIND_HEALTH_CHECK rather than a dedicated kind.
+  SESSION_EVENT_KIND_DELEGATION = 12;
+  SESSION_EVENT_KIND_DELEGATION_REPORT = 13;
 }
 
 message SessionEvent {

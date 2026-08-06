@@ -29,6 +29,7 @@ All via environment variables, no config file in M1:
 | `FLOW_WORKER_GITHUB_APP_PEM` | The App's PKCS#8 private key. The worker signs an App JWT with it and mints a per-repo installation token, refreshing it as it nears expiry. |
 | `OPENROUTER_API_KEY` | As for every other `flow` subcommand. |
 | `FLOW_WORKER_DRAIN_DEADLINE_MILLIS` | Optional. Bounds how long a `SIGTERM`-triggered drain waits for the in-flight session before force-killing it — see [Running it](#running-it). Unset means no bound. |
+| `FLOW_WORKER_ENGINE` | Optional: `builtin` (default), `claude`, or `leader`. Which engine this worker runs an unspecified-engine session on — see [`docs/engines.md`](../docs/engines.md#the-leaderassistant-engine--cloud-opt-in-m3-11). |
 
 Missing or blank required variables fail fast at startup with a message
 naming the specific variable — nothing silently runs half-configured.

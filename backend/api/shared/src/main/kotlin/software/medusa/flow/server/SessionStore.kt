@@ -54,6 +54,10 @@ enum class SessionEventKind {
   AgentAction,
   EngineBanner,
   RunCost,
+  // M3-11 (leader/assistant engine): a delegation starting and a delegation closing. The
+  // leader/assistant engine's own gate result reuses HealthCheck, not a dedicated kind.
+  Delegation,
+  DelegationReport,
 }
 
 /** A session row, toolchain- and transport-agnostic (no proto types here). */

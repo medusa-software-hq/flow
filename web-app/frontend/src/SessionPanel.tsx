@@ -216,19 +216,33 @@ export function SessionPanel({
           </Text>
         ) : (
           <Stack gap="sm">
-            {feedEvents.map((event) => (
-              <Paper key={event.seq} withBorder p="sm">
-                <Group justify="space-between" mb={4}>
-                  <Text fw={600} size="sm">
-                    {sessionEventKindLabel[event.kind]}
-                  </Text>
-                  <Text c="dimmed" size="xs">
-                    {formatTimestamp(event.createdAt)}
-                  </Text>
-                </Group>
-                <Markdown>{event.message}</Markdown>
-              </Paper>
-            ))}
+            {feedEvents.map((event) => {
+              // Leader/assistant-engine delegations (M3-11) are the primary unit of this engine's
+              // feed: a start (the task headline) and a report (the outcome) bracket each
+              // delegation, so both get a distinct tint rather than blending into plain phase/health
+              // events.
+              const isDelegation =
+                event.kind === SessionEventKind.DELEGATION ||
+                event.kind === SessionEventKind.DELEGATION_REPORT;
+              return (
+                <Paper
+                  key={event.seq}
+                  withBorder
+                  p="sm"
+                  bg={isDelegation ? 'var(--mantine-color-grape-light)' : undefined}
+                >
+                  <Group justify="space-between" mb={4}>
+                    <Text fw={600} size="sm">
+                      {sessionEventKindLabel[event.kind]}
+                    </Text>
+                    <Text c="dimmed" size="xs">
+                      {formatTimestamp(event.createdAt)}
+                    </Text>
+                  </Group>
+                  <Markdown>{event.message}</Markdown>
+                </Paper>
+              );
+            })}
           </Stack>
         )}
         {/* Conclude the timeline from the terminal state so the feed never dead-ends on a
