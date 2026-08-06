@@ -1,5 +1,7 @@
 package software.medusa.flow.harness.leadership
 
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
+
 /**
  * The leader/assistant engine's expensive role: one structured-output call per turn over a curated,
  * bounded context (see [HrsProperLeader]). Never throws to report a stuck turn — a persistently
@@ -23,8 +25,12 @@ interface HrsLeader {
 
   /**
    * Renders [context] into the leader prompt and asks for a single structured [HrsLeaderCommand].
+   * [observer] receives this turn's debug-level raw traffic (see
+   * [Observer.observeRawLeaderResponse]); it defaults to [Observer.Noop] for callers that don't
+   * care.
    */
   suspend fun decide(
       context: HrsLeaderContext,
+      observer: Observer = Observer.Noop,
   ): Result
 }

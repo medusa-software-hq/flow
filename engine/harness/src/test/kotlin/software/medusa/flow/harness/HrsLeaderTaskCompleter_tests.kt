@@ -26,6 +26,7 @@ import software.medusa.commons.unix.path.UfsLiteralAbsolutePath
 import software.medusa.commons.unix.path.UfsName
 import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.HrsTaskCompleter.TaskCompletionResult
+import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
 import software.medusa.flow.harness.assistance.FakeHrsAssistant
 import software.medusa.flow.harness.assistance.FakeHrsToolbox
 import software.medusa.flow.harness.assistance.HrsAssistanceContext
@@ -136,6 +137,7 @@ class HrsLeaderTaskCompleter_tests {
   private object NeverCalledLeader : HrsLeader {
     override suspend fun decide(
         context: HrsLeaderContext,
+        observer: Observer,
     ): HrsLeader.Result = error("the leader must not be called when the initial gate fails")
   }
 
@@ -144,6 +146,7 @@ class HrsLeaderTaskCompleter_tests {
         context: HrsAssistanceContext,
         taskDefinition: HrsTaskDefinition,
         toolbox: HrsToolbox,
+        observer: Observer,
     ): HrsAssistant.Result = error("the assistant must not be called when the initial gate fails")
   }
 
@@ -192,7 +195,12 @@ class HrsLeaderTaskCompleter_tests {
     }
   }
 
-  /** Delegates everything to [Observer.Noop] except [observeCompaction], which it records. */
+  /**
+   * Delegates everything to [Observer.Noop], recording [observeCompaction] calls in [compactions]
+   * (as before) plus every delegation-shaped hook — [HrsPipelinePhase] markers,
+   * [HrsTaskCompleter.Observer.observeDelegationStarted]/[observeDelegationReport]/[observeGateResult]
+   * — as one ordered [events] log, so a single test can assert the whole happy-path sequence.
+   */
   private class RecordingObserver : Observer by Observer.Noop {
     data class Compaction(
         val kind: HrsChunkSummaryKind,
@@ -200,7 +208,18 @@ class HrsLeaderTaskCompleter_tests {
         val summary: HrsChunkSummary,
     )
 
+    sealed class Event {
+      data class Phase(val phase: HrsPipelinePhase) : Event()
+
+      data class DelegationStarted(val taskDefinition: HrsTaskDefinition) : Event()
+
+      data class DelegationReport(val report: HrsDelegationReport) : Event()
+
+      data class GateResult(val healthStatus: ProjectHealthStatus) : Event()
+    }
+
     val compactions: MutableList<Compaction> = mutableListOf()
+    val events: MutableList<Event> = mutableListOf()
 
     override fun observeCompaction(
         kind: HrsChunkSummaryKind,
@@ -208,6 +227,30 @@ class HrsLeaderTaskCompleter_tests {
         summary: HrsChunkSummary,
     ) {
       compactions += Compaction(kind = kind, delegationRange = delegationRange, summary = summary)
+    }
+
+    override fun observePhase(
+        phase: HrsPipelinePhase,
+    ) {
+      events += Event.Phase(phase)
+    }
+
+    override fun observeDelegationStarted(
+        taskDefinition: HrsTaskDefinition,
+    ) {
+      events += Event.DelegationStarted(taskDefinition)
+    }
+
+    override fun observeDelegationReport(
+        report: HrsDelegationReport,
+    ) {
+      events += Event.DelegationReport(report)
+    }
+
+    override fun observeGateResult(
+        healthStatus: ProjectHealthStatus,
+    ) {
+      events += Event.GateResult(healthStatus)
     }
   }
 
@@ -401,6 +444,99 @@ class HrsLeaderTaskCompleter_tests {
     assertEquals(0, leader.invocations.single().delegationLog.size)
     assertTrue(assistant.invocations.isEmpty())
   }
+
+  @Test
+  fun `the happy path fires WorkspacePreparing, HealthGate, then one DelegationStarted-DelegationReport pair per delegation, with no gate result since Stop skips the final check`() =
+      runBlocking {
+        val tasks = listOf(taskDefinition("first"), taskDefinition("second"))
+
+        val leader =
+            FakeHrsLeader(
+                results =
+                    tasks.map { task ->
+                      delegateResult(HrsLeaderCommand.Delegate(taskDefinition = task))
+                    } + stopResult,
+            )
+
+        val finalWorktree = VedWorktree.import(loadGitWorktree())
+        val assistant = FakeHrsAssistant(result = HrsAssistant.Result(sampleReport, finalWorktree))
+
+        val observer = RecordingObserver()
+
+        val taskCompleter =
+            buildTaskCompleter(
+                projectManifestLoader = EmptyProjectManifestLoader,
+                leader = leader,
+                assistant = assistant,
+            )
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription = anyTaskDescription,
+                observer = observer,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+
+        assertEquals(
+            listOf(
+                RecordingObserver.Event.Phase(HrsPipelinePhase.WorkspacePreparing),
+                RecordingObserver.Event.Phase(HrsPipelinePhase.HealthGate),
+                RecordingObserver.Event.DelegationStarted(tasks[0]),
+                RecordingObserver.Event.DelegationReport(sampleReport),
+                RecordingObserver.Event.DelegationStarted(tasks[1]),
+                RecordingObserver.Event.DelegationReport(sampleReport),
+            ),
+            observer.events,
+        )
+      }
+
+  @Test
+  fun `exhausting the delegation budget fires a GateResult for the final health check`() =
+      runBlocking {
+        val leader =
+            FakeHrsLeader(
+                results =
+                    listOf(
+                        delegateResult(
+                            HrsLeaderCommand.Delegate(taskDefinition = taskDefinition("again"))
+                        ),
+                    ),
+            )
+        val assistant =
+            FakeHrsAssistant(
+                result = HrsAssistant.Result(sampleReport, VedWorktree.import(loadGitWorktree()))
+            )
+
+        val observer = RecordingObserver()
+
+        val taskCompleter =
+            buildTaskCompleter(
+                projectManifestLoader = EmptyProjectManifestLoader,
+                leader = leader,
+                assistant = assistant,
+                maxDelegations = 2,
+            )
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription = anyTaskDescription,
+                observer = observer,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+
+        val gateResults = observer.events.filterIsInstance<RecordingObserver.Event.GateResult>()
+        assertEquals(listOf(ProjectHealthStatus.Healthy), gateResults.map { it.healthStatus })
+        // The gate result is the last event: the budget-exhausted path checks health once, after
+        // every delegation has already closed.
+        assertEquals(
+            RecordingObserver.Event.GateResult(ProjectHealthStatus.Healthy),
+            observer.events.last(),
+        )
+      }
 
   @Test
   fun `the turn grammar alternates leader and assistant, growing the log by one entry per delegation`() =

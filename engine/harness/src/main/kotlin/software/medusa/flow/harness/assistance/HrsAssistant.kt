@@ -1,5 +1,6 @@
 package software.medusa.flow.harness.assistance
 
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.history.HrsDelegationReport
 import software.medusa.flow.harness.leadership.HrsTaskDefinition
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -27,11 +28,14 @@ interface HrsAssistant {
    * Runs one delegation: [context] carries everything besides the current task (the overall task,
    * the full branch journal, the worktree this thread starts from); [taskDefinition] is this
    * delegation's own instruction; [toolbox] is this delegation's fixed tool surface (already bound
-   * to the physical workspace and project connection it mutates).
+   * to the physical workspace and project connection it mutates). [observer] receives this thread's
+   * debug-level raw traffic (see [Observer.observeRawAssistantResponse]); it defaults to
+   * [Observer.Noop] for callers that don't care.
    */
   suspend fun runDelegation(
       context: HrsAssistanceContext,
       taskDefinition: HrsTaskDefinition,
       toolbox: HrsToolbox,
+      observer: Observer = Observer.Noop,
   ): Result
 }

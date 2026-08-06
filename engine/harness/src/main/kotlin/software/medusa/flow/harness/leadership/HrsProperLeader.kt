@@ -11,6 +11,7 @@ import software.medusa.commons.openai_client.messages.OaiMessage
 import software.medusa.commons.openai_client.messages.OaiSystemMessage
 import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.commons.openai_client.messages.OaiUserName
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.ai_system.extractAssistantText
 import software.medusa.flow.harness.history.HrsLeaderHistoryRendering.renderLeaderHistory
 import software.medusa.flow.virtual_editor.worktree.VedWorktree_leaderRenderingUtils.renderLeaderBoard
@@ -78,6 +79,7 @@ class HrsProperLeader(
 
   override suspend fun decide(
       context: HrsLeaderContext,
+      observer: Observer,
   ): HrsLeader.Result {
     val prefixMessages = buildPrefixMessages(context = context)
 
@@ -92,6 +94,8 @@ class HrsProperLeader(
                   inferenceParams = inferenceParams,
               )
               .extractAssistantText()
+
+      observer.observeRawLeaderResponse(responseText = responseText)
 
       val parseOutcome = runCatching {
         Json.decodeFromString(

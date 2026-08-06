@@ -1,5 +1,6 @@
 package software.medusa.flow.harness.assistance
 
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
 import software.medusa.flow.harness.leadership.HrsTaskDefinition
 
 /**
@@ -22,6 +23,7 @@ class FakeHrsAssistant(
       context: HrsAssistanceContext,
       taskDefinition: HrsTaskDefinition,
       toolbox: HrsToolbox,
+      observer: Observer,
   ): HrsAssistant.Result {
     invocations += Invocation(context = context, taskDefinition = taskDefinition, toolbox = toolbox)
     return result

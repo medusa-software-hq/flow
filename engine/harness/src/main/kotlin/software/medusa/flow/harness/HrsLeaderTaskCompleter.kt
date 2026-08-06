@@ -169,6 +169,7 @@ class HrsLeaderTaskCompleter(
               projectConnection = projectConnection,
               delegationsMade = leadOutcome.delegationsMade,
               physicalWorkspace = physicalWorkspace,
+              observer = observer,
           )
     }
   }
@@ -202,7 +203,7 @@ class HrsLeaderTaskCompleter(
             chunkConfig = chunkConfig,
         )
 
-    return when (val decision = leader.decide(context = leaderContext)) {
+    return when (val decision = leader.decide(context = leaderContext, observer = observer)) {
       // The leader could not produce a valid command — nothing more to try; land wherever the
       // project currently is, same as running out of the delegation budget.
       is HrsLeader.Result.Failed -> LeadOutcome.GaveUp(delegationsMade = delegationCount)
@@ -212,6 +213,8 @@ class HrsLeaderTaskCompleter(
             HrsLeaderCommand.Stop -> LeadOutcome.Stopped(finalWorktree = baseWorktree)
 
             is HrsLeaderCommand.Delegate -> {
+              observer.observeDelegationStarted(taskDefinition = command.taskDefinition)
+
               val hiddenWorktree =
                   applyHideList(
                       hideList = command.hideList,
@@ -239,7 +242,10 @@ class HrsLeaderTaskCompleter(
                           ),
                       taskDefinition = command.taskDefinition,
                       toolbox = toolbox,
+                      observer = observer,
                   )
+
+              observer.observeDelegationReport(report = assistantResult.report)
 
               val closedDelegationLog =
                   baseDelegationLog.append(
@@ -462,22 +468,28 @@ class HrsLeaderTaskCompleter(
       projectConnection: UnpProjectConnection,
       delegationsMade: Int,
       physicalWorkspace: PhwWorkspace,
-  ): TaskCompletionResult =
-      when (val healthStatus = verifyFinalHealth(projectConnection = projectConnection)) {
-        ProjectHealthStatus.Healthy ->
-            TaskCompletionResult.Success(
-                temporaryWorkspace =
-                    HrsPhysicalTemporaryWorkspace(
-                        physicalWorkspace = physicalWorkspace,
-                    ),
-            )
+      observer: Observer,
+  ): TaskCompletionResult {
+    val healthStatus = verifyFinalHealth(projectConnection = projectConnection)
 
-        is ProjectHealthStatus.Unhealthy ->
-            TaskCompletionResult.Failure.AttemptsExhausted(
-                attemptsMade = delegationsMade,
-                lastHealthStatus = healthStatus,
-            )
-      }
+    observer.observeGateResult(healthStatus = healthStatus)
+
+    return when (healthStatus) {
+      ProjectHealthStatus.Healthy ->
+          TaskCompletionResult.Success(
+              temporaryWorkspace =
+                  HrsPhysicalTemporaryWorkspace(
+                      physicalWorkspace = physicalWorkspace,
+                  ),
+          )
+
+      is ProjectHealthStatus.Unhealthy ->
+          TaskCompletionResult.Failure.AttemptsExhausted(
+              attemptsMade = delegationsMade,
+              lastHealthStatus = healthStatus,
+          )
+    }
+  }
 
   private suspend fun verifyFinalHealth(
       projectConnection: UnpProjectConnection,

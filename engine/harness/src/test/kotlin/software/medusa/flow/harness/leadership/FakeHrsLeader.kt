@@ -1,5 +1,7 @@
 package software.medusa.flow.harness.leadership
 
+import software.medusa.flow.harness.HrsTaskCompleter.Observer
+
 /**
  * A scripted [HrsLeader]: replays [results] one per successive [decide] call (the last one repeats
  * past the end, so a single-element script stands in for "always decide the same way"), and records
@@ -18,6 +20,7 @@ class FakeHrsLeader(
 
   override suspend fun decide(
       context: HrsLeaderContext,
+      observer: Observer,
   ): HrsLeader.Result {
     invocations += context
     return results[(invocations.size - 1).coerceAtMost(results.size - 1)]
