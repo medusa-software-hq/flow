@@ -354,16 +354,19 @@ private fun buildWorkerEngineResolver(
               projectManifestLoader = projectManifestLoader,
           )
 
-  // Cloud opt-in knob (M3-09/M3-11): there is no session-creation UI/label support for
-  // ENGINE_LEADER yet (that's a later story), so this is how an operator opts a worker onto a
-  // non-builtin default engine wholesale — every unspecified-engine session this worker claims
-  // runs on the requested engine instead of builtin. Unset (the default) leaves ENGINE_UNSPECIFIED
-  // routed to builtin, unchanged; an explicit ENGINE_CLAUDE/ENGINE_BUILTIN/ENGINE_LEADER on the
+  // Engine-selection knob (M3-09/M3-11/M3-12): there is no session-creation UI/label support for
+  // ENGINE_LEADER yet (that's a later story), so this is how an operator points a worker's
+  // unspecified-engine sessions at a different engine wholesale — every unspecified-engine session
+  // this worker claims runs on the requested engine instead of the default. As of M3-12, `leader`
+  // is the default (reversibly — this one mapping is the whole flip): unset ENGINE_UNSPECIFIED
+  // routes to leader, unchanged; an explicit ENGINE_CLAUDE/ENGINE_BUILTIN/ENGINE_LEADER on the
   // session itself is unaffected either way -- this only changes what UNSPECIFIED resolves to.
+  // `builtin` and `claude` remain fully selectable, both as an explicit engine on a session and as
+  // a worker-wide `FLOW_WORKER_ENGINE` override, indefinitely as fallbacks.
   val defaultTaskCompleter =
       when (val requested = System.getenv("FLOW_WORKER_ENGINE")) {
         null,
-        "" -> builtinTaskCompleter
+        "" -> leaderTaskCompleter
         "builtin" -> builtinTaskCompleter
         "claude" -> claudeTaskCompleter
         "leader" -> leaderTaskCompleter

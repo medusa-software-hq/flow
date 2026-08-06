@@ -1,13 +1,20 @@
 # Engines
 
-Flow can run a session with one of two **engines** — the agent that actually
+Flow can run a session with one of three **engines** — the agent that actually
 does the work. You pick per session; the rest of Flow (issues, PRs, the web app,
 auto mode) is identical either way.
 
 | Engine | What it is | Best for |
 |---|---|---|
-| **Builtin** | Flow's own agentic loop (the frontline/expert/interpreter system in the [README](../README.md)). Needs a `project.yaml` manifest to know how to build and test the repo. | Repositories set up for Flow, where you want Flow's own loop. |
-| **Claude Agent** | Drives **Claude Code** as a subprocess — Anthropic's shipped tools, agent loop, and context management. Works on **any repository**, `project.yaml` or not. | Arbitrary repos, especially ones without a Flow manifest. |
+| **Leader/Assistant** *(default, M3-12)* | Flow's own leader/assistant loop: a capable-tier leader that delegates bounded turns to a cheap-tier, tool-calling assistant (see [`m3-demo-runbook.md`](m3-demo-runbook.md)). The primary engine going forward — positioned to eventually supersede reliance on the vendor-dependent Claude Agent engine ([M4](m4-demo-runbook.md)). Needs a `project.yaml` manifest to know how to build and test the repo. | The default for new sessions and workers. |
+| **Builtin** *(fallback)* | Flow's original agentic loop (the frontline/expert/interpreter system in the [README](../README.md)). Needs a `project.yaml` manifest to know how to build and test the repo. | Repositories set up for Flow, where you want the original loop instead of the leader/assistant engine. |
+| **Claude Agent** *(fallback)* | Drives **Claude Code** as a subprocess — Anthropic's shipped tools, agent loop, and context management. Works on **any repository**, `project.yaml` or not. | Arbitrary repos, especially ones without a Flow manifest. |
+
+`builtin` and `claude` remain fully selectable indefinitely — flipping the default
+to `leader` (M3-12) doesn't remove either; it only changes what an unspecified
+selection resolves to. Reverting the M3-12 change (the `FLOW_WORKER_ENGINE`
+default mapping in `cli/main.kt`) restores the prior `builtin` default everywhere,
+in one PR.
 
 > "Claude Agent" / "Powered by Claude". Same publishing, PR conventions, and
 > review flow as Builtin — only the agent in the middle differs. Flow's
@@ -26,20 +33,20 @@ auto mode) is identical either way.
   session with no engine chosen runs on the worker's default. So a Claude-Agent
   session simply waits for a Claude-capable worker.
 
-### The leader/assistant engine — cloud opt-in (M3-11)
+### `FLOW_WORKER_ENGINE` — pointing a worker at one engine (M3-09/M3-11/M3-12)
 
 `ENGINE_LEADER` (see the sibling engines above) has no session-creation UI/label
-support yet — that's a later story. Until then, a worker opts *itself* onto it by
-setting **`FLOW_WORKER_ENGINE=leader`**: every session that worker claims with no
-engine chosen (`ENGINE_UNSPECIFIED` — the vast majority, since there's no UI to pick
-otherwise) runs on the leader/assistant engine instead of Builtin. Sessions that
-*do* pin an engine explicitly (`ENGINE_CLAUDE`, or an explicit `ENGINE_BUILTIN`) are
-unaffected either way.
+support yet — that's a later story. Until then, `FLOW_WORKER_ENGINE` is how an
+operator points a whole worker's unspecified-engine sessions at one engine for a
+manual end-to-end run, without a session UI/label to drive the choice per-session:
+every session that worker claims with no engine chosen (`ENGINE_UNSPECIFIED` — the
+vast majority, since there's no UI to pick otherwise) runs on the requested engine.
+Sessions that *do* pin an engine explicitly (`ENGINE_CLAUDE`, or an explicit
+`ENGINE_BUILTIN`/`ENGINE_LEADER`) are unaffected either way.
 
-`FLOW_WORKER_ENGINE` also accepts `builtin` (the default, equivalent to leaving it
-unset) and `claude`, for the same reason M3-09 needed a `leader` value: a way to
-point a whole worker at one engine for a manual end-to-end run without a session
-UI/label to drive the choice per-session.
+`FLOW_WORKER_ENGINE` accepts `leader` (**the default as of M3-12**, equivalent to
+leaving it unset), `builtin`, and `claude` — set it to `builtin` or `claude` to run
+a worker on one of the fallback engines instead.
 
 ## Manifest-optional (the Claude Agent headline)
 

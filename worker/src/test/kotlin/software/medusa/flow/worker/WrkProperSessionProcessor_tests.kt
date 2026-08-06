@@ -332,14 +332,16 @@ class WrkProperSessionProcessor_tests {
         run(Engine.ENGINE_LEADER)
         assertEquals(1, leader.runs)
 
-        // UNSPECIFIED → the configured default (builtin).
+        // UNSPECIFIED → the configured default (leader, M3-12).
         run(Engine.ENGINE_UNSPECIFIED)
-        assertEquals(2, builtin.runs)
+        assertEquals(1, builtin.runs)
         assertEquals(1, claude.runs)
-        assertEquals(1, leader.runs)
+        assertEquals(2, leader.runs)
       }
 }
 
+// Explicit `default = taskCompleter`: these tests use an unspecified-engine session and just want
+// their one completer to run, independent of whatever WrkEngineResolver's own default is wired to.
 private fun builtinResolver(
     taskCompleter: HrsTaskCompleter,
 ): WrkEngineResolver =
@@ -347,6 +349,7 @@ private fun builtinResolver(
         builtin = taskCompleter,
         claude = UnimplementedHrsTaskCompleter(engineName = "claude"),
         leader = UnimplementedHrsTaskCompleter(engineName = "leader"),
+        default = taskCompleter,
     )
 
 /**
