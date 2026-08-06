@@ -53,6 +53,7 @@ fun engineLabel(engine: Engine): String =
       Engine.ENGINE_UNSPECIFIED,
       Engine.ENGINE_BUILTIN -> "Builtin"
       Engine.ENGINE_CLAUDE -> "Claude Agent"
+      Engine.ENGINE_LEADER -> "Leader"
       else -> "Builtin"
     }
 

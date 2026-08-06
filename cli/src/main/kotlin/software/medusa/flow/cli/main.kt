@@ -11,6 +11,7 @@ import software.medusa.commons.openai_client.OaiModel
 import software.medusa.commons.openai_client.OaiProperClient
 import software.medusa.commons.system.SysExecutableHandle
 import software.medusa.commons.system.SysProcessSpawner
+import software.medusa.flow.harness.HrsLeaderTaskCompleter
 import software.medusa.flow.harness.HrsProperTaskCompleter
 import software.medusa.flow.harness.HrsScriptedTaskCompleter
 import software.medusa.flow.harness.HrsTaskCompleter
@@ -20,9 +21,13 @@ import software.medusa.flow.harness.ai_system.HrsLoggingOaiReporter
 import software.medusa.flow.harness.ai_system.HrsProperExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsRetryingAiClient
+import software.medusa.flow.harness.assistance.HrsProperAssistant
+import software.medusa.flow.harness.assistance.HrsProperToolbox
+import software.medusa.flow.harness.assistance.HrsToolboxFactory
 import software.medusa.flow.harness.claude.HrsClaudeEngineConfig
 import software.medusa.flow.harness.claude.HrsClaudeTaskCompleter
 import software.medusa.flow.harness.claude.HrsProcessClaudeProcess
+import software.medusa.flow.harness.leadership.HrsProperLeader
 import software.medusa.flow.integration.gradle.GrdProperProjectConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsNpmConnector
 import software.medusa.flow.integration.nodejs.package_manager.NjsPackageManagerConnectorHub
@@ -145,8 +150,9 @@ private fun buildPhysicalWorkspaceAllocator(
 /**
  * A resolver for the scripted sad-path engine. Dual-engine fan-out creates a Claude **primary**
  * session for every issue (and the primary is what drives the pipeline), so the scripted worker is
- * now routed a Claude session too. Both engine slots are served from the one scripted completer —
- * no real `claude` binary is located, so this still runs on a claude-less runner.
+ * now routed a Claude session too. Every engine slot — including [leader], M3-09's addition — is
+ * served from the one scripted completer — no real `claude` binary is located, so this still runs
+ * on a claude-less runner.
  */
 private fun buildScriptedEngineResolver(
     scope: CoroutineScope,
@@ -157,14 +163,21 @@ private fun buildScriptedEngineResolver(
           physicalWorkspaceAllocator = buildPhysicalWorkspaceAllocator(scope),
           behavior = behavior,
       )
-  return WrkEngineResolver(builtin = scripted, claude = scripted)
+  return WrkEngineResolver(builtin = scripted, claude = scripted, leader = scripted)
 }
 
 /**
  * Assembles the full worker engine composition: the builtin AI-system graph (frontline/expert plus
- * the scout-decision and patch interpreters, each on its own OpenRouter-configured client) and the
- * claude completer driving the real `claude` binary. Built only when `work` actually runs — this is
- * the only path that requires `OPENROUTER_API_KEY` and the `npm`/`yarn`/`claude` executables.
+ * the scout-decision and patch interpreters, each on its own OpenRouter-configured client), the
+ * claude completer driving the real `claude` binary, and the leader/assistant completer (M3-09).
+ * Built only when `work` actually runs — this is the only path that requires `OPENROUTER_API_KEY`
+ * and the `npm`/`yarn`/`claude` executables.
+ *
+ * **Hardcoded model choices (all engines, one place):** frontline/scout-decision/patch/assistant
+ * run on the cheap tier ([OaiModel.DeepSeekFlash]); expert/leader run on the capable tier
+ * ([OaiModel.GptMidi]) — every role collapses to [OaiModel.DeepSeekFlash] under
+ * `FLOW_TEST_CHEAP_MODELS` (see [expertModel]/[leaderModel]). None of this is configurable yet —
+ * that stays out of scope until a real need for it shows up.
  */
 private fun buildWorkerEngineResolver(
     scope: CoroutineScope,
@@ -203,6 +216,9 @@ private fun buildWorkerEngineResolver(
       if (System.getenv("FLOW_TEST_CHEAP_MODELS") != null) OaiModel.DeepSeekFlash
       else OaiModel.GptMidi
 
+  // The leader (M3-09) is the other capable-tier role — same model, same test override, as expert.
+  val leaderModel = expertModel
+
   // Every LLM call retries a transient empty response (see HrsRetryingAiClient); the response
   // format
   // is fixed at configuration time in commons 0.2.0, so the two structured interpreters get their
@@ -228,10 +244,64 @@ private fun buildWorkerEngineResolver(
               ),
       )
 
+  // The leader (M3-09) is a single structured-output role, no tools — same JSON-configured-client
+  // shape as scoutDecision/patch above, just on the capable model.
+  val leaderClient =
+      HrsRetryingAiClient(
+          delegate =
+              openRouterClient.configured(
+                  model = leaderModel,
+                  responseFormat = HrsProperLeader.responseFormat,
+              ),
+      )
+
+  // The assistant (M3-09) is a tool-calling role on the cheap model — configured with the toolbox's
+  // fixed tool definitions instead of a response format.
+  val assistantClient =
+      HrsRetryingAiClient(
+          delegate =
+              openRouterClient.configured(
+                  model = OaiModel.DeepSeekFlash,
+                  toolDefinitions = HrsProperToolbox.toolDefinitions,
+              ),
+      )
+
+  // The assistant's own chunk-summary requests (story 07) ride the same still-open thread, so this
+  // is not a separate compactor role or model — just the assistant's cheap model reconfigured for
+  // structured output, since one OaiConfiguredClient can't serve both tools and a response format.
+  val assistantChunkSummaryClient =
+      HrsRetryingAiClient(
+          delegate =
+              openRouterClient.configured(
+                  model = OaiModel.DeepSeekFlash,
+                  responseFormat = HrsProperAssistant.chunkSummaryResponseFormat,
+              ),
+      )
+
   val frontlineAiSystem = HrsProperFrontlineAiSystem(openaiClient = frontlineClient)
   val expertAiSystem = HrsProperExpertAiSystem(openaiClient = expertClient)
   val scoutDecisionInterpreter = HrsAiScoutDecisionInterpreter(openaiClient = scoutDecisionClient)
   val patchInterpreter = HrsAiPatchInterpreter(openaiClient = patchClient)
+  val leader = HrsProperLeader(openaiClient = leaderClient)
+  val assistant =
+      HrsProperAssistant(
+          openaiClient = assistantClient,
+          chunkSummaryClient = assistantChunkSummaryClient,
+      )
+  val toolboxFactory =
+      HrsToolboxFactory {
+          gitWorktree,
+          physicalRootDirectory,
+          projectConnection,
+          delegationTimestamp,
+        ->
+        HrsProperToolbox(
+            gitWorktree = gitWorktree,
+            physicalRootDirectory = physicalRootDirectory,
+            projectConnection = projectConnection,
+            delegationTimestamp = delegationTimestamp,
+        )
+      }
 
   val projectManifestLoader: UnpProjectManifestLoader =
       UnpYamlProjectManifestLoader(
@@ -249,12 +319,34 @@ private fun buildWorkerEngineResolver(
           expertAiSystem = expertAiSystem,
       )
 
-  // Workers are uniform, so both the builtin and claude completers are always constructed. The
+  // The leader/assistant engine (M3-09) — no `claude` binary or npm/yarn dependency, so it's always
+  // constructed the same way regardless of routeClaudeToBuiltin.
+  val leaderTaskCompleter: HrsTaskCompleter =
+      HrsLeaderTaskCompleter(
+          physicalWorkspaceAllocator = physicalWorkspaceAllocator,
+          projectManifestLoader = projectManifestLoader,
+          leader = leader,
+          assistant = assistant,
+          toolboxFactory = toolboxFactory,
+      )
+
+  // Manual local-testing knob (M3-09): there is no session-creation UI/label support for
+  // ENGINE_LEADER yet (that's a later story), so this is how an operator exercises the leader
+  // engine end-to-end against a local fixture repo — every unspecified-engine session this worker
+  // claims runs on leader instead of builtin. Unset (the default) leaves ENGINE_UNSPECIFIED routed
+  // to builtin, unchanged; ENGINE_CLAUDE and an explicit ENGINE_BUILTIN are unaffected either way.
+  val defaultTaskCompleter =
+      if (System.getenv("FLOW_WORKER_ENGINE") == "leader") leaderTaskCompleter
+      else builtinTaskCompleter
+
+  // Workers are uniform, so the builtin, claude, and leader completers are always constructed. The
   // claude engine drives the real `claude` binary with its auth-rung env built from
   // `FLOW_CLAUDE_AUTH` — except in the hermetic loop test, which routes the Claude primary to the
   // builtin completer (routeClaudeToBuiltin) so it stays cheap and needs no real claude.
   return WrkEngineResolver(
       builtin = builtinTaskCompleter,
+      leader = leaderTaskCompleter,
+      default = defaultTaskCompleter,
       claude =
           if (routeClaudeToBuiltin) builtinTaskCompleter
           else

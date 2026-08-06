@@ -152,10 +152,11 @@ class WrkProperGitHubPublisher(
         "$safeMarkdown\n\n---\nRefs #$issueNumber\nEngine: ${engine.label()}\nSession: $sessionId"
       }
 
-  /** Short branch-safe engine slug. Anything not Claude is the built-in default. */
+  /** Short branch-safe engine slug. Anything unspecified/unrecognized is the built-in default. */
   private fun Engine.slug(): String =
       when (this) {
         Engine.ENGINE_CLAUDE -> "claude"
+        Engine.ENGINE_LEADER -> "leader"
         else -> "builtin"
       }
 
@@ -163,6 +164,7 @@ class WrkProperGitHubPublisher(
   private fun Engine.label(): String =
       when (this) {
         Engine.ENGINE_CLAUDE -> "Claude"
+        Engine.ENGINE_LEADER -> "Leader"
         else -> "Built-in"
       }
 

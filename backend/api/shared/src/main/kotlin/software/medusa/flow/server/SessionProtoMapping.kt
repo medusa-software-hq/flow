@@ -25,6 +25,7 @@ private fun Engine.toProto(): ProtoEngine =
       Engine.Unspecified -> ProtoEngine.ENGINE_UNSPECIFIED
       Engine.Builtin -> ProtoEngine.ENGINE_BUILTIN
       Engine.Claude -> ProtoEngine.ENGINE_CLAUDE
+      Engine.Leader -> ProtoEngine.ENGINE_LEADER
     }
 
 /** UNSPECIFIED / unrecognised → [Engine.Unspecified] (the claiming worker's default). */
@@ -32,6 +33,7 @@ fun ProtoEngine.toDomain(): Engine =
     when (this) {
       ProtoEngine.ENGINE_BUILTIN -> Engine.Builtin
       ProtoEngine.ENGINE_CLAUDE -> Engine.Claude
+      ProtoEngine.ENGINE_LEADER -> Engine.Leader
       ProtoEngine.ENGINE_UNSPECIFIED,
       ProtoEngine.UNRECOGNIZED -> Engine.Unspecified
     }
