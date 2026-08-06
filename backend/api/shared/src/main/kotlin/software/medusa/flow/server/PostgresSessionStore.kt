@@ -284,6 +284,7 @@ class PostgresSessionStore(
         Engine.Unspecified -> "UNSPECIFIED"
         Engine.Builtin -> "BUILTIN"
         Engine.Claude -> "CLAUDE"
+        Engine.Leader -> "LEADER"
       }
 
   private fun parseEngine(
@@ -293,6 +294,7 @@ class PostgresSessionStore(
         "UNSPECIFIED" -> Engine.Unspecified
         "BUILTIN" -> Engine.Builtin
         "CLAUDE" -> Engine.Claude
+        "LEADER" -> Engine.Leader
         else -> error("Unknown engine: $value")
       }
 

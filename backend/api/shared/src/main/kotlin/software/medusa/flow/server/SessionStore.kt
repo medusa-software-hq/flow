@@ -29,14 +29,15 @@ enum class SessionState {
 }
 
 /**
- * The agentic engine that runs a session (M4). [Unspecified] means "the claiming worker's default";
- * such a session may be claimed by any worker. A named engine may only be claimed by a worker that
- * declares it in its supported set (see [SessionStore.claimNext]).
+ * The agentic engine that runs a session (M4). [Unspecified] means "the claiming worker's default".
+ * Workers are uniform — every worker can run every engine — so a named engine never gates a claim
+ * (see [SessionStore.claimNext]).
  */
 enum class Engine {
   Unspecified,
   Builtin,
   Claude,
+  Leader,
 }
 
 /** The kind of a display-only progress event. Mirrors the proto `SessionEventKind`. */

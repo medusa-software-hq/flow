@@ -294,7 +294,8 @@ class WrkProperSessionProcessor_tests {
       runBlocking {
         val builtin = RecordingTaskCompleter()
         val claude = RecordingTaskCompleter()
-        val resolver = WrkEngineResolver(builtin = builtin, claude = claude)
+        val leader = RecordingTaskCompleter()
+        val resolver = WrkEngineResolver(builtin = builtin, claude = claude, leader = leader)
 
         fun run(engine: Engine) = runBlocking {
           val worktree = tempGitWorktree()
@@ -323,14 +324,19 @@ class WrkProperSessionProcessor_tests {
         run(Engine.ENGINE_CLAUDE)
         assertEquals(1, claude.runs)
         assertEquals(0, builtin.runs)
+        assertEquals(0, leader.runs)
 
         run(Engine.ENGINE_BUILTIN)
         assertEquals(1, builtin.runs)
+
+        run(Engine.ENGINE_LEADER)
+        assertEquals(1, leader.runs)
 
         // UNSPECIFIED → the configured default (builtin).
         run(Engine.ENGINE_UNSPECIFIED)
         assertEquals(2, builtin.runs)
         assertEquals(1, claude.runs)
+        assertEquals(1, leader.runs)
       }
 }
 
@@ -340,6 +346,7 @@ private fun builtinResolver(
     WrkEngineResolver(
         builtin = taskCompleter,
         claude = UnimplementedHrsTaskCompleter(engineName = "claude"),
+        leader = UnimplementedHrsTaskCompleter(engineName = "leader"),
     )
 
 /**

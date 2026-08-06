@@ -31,12 +31,17 @@ enum SessionWriteAck {
 }
 
 // The agentic engine that runs a session (M4). UNSPECIFIED = "the claiming
-// worker's default" (builtin). Workers are uniform — every worker can run every
-// engine — so any worker may claim any session regardless of its engine.
+// worker's default" (builtin, unless the worker overrides it). Workers are
+// uniform — every worker can run every engine — so any worker may claim any
+// session regardless of its engine.
 enum Engine {
   ENGINE_UNSPECIFIED = 0;
   ENGINE_BUILTIN = 1;
   ENGINE_CLAUDE = 2;
+  // The leader/assistant engine (M3). Intended over time to become the primary
+  // engine, superseding reliance on ENGINE_CLAUDE, with ENGINE_BUILTIN kept as
+  // the always-available fallback.
+  ENGINE_LEADER = 3;
 }
 
 message Session {
