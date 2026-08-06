@@ -49,9 +49,8 @@ import software.medusa.flow.universal_project.UnpProjectManifestLoader
 
 /**
  * The leader/assistant engine's real-model integration test (M3-10): a small fixture (a single Lua
- * file with a deliberately broken Fibonacci recursion — reviving the `harness-ng-1` branch's
- * orphaned "run the result" idea, also used by
- * [software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem_integrationTests] for the
+ * file with a deliberately broken Fibonacci recursion — using the "run the result" idea, also used
+ * by [software.medusa.flow.harness.ai_system.HrsProperFrontlineAiSystem_integrationTests] for the
  * builtin engine) and a task asking for it to be fixed, run through the *full*
  * [HrsLeaderTaskCompleter.completeTask] — manifest load, initial gate, the leader/assistant turn
  * grammar, chunk-summary bookkeeping, final gate — against real models.

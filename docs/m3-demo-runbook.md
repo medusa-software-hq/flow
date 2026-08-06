@@ -15,9 +15,9 @@ not failed, when unset), real models, no mocking of the model itself.
 
 - **`HrsLeaderTaskCompleter_integrationTests`** — runs the *full* `HrsLeaderTaskCompleter.completeTask`
   (manifest load, initial gate, the leader/assistant turn grammar, final gate) against a small fixture:
-  a single Lua file with a deliberately broken Fibonacci recursion, reviving the `harness-ng-1`
-  branch's orphaned "run the result" idea (the same fixture shape the builtin engine's own
-  integration test already uses). After the run, the model's actual output is independently
+  a single Lua file with a deliberately broken Fibonacci recursion, using the "run the result"
+  idea (the same fixture shape the builtin engine's own integration test already uses). After
+  the run, the model's actual output is independently
   re-executed in an embedded Lua interpreter and checked for `fib(7) == 13` — not just "the gate
   passed," which the model's own edits could in principle game.
 
