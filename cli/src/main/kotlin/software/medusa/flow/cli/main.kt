@@ -366,7 +366,7 @@ private fun buildWorkerEngineResolver(
   val defaultTaskCompleter =
       when (val requested = System.getenv("FLOW_WORKER_ENGINE")) {
         null,
-        "" -> leaderTaskCompleter
+        "" -> claudeTaskCompleter
         "builtin" -> builtinTaskCompleter
         "claude" -> claudeTaskCompleter
         "leader" -> leaderTaskCompleter
