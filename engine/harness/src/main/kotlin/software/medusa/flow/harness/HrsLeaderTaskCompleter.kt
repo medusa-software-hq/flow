@@ -12,8 +12,11 @@ import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectFailur
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
 import software.medusa.flow.harness.assistance.HrsAssistanceContext
 import software.medusa.flow.harness.assistance.HrsAssistant
+import software.medusa.flow.harness.assistance.HrsChunkSummarizer
 import software.medusa.flow.harness.assistance.HrsToolboxFactory
 import software.medusa.flow.harness.history.HrsChunkConfig
+import software.medusa.flow.harness.history.HrsChunkLayout
+import software.medusa.flow.harness.history.HrsChunkSummaryKind
 import software.medusa.flow.harness.history.HrsDelegationEntry
 import software.medusa.flow.harness.history.HrsDelegationLog
 import software.medusa.flow.harness.leadership.HrsLeader
@@ -46,6 +49,13 @@ import software.medusa.flow.virtual_editor.worktree_adjustment.VedWorktreeAdjust
  * A [HrsLeaderCommand.Delegate]'s `hideList` is applied mechanically — no model round, no judgment
  * — before the delegation starts; a stale or malformed entry is skipped rather than failing the run
  * (see [applyHide]).
+ *
+ * **Chunk summaries (story 07).** Once a delegation closes the log, [withChunkSummaries] checks
+ * whether it also closed a small (and, cascading, a big) chunk — [HrsChunkLayout.closeEventAt],
+ * pure arithmetic on [chunkConfig] and the new log size — and if so asks that delegation's own
+ * [HrsAssistant.Result.chunkSummarizer] (the same, still-open thread, no separate compactor role)
+ * for the summary to store. A degraded (`null`) summary never blocks the run; it just leaves that
+ * chunk to degrade to full/small-summary rendering until a later close retries it.
  *
  * [maxDelegations] is a generous budget on leader turns (≈ delegation count, the milestone's own
  * cost driver). Exhausting it — or the leader itself giving up ([HrsLeader.Result.Failed]) — does
@@ -141,6 +151,7 @@ class HrsLeaderTaskCompleter(
             sourceGitWorktree = sourceGitWorktree,
             physicalRootDirectory = physicalRootDirectory,
             projectConnection = projectConnection,
+            observer = observer,
             delegationCount = 0,
         )
 
@@ -175,6 +186,7 @@ class HrsLeaderTaskCompleter(
       sourceGitWorktree: GitWorktree,
       physicalRootDirectory: UfsMutableDirectory,
       projectConnection: UnpProjectConnection,
+      observer: Observer,
       delegationCount: Int,
   ): LeadOutcome {
     if (delegationCount >= maxDelegations) {
@@ -229,25 +241,97 @@ class HrsLeaderTaskCompleter(
                       toolbox = toolbox,
                   )
 
+              val closedDelegationLog =
+                  baseDelegationLog.append(
+                      entry =
+                          HrsDelegationEntry(
+                              taskDefinition = command.taskDefinition,
+                              report = assistantResult.report,
+                          ),
+                  )
+
               continueLeadingRecursively(
                   taskDescription = taskDescription,
                   baseWorktree = assistantResult.finalWorktree,
                   baseDelegationLog =
-                      baseDelegationLog.append(
-                          entry =
-                              HrsDelegationEntry(
-                                  taskDefinition = command.taskDefinition,
-                                  report = assistantResult.report,
-                              ),
+                      withChunkSummaries(
+                          log = closedDelegationLog,
+                          chunkSummarizer = assistantResult.chunkSummarizer,
+                          observer = observer,
                       ),
                   sourceGitWorktree = sourceGitWorktree,
                   physicalRootDirectory = physicalRootDirectory,
                   projectConnection = projectConnection,
+                  observer = observer,
                   delegationCount = delegationCount + 1,
               )
             }
           }
     }
+  }
+
+  /**
+   * The chunk-close/summary-generation wiring (story 07): [log] has just grown by one entry, so
+   * this checks whether that delegation closed a small chunk (and, cascading, a big chunk too — see
+   * [HrsChunkLayout.closeEventAt]) and, for each close, asks [chunkSummarizer] — the just-finished
+   * delegation's still-open thread — for exactly one summary. A big-chunk close is summarized from
+   * the delegation range spanning its small chunks directly, never by concatenating the small
+   * summaries already stored, since [chunkSummarizer] always answers from the thread's full,
+   * never-compacted journal regardless of range.
+   *
+   * A `null` summary (no summarizing client configured, a network failure, a malformed response, …)
+   * simply leaves that chunk unstored — never blocks the run — and the next close for that tier
+   * retries; [observer.observeCompaction] only fires for a summary that was actually produced and
+   * stored.
+   */
+  private suspend fun withChunkSummaries(
+      log: HrsDelegationLog,
+      chunkSummarizer: HrsChunkSummarizer,
+      observer: Observer,
+  ): HrsDelegationLog {
+    val closeEvent =
+        HrsChunkLayout.closeEventAt(delegationCount = log.size, config = chunkConfig) ?: return log
+
+    val layout = HrsChunkLayout.of(delegationCount = log.size, config = chunkConfig)
+
+    val smallChunkRange = layout.smallChunkDelegationRange(closeEvent.closedSmallChunkIndex)
+
+    val logWithSmallSummary =
+        chunkSummarizer
+            .summarize(delegationRange = smallChunkRange, kind = HrsChunkSummaryKind.SmallChunk)
+            ?.let { summary ->
+              observer.observeCompaction(
+                  kind = HrsChunkSummaryKind.SmallChunk,
+                  delegationRange = smallChunkRange,
+                  summary = summary,
+              )
+              log.withSmallChunkSummary(
+                  chunkIndex = closeEvent.closedSmallChunkIndex,
+                  summary = summary,
+              )
+            } ?: log
+
+    val closedBigChunkIndex = closeEvent.closedBigChunkIndex ?: return logWithSmallSummary
+
+    val bigChunkSmallChunkRange = layout.bigChunkSmallChunkRange(closedBigChunkIndex)
+    val bigChunkDelegationRange =
+        layout.smallChunkDelegationRange(bigChunkSmallChunkRange.first).first..layout
+                .smallChunkDelegationRange(bigChunkSmallChunkRange.last)
+                .last
+
+    return chunkSummarizer
+        .summarize(delegationRange = bigChunkDelegationRange, kind = HrsChunkSummaryKind.BigChunk)
+        ?.let { summary ->
+          observer.observeCompaction(
+              kind = HrsChunkSummaryKind.BigChunk,
+              delegationRange = bigChunkDelegationRange,
+              summary = summary,
+          )
+          logWithSmallSummary.withBigChunkSummary(
+              chunkIndex = closedBigChunkIndex,
+              summary = summary,
+          )
+        } ?: logWithSmallSummary
   }
 
   /**

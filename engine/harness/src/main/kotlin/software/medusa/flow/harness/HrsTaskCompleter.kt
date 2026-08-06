@@ -4,6 +4,8 @@ import software.medusa.commons.git.worktree.GitWorktree
 import software.medusa.flow.harness.ai_system.HrsExpertAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem
 import software.medusa.flow.harness.ai_system.HrsFrontlineAiSystem.ProjectHealthStatus
+import software.medusa.flow.harness.history.HrsChunkSummary
+import software.medusa.flow.harness.history.HrsChunkSummaryKind
 import software.medusa.flow.universal_project.UnpProjectConnection.JointResult
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 
@@ -169,6 +171,19 @@ interface HrsTaskCompleter {
      */
     fun observeEngineWarning(
         message: String,
+    ) {}
+
+    /**
+     * A chunk summary was generated and stored (M3-07's leader-history compaction): [kind]
+     * distinguishes a small-chunk close from a big-chunk close, [delegationRange] is the closed
+     * chunk's span, and [summary] is exactly what got stored. Fires only on a *successful*
+     * generation — a failed one degrades silently (the leader's rendering falls back to full/small
+     * contents; the next close retries) and is not observed here. No-op by default.
+     */
+    fun observeCompaction(
+        kind: HrsChunkSummaryKind,
+        delegationRange: IntRange,
+        summary: HrsChunkSummary,
     ) {}
   }
 

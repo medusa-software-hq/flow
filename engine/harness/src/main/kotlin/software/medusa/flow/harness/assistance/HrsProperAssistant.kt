@@ -1,20 +1,25 @@
 package software.medusa.flow.harness.assistance
 
 import java.util.logging.Logger
+import kotlinx.schema.generator.json.serialization.SerializationClassJsonSchemaGenerator
 import software.medusa.commons.openai_client.OaiChatHistory
 import software.medusa.commons.openai_client.OaiConfiguredClient
 import software.medusa.commons.openai_client.OaiInferenceParams
 import software.medusa.commons.openai_client.OaiReasoningEffort
+import software.medusa.commons.openai_client.OaiResponseFormat
 import software.medusa.commons.openai_client.messages.OaiMessage
 import software.medusa.commons.openai_client.messages.OaiSystemMessage
 import software.medusa.commons.openai_client.messages.OaiToolOutputMessage
 import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.commons.openai_client.messages.OaiUserName
 import software.medusa.commons.openai_client.tools.OaiToolCall
+import software.medusa.flow.harness.ai_system.decodeStructured
 import software.medusa.flow.harness.ai_system.extractAssistantMessage
 import software.medusa.flow.harness.history.HrsBranchJournalRendering.renderAssistantJournal
+import software.medusa.flow.harness.history.HrsChunkSummaryKind
 import software.medusa.flow.harness.history.HrsDelegationOutcome
 import software.medusa.flow.harness.history.HrsDelegationReport
+import software.medusa.flow.harness.history.HrsRawChunkSummary
 import software.medusa.flow.harness.leadership.HrsTaskDefinition
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
 import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.renderDirectoryTree
@@ -51,9 +56,18 @@ import software.medusa.flow.virtual_editor.worktree.VedWorktree_renderingUtils.r
  * [software.medusa.flow.harness.history.HrsDelegationOutcome.Failed], `checksSummary` replaced with
  * the final diagnostics — and returned normally. Either way the leader only ever sees the report:
  * raw diagnostics never escape this thread.
+ *
+ * **Chunk summaries (story 07).** Every [HrsAssistant.Result] carries a [HrsChunkSummarizer] built
+ * from this thread's own final message list — the executor calls it after the fact, if and only if
+ * this delegation happened to close a chunk, to get one extra structured summary out of the same,
+ * already fully-cached thread rather than spinning up a separate compactor role. Requires a second,
+ * separately configured [chunkSummaryClient] ([OaiConfiguredClient] fixes its response format at
+ * construction, so the same client can't serve both the tool-calling loop and this structured
+ * request); leaving it `null` makes every summary request degrade to `null` too.
  */
 class HrsProperAssistant(
     private val openaiClient: OaiConfiguredClient,
+    private val chunkSummaryClient: OaiConfiguredClient? = null,
     private val maxRounds: Int = defaultMaxRounds,
     private val maxConsecutiveUnproductiveRounds: Int = defaultMaxConsecutiveUnproductiveRounds,
     private val bounceBudget: Int = defaultBounceBudget,
@@ -61,6 +75,22 @@ class HrsProperAssistant(
   companion object {
     const val defaultMaxRounds = 40
     const val defaultMaxConsecutiveUnproductiveRounds = 3
+
+    /**
+     * The JSON response format [chunkSummaryClient] must be configured with (no tools) — built from
+     * [HrsRawChunkSummary]'s serializer, same `commons` 0.2.0 fixed-at-configuration-time
+     * constraint as [software.medusa.flow.harness.leadership.HrsProperLeader.responseFormat]. A
+     * thread that never needs chunk summaries can leave [chunkSummaryClient] `null` and skip
+     * configuring this entirely.
+     */
+    val chunkSummaryResponseFormat: OaiResponseFormat =
+        OaiResponseFormat.Json(
+            name = "chunk_summary",
+            schema =
+                SerializationClassJsonSchemaGenerator.Default.generateSchema(
+                    target = HrsRawChunkSummary.serializer().descriptor,
+                ),
+        )
 
     /**
      * How many times a red gate at `done` may be bounced back into the live thread before the
@@ -138,7 +168,12 @@ class HrsProperAssistant(
         if (round.report != null) {
           when (val gate = toolbox.checkGate()) {
             HrsToolbox.GateOutcome.Healthy ->
-                return HrsAssistant.Result(report = round.report, finalWorktree = worktree)
+                return HrsAssistant.Result(
+                    report = round.report,
+                    finalWorktree = worktree,
+                    chunkSummarizer =
+                        buildChunkSummarizer(threadMessages = prefixMessages + tailMessages),
+                )
 
             is HrsToolbox.GateOutcome.Unhealthy -> {
               if (bounceCount >= bounceBudget) {
@@ -155,6 +190,8 @@ class HrsProperAssistant(
                             bounceCount = bounceCount,
                         ),
                     finalWorktree = worktree,
+                    chunkSummarizer =
+                        buildChunkSummarizer(threadMessages = prefixMessages + tailMessages),
                 )
               }
 
@@ -184,6 +221,7 @@ class HrsProperAssistant(
                         "no successful tool call.",
                 ),
             finalWorktree = worktree,
+            chunkSummarizer = buildChunkSummarizer(threadMessages = prefixMessages + tailMessages),
         )
       }
 
@@ -196,6 +234,7 @@ class HrsProperAssistant(
                 "The assistant did not call `done` within the $maxRounds-round budget."
             ),
         finalWorktree = worktree,
+        chunkSummarizer = buildChunkSummarizer(threadMessages = prefixMessages + tailMessages),
     )
   }
 
@@ -213,6 +252,62 @@ class HrsProperAssistant(
           ),
           OaiUserMessage(content = taskDefinition.markdown, name = OaiUserName(simpleAiName)),
           OaiSystemMessage(content = context.worktree.renderDirectoryTree().render()),
+      )
+
+  /**
+   * Captures [threadMessages] — this thread's final prefix+tail, exactly as the model last saw it —
+   * into an [HrsChunkSummarizer] the executor can call later, if and when a chunk closes. Without a
+   * [chunkSummaryClient] there is nothing to call, so every request degrades to `null` up front
+   * rather than the caller having to special-case a missing client.
+   */
+  private fun buildChunkSummarizer(
+      threadMessages: List<OaiMessage>,
+  ): HrsChunkSummarizer {
+    val client = chunkSummaryClient ?: return HrsChunkSummarizer.unavailable
+
+    return HrsChunkSummarizer { delegationRange, kind ->
+      runCatching {
+            client
+                .completeChat(
+                    chatHistory =
+                        OaiChatHistory(
+                            messages =
+                                threadMessages +
+                                    chunkSummaryRequestMessage(
+                                        delegationRange = delegationRange,
+                                        kind = kind,
+                                    ),
+                        ),
+                    inferenceParams = inferenceParams,
+                )
+                .decodeStructured(deserializer = HrsRawChunkSummary.serializer())
+                .toChunkSummary()
+          }
+          .getOrNull()
+    }
+  }
+
+  private fun chunkSummaryRequestMessage(
+      delegationRange: IntRange,
+      kind: HrsChunkSummaryKind,
+  ): OaiUserMessage =
+      OaiUserMessage(
+          content =
+              when (kind) {
+                HrsChunkSummaryKind.SmallChunk ->
+                    "This delegation just closed a chunk covering delegations t=$delegationRange. " +
+                        "Using the branch journal above and this thread's own task and report, " +
+                        "write a dense Markdown summary of those delegations for the leader's " +
+                        "future reference — from now on the leader sees only this summary, not the " +
+                        "delegations themselves."
+
+                HrsChunkSummaryKind.BigChunk ->
+                    "A larger chunk of delegations, t=$delegationRange, just closed. Using the " +
+                        "full, uncompressed delegation history above (never any prior summaries), " +
+                        "write a single dense Markdown summary of that whole range for the " +
+                        "leader's future reference."
+              },
+          name = OaiUserName(simpleAiName),
       )
 
   private data class RoundOutcome(

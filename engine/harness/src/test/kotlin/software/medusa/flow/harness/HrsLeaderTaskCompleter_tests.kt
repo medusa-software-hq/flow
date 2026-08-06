@@ -30,10 +30,15 @@ import software.medusa.flow.harness.assistance.FakeHrsAssistant
 import software.medusa.flow.harness.assistance.FakeHrsToolbox
 import software.medusa.flow.harness.assistance.HrsAssistanceContext
 import software.medusa.flow.harness.assistance.HrsAssistant
+import software.medusa.flow.harness.assistance.HrsChunkSummarizer
 import software.medusa.flow.harness.assistance.HrsToolbox
 import software.medusa.flow.harness.assistance.HrsToolboxFactory
+import software.medusa.flow.harness.history.HrsChunkConfig
+import software.medusa.flow.harness.history.HrsChunkSummary
+import software.medusa.flow.harness.history.HrsChunkSummaryKind
 import software.medusa.flow.harness.history.HrsDelegationOutcome
 import software.medusa.flow.harness.history.HrsDelegationReport
+import software.medusa.flow.harness.history.HrsLeaderHistoryRendering.renderLeaderHistory
 import software.medusa.flow.harness.leadership.FakeHrsLeader
 import software.medusa.flow.harness.leadership.HrsLeader
 import software.medusa.flow.harness.leadership.HrsLeaderCommand
@@ -167,6 +172,44 @@ class HrsLeaderTaskCompleter_tests {
   }
 
   private val fixedToolboxFactory = HrsToolboxFactory { _, _, _, _ -> FakeHrsToolbox() }
+
+  /**
+   * A scripted [HrsChunkSummarizer]: answers [summaryByKind] (or degrades to `null` for a kind not
+   * listed) and records every [summarize] call, in order, in [calls] — for asserting exactly which
+   * chunk-close requests the executor made and with what delegation range.
+   */
+  private class FakeHrsChunkSummarizer(
+      private val summaryByKind: Map<HrsChunkSummaryKind, HrsChunkSummary> = emptyMap(),
+  ) : HrsChunkSummarizer {
+    val calls: MutableList<Pair<IntRange, HrsChunkSummaryKind>> = mutableListOf()
+
+    override suspend fun summarize(
+        delegationRange: IntRange,
+        kind: HrsChunkSummaryKind,
+    ): HrsChunkSummary? {
+      calls += delegationRange to kind
+      return summaryByKind[kind]
+    }
+  }
+
+  /** Delegates everything to [Observer.Noop] except [observeCompaction], which it records. */
+  private class RecordingObserver : Observer by Observer.Noop {
+    data class Compaction(
+        val kind: HrsChunkSummaryKind,
+        val delegationRange: IntRange,
+        val summary: HrsChunkSummary,
+    )
+
+    val compactions: MutableList<Compaction> = mutableListOf()
+
+    override fun observeCompaction(
+        kind: HrsChunkSummaryKind,
+        delegationRange: IntRange,
+        summary: HrsChunkSummary,
+    ) {
+      compactions += Compaction(kind = kind, delegationRange = delegationRange, summary = summary)
+    }
+  }
 
   /** No modules — every lifecycle phase (bootstrap/analyze/test) trivially succeeds, every call. */
   private object EmptyProjectManifestLoader : UnpProjectManifestLoader {
@@ -320,6 +363,7 @@ class HrsLeaderTaskCompleter_tests {
       assistant: HrsAssistant,
       toolboxFactory: HrsToolboxFactory = fixedToolboxFactory,
       maxDelegations: Int = HrsLeaderTaskCompleter.defaultMaxDelegations,
+      chunkConfig: HrsChunkConfig = HrsChunkConfig.default,
   ): HrsLeaderTaskCompleter =
       HrsLeaderTaskCompleter(
           physicalWorkspaceAllocator = FakePhwWorkspaceAllocator(),
@@ -328,6 +372,7 @@ class HrsLeaderTaskCompleter_tests {
           assistant = assistant,
           toolboxFactory = toolboxFactory,
           maxDelegations = maxDelegations,
+          chunkConfig = chunkConfig,
       )
 
   @Test
@@ -602,5 +647,259 @@ class HrsLeaderTaskCompleter_tests {
         val failure = assertIs<TaskCompletionResult.Failure.AttemptsExhausted>(result)
         // No delegation ever ran — the leader failed on its very first turn.
         assertEquals(0, failure.attemptsMade)
+      }
+
+  @Test
+  fun `a small chunk close asks the just-finished thread's chunk summarizer and stores what it returns, firing observeCompaction`() =
+      runBlocking {
+        val chunkConfig = HrsChunkConfig(smallChunkSize = 3, bigChunkSize = 8)
+        val tasks =
+            listOf(taskDefinition("first"), taskDefinition("second"), taskDefinition("third"))
+
+        val leader =
+            FakeHrsLeader(
+                results =
+                    tasks.map { task ->
+                      delegateResult(HrsLeaderCommand.Delegate(taskDefinition = task))
+                    } + stopResult,
+            )
+
+        val summary = HrsChunkSummary("zzsmallsummaryzz")
+        val chunkSummarizer =
+            FakeHrsChunkSummarizer(summaryByKind = mapOf(HrsChunkSummaryKind.SmallChunk to summary))
+        val finalWorktree = VedWorktree.import(loadGitWorktree())
+        val assistant =
+            FakeHrsAssistant(
+                result =
+                    HrsAssistant.Result(
+                        report = sampleReport,
+                        finalWorktree = finalWorktree,
+                        chunkSummarizer = chunkSummarizer,
+                    ),
+            )
+
+        val observer = RecordingObserver()
+
+        val taskCompleter =
+            buildTaskCompleter(
+                projectManifestLoader = EmptyProjectManifestLoader,
+                leader = leader,
+                assistant = assistant,
+                chunkConfig = chunkConfig,
+            )
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription = anyTaskDescription,
+                observer = observer,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+
+        // Exactly one summarize call — for the small chunk (t=0..2) that closed on the 3rd
+        // delegation — never re-requested on the delegations that came before it closed.
+        assertEquals(listOf(0..2 to HrsChunkSummaryKind.SmallChunk), chunkSummarizer.calls)
+
+        val finalLog = leader.invocations.last().delegationLog
+        assertEquals(summary, finalLog.smallChunkSummaries[0])
+        assertTrue(finalLog.bigChunkSummaries.isEmpty())
+
+        assertEquals(1, observer.compactions.size)
+        val compaction = observer.compactions.single()
+        assertEquals(HrsChunkSummaryKind.SmallChunk, compaction.kind)
+        assertEquals(0..2, compaction.delegationRange)
+        assertEquals(summary, compaction.summary)
+      }
+
+  @Test
+  fun `a big chunk close cascades from its last small chunk close, summarizing the whole big-chunk range from full contents`() =
+      runBlocking {
+        // s=1, B=2: each delegation closes its own small chunk; the 2nd delegation's small-chunk
+        // close is also the 1st big chunk's close.
+        val chunkConfig = HrsChunkConfig(smallChunkSize = 1, bigChunkSize = 2)
+        val tasks = listOf(taskDefinition("first"), taskDefinition("second"))
+
+        val leader =
+            FakeHrsLeader(
+                results =
+                    tasks.map { task ->
+                      delegateResult(HrsLeaderCommand.Delegate(taskDefinition = task))
+                    } + stopResult,
+            )
+
+        val smallSummary = HrsChunkSummary("zzsmallzz")
+        val bigSummary = HrsChunkSummary("zzbigzz")
+        val chunkSummarizer =
+            FakeHrsChunkSummarizer(
+                summaryByKind =
+                    mapOf(
+                        HrsChunkSummaryKind.SmallChunk to smallSummary,
+                        HrsChunkSummaryKind.BigChunk to bigSummary,
+                    ),
+            )
+        val finalWorktree = VedWorktree.import(loadGitWorktree())
+        val assistant =
+            FakeHrsAssistant(
+                result =
+                    HrsAssistant.Result(
+                        report = sampleReport,
+                        finalWorktree = finalWorktree,
+                        chunkSummarizer = chunkSummarizer,
+                    ),
+            )
+
+        val taskCompleter =
+            buildTaskCompleter(
+                projectManifestLoader = EmptyProjectManifestLoader,
+                leader = leader,
+                assistant = assistant,
+                chunkConfig = chunkConfig,
+            )
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription = anyTaskDescription,
+                observer = Observer.Noop,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+
+        // Delegation 0 closes only small chunk 0 (t=0..0); delegation 1 closes small chunk 1
+        // (t=1..1) AND big chunk 0 — requested over the *whole* big-chunk range (t=0..1), never
+        // just the last small chunk and never derived from the small summaries already stored.
+        assertEquals(
+            listOf(
+                0..0 to HrsChunkSummaryKind.SmallChunk,
+                1..1 to HrsChunkSummaryKind.SmallChunk,
+                0..1 to HrsChunkSummaryKind.BigChunk,
+            ),
+            chunkSummarizer.calls,
+        )
+
+        val finalLog = leader.invocations.last().delegationLog
+        assertEquals(mapOf(0 to smallSummary, 1 to smallSummary), finalLog.smallChunkSummaries)
+        assertEquals(mapOf(0 to bigSummary), finalLog.bigChunkSummaries)
+      }
+
+  @Test
+  fun `a chunk close whose summarizer degrades to null stores nothing and never blocks the run`() =
+      runBlocking {
+        val chunkConfig = HrsChunkConfig(smallChunkSize = 1, bigChunkSize = 8)
+        val leader =
+            FakeHrsLeader(
+                results =
+                    listOf(
+                        delegateResult(
+                            HrsLeaderCommand.Delegate(taskDefinition = taskDefinition("only")),
+                        ),
+                        stopResult,
+                    ),
+            )
+        val finalWorktree = VedWorktree.import(loadGitWorktree())
+        // Default chunkSummarizer is HrsChunkSummarizer.unavailable — every request degrades to
+        // null.
+        val assistant = FakeHrsAssistant(result = HrsAssistant.Result(sampleReport, finalWorktree))
+
+        val taskCompleter =
+            buildTaskCompleter(
+                projectManifestLoader = EmptyProjectManifestLoader,
+                leader = leader,
+                assistant = assistant,
+                chunkConfig = chunkConfig,
+            )
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription = anyTaskDescription,
+                observer = Observer.Noop,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+
+        val finalLog = leader.invocations.last().delegationLog
+        assertTrue(finalLog.smallChunkSummaries.isEmpty())
+        assertTrue(finalLog.bigChunkSummaries.isEmpty())
+      }
+
+  @Test
+  fun `once a chunk's summary is stored, its rendered chapter is byte-stable across later turns while only the tail grows`() =
+      runBlocking {
+        val chunkConfig = HrsChunkConfig(smallChunkSize = 3, bigChunkSize = 8)
+        // 9 delegations = 3 small chunks: chunk 0 (t=0..2) closes on the 3rd, and — since the
+        // full window only ever holds the *last two* small chunks — falls out of it and into the
+        // small-summary tier as soon as a 3rd chunk starts (delegation count 7), well before that
+        // 3rd chunk itself closes.
+        val tasks = (1..9).map { n -> taskDefinition("task$n") }
+
+        val leader =
+            FakeHrsLeader(
+                results =
+                    tasks.map { task ->
+                      delegateResult(HrsLeaderCommand.Delegate(taskDefinition = task))
+                    } + stopResult,
+            )
+
+        val summary = HrsChunkSummary("zzstablesummaryzz")
+        val chunkSummarizer =
+            FakeHrsChunkSummarizer(summaryByKind = mapOf(HrsChunkSummaryKind.SmallChunk to summary))
+        val finalWorktree = VedWorktree.import(loadGitWorktree())
+        val assistant =
+            FakeHrsAssistant(
+                result =
+                    HrsAssistant.Result(
+                        report = sampleReport,
+                        finalWorktree = finalWorktree,
+                        chunkSummarizer = chunkSummarizer,
+                    ),
+            )
+
+        val taskCompleter =
+            buildTaskCompleter(
+                projectManifestLoader = EmptyProjectManifestLoader,
+                leader = leader,
+                assistant = assistant,
+                chunkConfig = chunkConfig,
+            )
+
+        val result =
+            taskCompleter.completeTask(
+                sourceGitWorktree = loadGitWorktree(),
+                taskDescription = anyTaskDescription,
+                observer = Observer.Noop,
+            )
+
+        assertIs<TaskCompletionResult.Success>(result)
+
+        // 10 leader calls (sizes 0..9): one per delegation, plus the final Stop after the 9th.
+        assertEquals(10, leader.invocations.size)
+
+        val renderedBySize =
+            leader.invocations.associate { context ->
+              context.delegationLog.size to
+                  context.delegationLog.renderLeaderHistory(chunkConfig).render()
+            }
+
+        // Chunk 0 (t=0..2) closes on the 3rd delegation, but the two-chunk full window still
+        // renders it in full until a 3rd chunk starts (size 7) — only then does its stored summary
+        // actually replace the full rendering. From size 7 onward, every later leader turn's
+        // rendered history carries that exact stored summary text, byte-for-byte, even as more
+        // delegations grow the tail behind it.
+        for (size in 7..9) {
+          assertTrue(
+              renderedBySize.getValue(size).contains(summary.markdown),
+              "size=$size should render the stored chunk-0 summary unchanged",
+          )
+        }
+
+        // Stable because it was generated exactly once at close, not re-requested on every turn.
+        assertEquals(
+            1,
+            chunkSummarizer.calls.count { (range, kind) ->
+              range == 0..2 && kind == HrsChunkSummaryKind.SmallChunk
+            },
+        )
       }
 }

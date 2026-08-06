@@ -2,6 +2,7 @@ package software.medusa.flow.harness.assistance
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -19,15 +20,20 @@ import software.medusa.commons.openai_client.OaiResponse
 import software.medusa.commons.openai_client.OaiResult
 import software.medusa.commons.openai_client.OaiTokenUsage
 import software.medusa.commons.openai_client.messages.OaiAssistantMessage
+import software.medusa.commons.openai_client.messages.OaiSystemMessage
 import software.medusa.commons.openai_client.messages.OaiToolOutputMessage
 import software.medusa.commons.openai_client.messages.OaiUserMessage
 import software.medusa.commons.openai_client.tools.OaiToolCall
 import software.medusa.commons.openai_client.tools.OaiToolCallId
 import software.medusa.commons.openai_client.tools.OaiToolName
 import software.medusa.flow.harness.HrsTaskDescription
+import software.medusa.flow.harness.history.HrsChunkSummary
+import software.medusa.flow.harness.history.HrsChunkSummaryKind
+import software.medusa.flow.harness.history.HrsDelegationEntry
 import software.medusa.flow.harness.history.HrsDelegationLog
 import software.medusa.flow.harness.history.HrsDelegationOutcome
 import software.medusa.flow.harness.history.HrsDelegationReport
+import software.medusa.flow.harness.history.HrsRawChunkSummary
 import software.medusa.flow.harness.leadership.HrsTaskDefinition
 import software.medusa.flow.virtual_editor.worktree.VedExpandedDirectory
 import software.medusa.flow.virtual_editor.worktree.VedWorktree
@@ -91,6 +97,14 @@ class HrsProperAssistant_tests {
     private fun plainTextResponse(
         content: String,
     ): OaiResult<OaiResponse> = toolCallResponse(calls = emptyList(), content = content)
+
+    private fun summaryResponse(
+        markdown: String,
+    ): OaiResult<OaiResponse> =
+        plainTextResponse(
+            content =
+                Json.encodeToString(HrsRawChunkSummary.serializer(), HrsRawChunkSummary(markdown)),
+        )
 
     private fun doneReportArgs(
         report: HrsDelegationReport,
@@ -520,4 +534,135 @@ class HrsProperAssistant_tests {
     assertEquals(anyReport.narrative, result.report.narrative)
     assertEquals(anyReport.filesTouched, result.report.filesTouched)
   }
+
+  @Test
+  fun `without a chunk summary client the returned summarizer always degrades to null`() =
+      runBlocking {
+        val client =
+            ScriptedOaiClient(
+                responses =
+                    listOf(
+                        toolCallResponse(listOf(toolCall("done", "c1", doneReportArgs(anyReport))))
+                    )
+            )
+        val assistant = HrsProperAssistant(openaiClient = client)
+
+        val result =
+            assistant.runDelegation(
+                context = anyContext,
+                taskDefinition = anyTaskDefinition,
+                toolbox = applyingToolbox(),
+            )
+
+        assertNull(
+            result.chunkSummarizer.summarize(
+                delegationRange = 0..2,
+                kind = HrsChunkSummaryKind.SmallChunk,
+            ),
+        )
+      }
+
+  @Test
+  fun `a configured chunk summary client produces the summary it returns`() = runBlocking {
+    val client =
+        ScriptedOaiClient(
+            responses =
+                listOf(toolCallResponse(listOf(toolCall("done", "c1", doneReportArgs(anyReport)))))
+        )
+    val summaryClient = ScriptedOaiClient(responses = listOf(summaryResponse("zzsummaryzz")))
+
+    val assistant = HrsProperAssistant(openaiClient = client, chunkSummaryClient = summaryClient)
+
+    val result =
+        assistant.runDelegation(
+            context = anyContext,
+            taskDefinition = anyTaskDefinition,
+            toolbox = applyingToolbox(),
+        )
+
+    val summary =
+        result.chunkSummarizer.summarize(
+            delegationRange = 0..2,
+            kind = HrsChunkSummaryKind.SmallChunk,
+        )
+
+    assertEquals(HrsChunkSummary("zzsummaryzz"), summary)
+    assertEquals(1, summaryClient.callCount)
+  }
+
+  @Test
+  fun `a malformed summary response degrades to null instead of throwing`() = runBlocking {
+    val client =
+        ScriptedOaiClient(
+            responses =
+                listOf(toolCallResponse(listOf(toolCall("done", "c1", doneReportArgs(anyReport)))))
+        )
+    val summaryClient = ScriptedOaiClient(responses = listOf(plainTextResponse("not valid json")))
+
+    val assistant = HrsProperAssistant(openaiClient = client, chunkSummaryClient = summaryClient)
+
+    val result =
+        assistant.runDelegation(
+            context = anyContext,
+            taskDefinition = anyTaskDefinition,
+            toolbox = applyingToolbox(),
+        )
+
+    assertNull(
+        result.chunkSummarizer.summarize(
+            delegationRange = 0..2,
+            kind = HrsChunkSummaryKind.BigChunk,
+        ),
+    )
+  }
+
+  @Test
+  fun `a big-chunk summary request carries the thread's full journal, not any prior summary`() =
+      runBlocking {
+        val contextWithHistory =
+            anyContext.copy(
+                delegationLog =
+                    HrsDelegationLog(
+                        entries =
+                            listOf(
+                                HrsDelegationEntry(
+                                    taskDefinition = HrsTaskDefinition(markdown = "zzpriortaskzz"),
+                                    report = anyReport.copy(narrative = "zzpriornarrativezz"),
+                                ),
+                            ),
+                    ),
+            )
+
+        val client =
+            ScriptedOaiClient(
+                responses =
+                    listOf(
+                        toolCallResponse(listOf(toolCall("done", "c1", doneReportArgs(anyReport))))
+                    )
+            )
+        val summaryClient = ScriptedOaiClient(responses = listOf(summaryResponse("zzsummaryzz")))
+
+        val assistant =
+            HrsProperAssistant(openaiClient = client, chunkSummaryClient = summaryClient)
+
+        val result =
+            assistant.runDelegation(
+                context = contextWithHistory,
+                taskDefinition = anyTaskDefinition,
+                toolbox = applyingToolbox(),
+            )
+
+        result.chunkSummarizer.summarize(
+            delegationRange = 0..1,
+            kind = HrsChunkSummaryKind.BigChunk,
+        )
+
+        val sentMessages = summaryClient.chatHistories.single().messages
+        assertTrue(
+            sentMessages.any {
+              it is OaiSystemMessage && it.content.contains("zzpriornarrativezz")
+            },
+            "the full, never-compacted journal must ride along into the summary request",
+        )
+      }
 }

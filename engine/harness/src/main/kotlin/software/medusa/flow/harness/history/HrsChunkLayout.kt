@@ -45,6 +45,35 @@ data class HrsChunkLayout(
   }
 
   companion object {
+    /**
+     * What just closed, if anything, now that the delegation log has grown to [delegationCount]
+     * entries (story 07's trigger for summary *generation*, as opposed to the tier arithmetic
+     * above, which only governs *rendering*): a small chunk closes on its `s`-th accepted report; a
+     * big chunk closes on its `B`-th small chunk closing. Both can close at once (the last small
+     * chunk of a big chunk), hence [HrsChunkCloseEvent] carries both.
+     */
+    fun closeEventAt(
+        delegationCount: Int,
+        config: HrsChunkConfig = HrsChunkConfig.default,
+    ): HrsChunkCloseEvent? {
+      if (delegationCount == 0 || delegationCount % config.smallChunkSize != 0) return null
+
+      val closedSmallChunkIndex = delegationCount / config.smallChunkSize - 1
+      val closedSmallChunkCount = closedSmallChunkIndex + 1
+
+      val closedBigChunkIndex =
+          if (closedSmallChunkCount % config.bigChunkSize == 0) {
+            closedSmallChunkCount / config.bigChunkSize - 1
+          } else {
+            null
+          }
+
+      return HrsChunkCloseEvent(
+          closedSmallChunkIndex = closedSmallChunkIndex,
+          closedBigChunkIndex = closedBigChunkIndex,
+      )
+    }
+
     fun of(
         delegationCount: Int,
         config: HrsChunkConfig = HrsChunkConfig.default,
@@ -75,3 +104,13 @@ data class HrsChunkLayout(
     }
   }
 }
+
+/**
+ * The chunk(s) that closed when the delegation log reached a given size — see
+ * [HrsChunkLayout.closeEventAt]. [closedBigChunkIndex] is non-null only when
+ * [closedSmallChunkIndex] was also the last small chunk of its big chunk.
+ */
+data class HrsChunkCloseEvent(
+    val closedSmallChunkIndex: Int,
+    val closedBigChunkIndex: Int?,
+)
