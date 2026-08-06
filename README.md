@@ -11,12 +11,13 @@ that runs the engine locally, and a hosted **web app + worker** that let
 someone submit a task from a browser and get a PR back without touching a
 terminal.
 
-Flow can run a session with one of three engines — the **Leader/Assistant**
-engine (the default), the original **Builtin** engine (its frontline/expert/
-interpreter pipeline is described below), or the **Claude Agent** engine
-(Claude Code driven as a subprocess), which also works on repositories without
-a Flow manifest. Builtin and Claude Agent remain fully supported as fallback
-switches. You pick per session. See [`docs/engines.md`](docs/engines.md).
+Flow can run a session with one of three engines — the **Claude Agent** engine
+(the default; Claude Code driven as a subprocess, which also works on
+repositories without a Flow manifest), the original **Builtin** engine (its
+frontline/expert/interpreter pipeline is described below), or the
+**Leader/Assistant** engine. Builtin and Leader/Assistant remain fully
+supported as fallback switches. You pick per session. See
+[`docs/engines.md`](docs/engines.md).
 
 ## How the Builtin engine works
 
