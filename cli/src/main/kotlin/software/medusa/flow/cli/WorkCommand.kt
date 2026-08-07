@@ -3,6 +3,7 @@ package software.medusa.flow.cli
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.mordant.terminal.Terminal
 import com.linecorp.armeria.client.WebClient
+import java.time.Duration
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -10,6 +11,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import software.medusa.flow.githubapp.GitHubAppConfig
 import software.medusa.flow.githubapp.GitHubAppTokenMinter
 import software.medusa.flow.githubapp.RefreshingGitHubAppToken
+import software.medusa.flow.worker.WrkAuthWedgeWatchdog
 import software.medusa.flow.worker.WrkConfig
 import software.medusa.flow.worker.WrkEngineResolver
 import software.medusa.flow.worker.WrkGitHubTokenSupplierFactory
@@ -118,10 +120,35 @@ class WorkCommand(
             heartbeatIntervalMillis = heartbeatIntervalMillis,
         )
 
+    // The poll and registration loops share one identity token (WrkGrpcApiClient), so an
+    // UNAUTHENTICATED wedge shows up on both — either can trip this first. Both loops already force
+    // a fresh token on every UNAUTHENTICATED; if that isn't clearing it within the threshold, the
+    // underlying identity source itself is stuck, not just the cache, and retrying forever would
+    // silently blackhole this worker until a human notices and restarts it. Halting instead lets
+    // the supervisor respawn with a clean process. Configurable for ops tuning; unset uses 10min,
+    // comfortably past any transient control-plane blip but well short of the multi-hour wedges
+    // this exists for.
+    val authWedgeThresholdMillis =
+        System.getenv("FLOW_WORKER_AUTH_WEDGE_THRESHOLD_MILLIS")?.toLong()
+            ?: Duration.ofMinutes(10).toMillis()
+    val authWedgeWatchdog =
+        WrkAuthWedgeWatchdog(
+            threshold = Duration.ofMillis(authWedgeThresholdMillis),
+            onWedged = { elapsed ->
+              terminal.println(
+                  "FATAL: auth wedged for ${elapsed.toMinutes()}min (UNAUTHENTICATED since first " +
+                      "failure, forced credential refresh didn't clear it); halting so the " +
+                      "supervisor restarts us",
+              )
+              Runtime.getRuntime().halt(1)
+            },
+        )
+
     val pollLoop =
         WrkPollLoop(
             apiClient = apiClient,
             sessionProcessor = sessionProcessor,
+            authWedgeWatchdog = authWedgeWatchdog,
             log = { terminal.println(it) },
         )
 
@@ -132,6 +159,7 @@ class WorkCommand(
         WrkRegistrationLoop(
             apiClient = apiClient,
             identity = WrkWorkerIdentity.fromEnvironment(),
+            authWedgeWatchdog = authWedgeWatchdog,
             log = { terminal.println(it) },
         )
 

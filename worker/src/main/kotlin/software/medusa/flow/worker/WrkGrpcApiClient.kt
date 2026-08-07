@@ -5,6 +5,8 @@ import com.google.auth.oauth2.IdTokenCredentials
 import com.google.auth.oauth2.IdTokenProvider
 import com.linecorp.armeria.client.grpc.GrpcClients
 import io.grpc.auth.MoreCallCredentials
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import software.medusa.flow.v1.Session
 import software.medusa.flow.v1.SessionEventKind
 import software.medusa.flow.v1.SessionWriteAck
@@ -25,11 +27,15 @@ import software.medusa.flow.v1.sessionOrNull
  * --impersonate-service-account=...`, see `worker/scripts/get-worker-credentials.sh`) — the only
  * supported path, deliberately: no downloaded long-lived key file, ever. `google-auth-library`'s
  * [IdTokenCredentials] caches/refreshes the token internally, so minting only happens on expiry,
- * not per call.
+ * not per call — but that internal refresh is timer-driven off the token's own expiry, not
+ * failure-driven: if a call comes back UNAUTHENTICATED (expired/rejected token, or the refresh
+ * itself silently failed) the library has no reason to mint a new one before its own timer says so,
+ * so the caller must force it via [invalidateCredentials].
  */
 class WrkGrpcApiClient
 private constructor(
     private val stub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
+    private val idTokenCredentials: IdTokenCredentials? = null,
 ) : WrkApiClient {
   companion object {
     /**
@@ -77,8 +83,19 @@ private constructor(
       val authenticatedStub =
           baseStub.withCallCredentials(MoreCallCredentials.from(idTokenCredentials))
 
-      return WrkGrpcApiClient(stub = authenticatedStub)
+      return WrkGrpcApiClient(stub = authenticatedStub, idTokenCredentials = idTokenCredentials)
     }
+  }
+
+  /**
+   * Blocking network call — [IdTokenCredentials.refresh] unconditionally mints a new token via the
+   * underlying [IdTokenProvider] and replaces the cached one, regardless of the library's own
+   * FRESH/STALE/EXPIRED view of the old one's expiry. That's the point: a 401 means the cached
+   * token is already bad by the control plane's judgment, not the library's, so its normal
+   * expiry-timer refresh can't be trusted to fix it. No-op when auth is skipped (test seam).
+   */
+  override suspend fun invalidateCredentials() {
+    idTokenCredentials?.let { credentials -> withContext(Dispatchers.IO) { credentials.refresh() } }
   }
 
   // Workers are uniform (every worker runs every engine), so the claim is unconditional — the

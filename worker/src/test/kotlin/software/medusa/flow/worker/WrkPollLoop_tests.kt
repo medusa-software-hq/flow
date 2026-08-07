@@ -2,6 +2,7 @@ package software.medusa.flow.worker
 
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -161,6 +162,41 @@ class WrkPollLoop_tests {
             apiClient.recordedCalls
                 .filterIsInstance<WrkFakeApiClient.RecordedCall.FailSession>()
                 .none { it.sessionId == "stale-session" },
+        )
+      }
+
+  @Test
+  fun `UNAUTHENTICATED forces a fresh credential on every retry and eventually trips the watchdog`() =
+      runBlocking {
+        val apiClient = WrkFakeApiClient()
+        apiClient.claimNextJobFailure = { StatusException(Status.UNAUTHENTICATED) }
+
+        val wedged = CompletableDeferred<Duration>()
+        val watchdog =
+            WrkAuthWedgeWatchdog(
+                threshold = Duration.ofMillis(20),
+                onWedged = { wedged.complete(it) },
+            )
+
+        val pollLoop =
+            WrkPollLoop(
+                apiClient = apiClient,
+                sessionProcessor = WrkSessionProcessor { _, _ -> },
+                emptyPollDelayMillis = 5,
+                authWedgeWatchdog = watchdog,
+                log = {},
+            )
+
+        val job = launch { pollLoop.run() }
+        withTimeout(5_000) { wedged.await() }
+        job.cancel()
+        job.join()
+
+        assertTrue(
+            apiClient.recordedCalls.count {
+              it == WrkFakeApiClient.RecordedCall.InvalidateCredentials
+            } >= 2,
+            "each UNAUTHENTICATED retry must force a fresh credential fetch, not replay the cached one",
         )
       }
 
