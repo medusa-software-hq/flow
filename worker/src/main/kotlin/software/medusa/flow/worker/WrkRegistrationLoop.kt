@@ -1,5 +1,7 @@
 package software.medusa.flow.worker
 
+import io.grpc.Status
+import io.grpc.StatusException
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -20,6 +22,7 @@ class WrkRegistrationLoop(
     private val apiClient: WrkApiClient,
     private val identity: WrkWorkerIdentity,
     private val intervalMillis: Long = defaultIntervalMillis,
+    private val authWedgeWatchdog: WrkAuthWedgeWatchdog? = null,
     private val log: (String) -> Unit = ::println,
 ) {
   companion object {
@@ -45,6 +48,7 @@ class WrkRegistrationLoop(
           workerVersion = identity.workerVersion,
           imageDigest = identity.imageDigest,
       )
+      authWedgeWatchdog?.recordSuccess()
     } catch (e: CancellationException) {
       // Shutdown — let cancellation propagate so the loop stops cleanly.
       throw e
@@ -53,6 +57,18 @@ class WrkRegistrationLoop(
       // rejection) must never take the worker down or interrupt the session it's running. Log and
       // retry on the next tick.
       log("registerWorker failed ($e); will retry in ${intervalMillis}ms")
+      // UNAUTHENTICATED is the one failure mode that flat retrying can't fix on its own: force a
+      // fresh credential rather than replaying the same rejected one, and feed the shared wedge
+      // watchdog — this loop and the poll loop share one identity token, so either noticing a
+      // prolonged wedge first is enough to trip it.
+      if (e is StatusException && e.status.code == Status.Code.UNAUTHENTICATED) {
+        authWedgeWatchdog?.recordFailure()
+        try {
+          apiClient.invalidateCredentials()
+        } catch (invalidateError: Exception) {
+          log("Forcing a fresh credential fetch failed ($invalidateError); will keep retrying")
+        }
+      }
     }
   }
 }

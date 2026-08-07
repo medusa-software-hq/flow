@@ -51,4 +51,12 @@ interface WrkApiClient {
       failureSummary: String,
       workerDeath: Boolean = false,
   )
+
+  /**
+   * Forces the client to mint a fresh credential on its next call, discarding whatever is cached.
+   * Called after an UNAUTHENTICATED response, so a stuck/expired cached token can't just be
+   * replayed forever waiting for a refresh that isn't coming — see [WrkGrpcApiClient]. No-op by
+   * default: fakes and the auth-skipped test client hold no refreshable credential.
+   */
+  suspend fun invalidateCredentials() {}
 }

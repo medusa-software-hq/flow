@@ -30,6 +30,8 @@ class WrkFakeApiClient(
         val failureSummary: String,
         val workerDeath: Boolean = false,
     ) : RecordedCall
+
+    data object InvalidateCredentials : RecordedCall
   }
 
   val recordedCalls: MutableList<RecordedCall> = mutableListOf()
@@ -38,10 +40,17 @@ class WrkFakeApiClient(
     queue.add(session)
   }
 
+  /**
+   * When set, every `claimNextJob` throws this instead of returning — lets tests drive the
+   * control-plane-rejects-every-call paths (e.g. a wedged UNAUTHENTICATED credential).
+   */
+  var claimNextJobFailure: (() -> Exception)? = null
+
   override suspend fun claimNextSession(): Session? =
       if (queue.isEmpty()) null else queue.removeAt(0)
 
   override suspend fun claimNextJob(): List<Session> {
+    claimNextJobFailure?.let { throw it() }
     if (queue.isEmpty()) return emptyList()
     // Drain every queued session sharing the head's job — the fake's stand-in for one job's set.
     val jobId = queue.first().jobId
@@ -50,11 +59,18 @@ class WrkFakeApiClient(
     return job
   }
 
+  /**
+   * When set, every `registerWorker` throws this instead of recording — mirrors
+   * [claimNextJobFailure].
+   */
+  var registerWorkerFailure: (() -> Exception)? = null
+
   override suspend fun registerWorker(
       workerId: String,
       workerVersion: String,
       imageDigest: String,
   ) {
+    registerWorkerFailure?.let { throw it() }
     recordedCalls.add(RecordedCall.RegisterWorker(workerId, workerVersion, imageDigest))
   }
 
@@ -88,5 +104,9 @@ class WrkFakeApiClient(
       workerDeath: Boolean,
   ) {
     recordedCalls.add(RecordedCall.FailSession(sessionId, failureSummary, workerDeath))
+  }
+
+  override suspend fun invalidateCredentials() {
+    recordedCalls.add(RecordedCall.InvalidateCredentials)
   }
 }

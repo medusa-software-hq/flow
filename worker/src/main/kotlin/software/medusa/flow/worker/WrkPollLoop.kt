@@ -27,6 +27,7 @@ class WrkPollLoop(
     private val apiClient: WrkApiClient,
     private val sessionProcessor: WrkSessionProcessor,
     private val emptyPollDelayMillis: Long = 5_000,
+    private val authWedgeWatchdog: WrkAuthWedgeWatchdog? = null,
     private val log: (String) -> Unit = ::println,
 ) {
   private val cordoned = CompletableDeferred<Unit>()
@@ -74,9 +75,12 @@ class WrkPollLoop(
     while (coroutineContext.isActive && !cordoned.isCompleted) {
       val sessions =
           try {
-            apiClient.claimNextJob()
+            apiClient.claimNextJob().also { authWedgeWatchdog?.recordSuccess() }
           } catch (e: StatusException) {
             log("claimNextJob failed (${e.status}), retrying after a delay")
+            if (e.status.code == Status.Code.UNAUTHENTICATED) {
+              handleUnauthenticated()
+            }
             waitOrCordon(emptyPollDelayMillis)
             continue
           }
@@ -113,6 +117,20 @@ class WrkPollLoop(
   /** Waits up to [millis] for a poll retry, but returns as soon as [cordon] is called. */
   private suspend fun waitOrCordon(millis: Long) {
     withTimeoutOrNull(millis) { cordoned.await() }
+  }
+
+  /**
+   * Forces a fresh credential fetch rather than letting the next poll replay the same rejected
+   * token, and feeds the failure into the shared wedge watchdog (if any) so a prolonged stretch of
+   * UNAUTHENTICATED — meaning even the forced refresh isn't fixing it — is surfaced as fatal.
+   */
+  private suspend fun handleUnauthenticated() {
+    authWedgeWatchdog?.recordFailure()
+    try {
+      apiClient.invalidateCredentials()
+    } catch (e: Exception) {
+      log("Forcing a fresh credential fetch failed ($e); will keep retrying")
+    }
   }
 
   private suspend fun processClaimedSession(session: Session) {
